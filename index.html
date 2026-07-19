@@ -1808,11 +1808,17 @@
       <button class="nav-btn" onclick="switchPage('rehabrecord')">
         <span class="nav-icon">📝</span>リハビリ記録
       </button>
+      <button class="nav-btn" onclick="switchPage('dailylog')">
+        <span class="nav-icon">📓</span>業務日誌
+      </button>
       <button class="nav-btn" onclick="switchPage('rehab')">
-        <span class="nav-icon">🏃</span>リハビリ計画書
+        <span class="nav-icon">📘</span>リハビリ計画書
       </button>
       <button class="nav-btn" onclick="switchPage('assessment')">
         <span class="nav-icon">✅</span>アセスメント
+      </button>
+      <button class="nav-btn" onclick="switchPage('monitoring')">
+        <span class="nav-icon">📈</span>モニタリング
       </button>
 
     </nav>
@@ -1932,7 +1938,7 @@
             <div style="font-size:10px; color:var(--muted); margin-top:3px; font-weight:400;">食事・入浴・服薬・既往歴</div>
           </button>
           <button class="mode-btn" data-mode="plan" onclick="selectMode(this)">
-            <span class="mode-icon">🏃</span>リハビリ計画書
+            <span class="mode-icon">📘</span>リハビリ計画書
             <div style="font-size:10px; color:var(--muted); margin-top:3px; font-weight:400;">計画書→リハビリ計画書</div>
           </button>
           <button class="mode-btn" data-mode="free" onclick="selectMode(this)">
@@ -2691,6 +2697,151 @@
 
     </div>
 
+    <!-- ==================== MONITORING PAGE ==================== -->
+    <div class="page" id="page-monitoring">
+
+      <div class="card">
+        <div class="card-title">👤 利用者</div>
+        <div class="resident-selector" id="monitoringResidentSelector">
+          <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
+        </div>
+      </div>
+
+      <div id="monitoringFormArea" style="display:none;">
+
+        <div class="card">
+          <div class="card-title">📅 対象月</div>
+          <input type="month" id="mo_month"
+            style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;"
+            onchange="onMonitoringMonthChange()">
+        </div>
+
+        <div class="card" style="border:2px solid var(--green);">
+          <div class="card-title">🏃 リハビリモニタリング</div>
+          <div id="rehabMoSourceInfo" style="font-size:12px; color:var(--muted); margin-bottom:8px;"></div>
+          <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="generateRehabMonitoring(this)">🤖
+            AIで作成する（1ヶ月分のリハビリ記録＋短期目標をもとに）</button>
+          <div id="rehabMoStatus" style="margin-top:6px;"></div>
+          <textarea id="rehabMoText"
+            style="width:100%; margin-top:10px; padding:10px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit; min-height:160px; resize:vertical;"
+            placeholder="AIで作成、または直接入力できます"></textarea>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="printMonitoring('rehab')">🖨️ 印刷</button>
+            <button class="btn btn-primary" style="flex:2;" onclick="saveMonitoring('rehab')">💾 保存</button>
+          </div>
+        </div>
+
+        <div class="card" style="border:2px solid var(--accent);">
+          <div class="card-title">🧑‍⚕️ 介護モニタリング</div>
+          <div id="careMoSourceInfo" style="font-size:12px; color:var(--muted); margin-bottom:8px;"></div>
+          <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="generateCareMonitoring(this)">🤖
+            AIで作成する（1ヶ月分の記録・経過記録をもとに）</button>
+          <div id="careMoStatus" style="margin-top:6px;"></div>
+          <textarea id="careMoText"
+            style="width:100%; margin-top:10px; padding:10px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit; min-height:160px; resize:vertical;"
+            placeholder="AIで作成、または直接入力できます"></textarea>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="printMonitoring('care')">🖨️ 印刷</button>
+            <button class="btn btn-primary" style="flex:2;" onclick="saveMonitoring('care')">💾 保存</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ==================== DAILY LOG PAGE ==================== -->
+    <div class="page" id="page-dailylog">
+
+      <div class="card">
+        <div class="card-title">📅 日付</div>
+        <div style="display:flex; gap:8px;">
+          <input type="date" id="dl_date"
+            style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;"
+            onchange="loadDailyLog(); renderUsageTable();">
+          <button class="btn btn-secondary btn-sm" onclick="setDailyLogToday()">今日</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">👥 利用者別 利用時間・入浴状況</div>
+        <div id="usageTableArea"></div>
+        <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printUsageTable()">🖨️
+          印刷</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📓 業務日誌</div>
+
+        <div class="form-grid">
+          <div class="form-group"><label>天候</label>
+            <select id="dl_weather">
+              <option value="">未選択</option>
+              <option value="晴れ">晴れ</option>
+              <option value="曇り">曇り</option>
+              <option value="雨">雨</option>
+              <option value="雪">雪</option>
+              <option value="強風">強風</option>
+            </select>
+          </div>
+          <div class="form-group"><label>気温（℃）</label><input type="text" id="dl_temp" placeholder="例：28"></div>
+        </div>
+
+        <div class="form-grid single">
+          <div class="form-group">
+            <label>出勤職員</label>
+            <div class="weekday-chip-row" id="dlStaffChipRow" style="flex-wrap:wrap;"></div>
+            <input type="hidden" id="dl_staff">
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group"><label>利用予定人数（自動集計）</label><input type="text" id="dl_plannedCount" readonly
+              style="background:var(--bg); color:var(--muted);"></div>
+          <div class="form-group"><label>利用実績人数</label><input type="number" id="dl_actualCount"
+              placeholder="実際に利用された人数"></div>
+        </div>
+
+        <div class="form-grid single">
+          <div class="form-group"><label>本日の予定・行事（スケジュールから自動反映／編集可）</label><textarea id="dl_eventsNote"></textarea>
+          </div>
+        </div>
+
+        <div class="form-grid single">
+          <div class="form-group">
+            <label>ヒヤリハット・事故等</label>
+            <div class="weekday-chip-row" id="dlIncidentChipRow">
+              <span class="rp-type-chip" data-v="なし"
+                onclick="toggleChipGeneric(this,'dlIncidentChipRow','dl_incidentFlag')">なし</span>
+              <span class="rp-type-chip" data-v="あり"
+                onclick="toggleChipGeneric(this,'dlIncidentChipRow','dl_incidentFlag')">あり</span>
+            </div>
+            <input type="hidden" id="dl_incidentFlag">
+          </div>
+        </div>
+        <div class="form-grid single">
+          <div class="form-group"><label>ヒヤリハット・事故の内容（「あり」の場合）</label><textarea id="dl_incidentNote"
+              placeholder="発生時刻・状況・対応内容など"></textarea></div>
+        </div>
+
+        <div class="form-grid single">
+          <div class="form-group"><label>その他特記事項</label><textarea id="dl_generalNote"></textarea></div>
+        </div>
+
+        <div class="form-grid single">
+          <div class="form-group"><label>管理者確認</label><input type="text" id="dl_managerConfirm" placeholder="確認者名">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="printDailyLog()">🖨️ 印刷</button>
+          <button class="btn btn-primary" style="flex:2;" onclick="saveDailyLog()">💾 保存</button>
+        </div>
+        <div id="dailyLogSaveStatus" style="margin-top:8px;"></div>
+      </div>
+
+    </div>
+
   </div><!-- /container -->
 
   <!-- ===== 設定モーダル ===== -->
@@ -3061,7 +3212,7 @@
     const DB_KEY = 'deiservice_db';
 
     let appState = {
-      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [] },
+      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {} },
       shorui: {
         files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
         pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null
@@ -3070,7 +3221,8 @@
       schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
       rehab: { selectedResident: null },
       rehabRecord: { selectedResident: null },
-      assessment: { selectedResident: null }
+      assessment: { selectedResident: null },
+      monitoring: { selectedResident: null }
     };
 
     const WEEKDAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
@@ -3101,7 +3253,7 @@
 
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], ...JSON.parse(saved) };
+      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, ...JSON.parse(saved) };
       if (!appState.db.rehabContentList || !appState.db.rehabContentList.length) {
         appState.db.rehabContentList = ['関節可動域訓練', '筋力増強訓練', '歩行訓練', '立位・座位訓練', 'バランス訓練', 'ADL訓練', '嚥下訓練', '言語訓練', '巧緻動作訓練', 'レクリエーション訓練'];
       }
@@ -3123,6 +3275,12 @@
       if (page === 'renrakucho') { renderResidentSelector(); renderRenrakuchoWeekMatrix(); renderTodayRenrakuchoList(); renderCareStaffChips(); }
       if (page === 'rehab') { renderRehabResidentSelector(); renderReviewDueList(); }
       if (page === 'assessment') { renderAssessmentResidentSelector(); }
+      if (page === 'monitoring') { renderMonitoringResidentSelector(); }
+      if (page === 'dailylog') {
+        if (!document.getElementById('dl_date').value) setDailyLogToday();
+        else loadDailyLog();
+        renderUsageTable();
+      }
       if (page === 'transport') {
         if (!document.getElementById('tpDateInput').value) setTransportToday();
         renderTransportTable();
@@ -3439,7 +3597,35 @@
       });
       addSheet('送迎表', tpRows);
 
-      // ⑫ 設定・マスタ情報
+      // ⑫ モニタリング
+      const moRows = [['種別', '対象月', '利用者名', '内容', '最終更新']];
+      Object.entries(db.rehabMonitoring).forEach(([rid, months]) => {
+        Object.entries(months).forEach(([ym, m]) => moRows.push(['リハビリ', ym, residentNameOf(rid), m.text || '', m.updatedAt || '']));
+      });
+      Object.entries(db.careMonitoring).forEach(([rid, months]) => {
+        Object.entries(months).forEach(([ym, m]) => moRows.push(['介護', ym, residentNameOf(rid), m.text || '', m.updatedAt || '']));
+      });
+      addSheet('モニタリング', moRows);
+
+      // ⑬ 業務日誌
+      const dlRows = [['日付', '曜日', '天候', '気温', '出勤職員', '利用予定人数', '利用実績人数', '予定・行事', 'ヒヤリハット・事故', '事故内容', 'その他特記事項', '管理者確認', '最終更新']];
+      Object.keys(db.dailyLog).sort().forEach(date => {
+        const log = db.dailyLog[date];
+        dlRows.push([date, weekdayLabelOf(date), log.weather || '', log.temp || '', (log.staff || '').split(',').filter(Boolean).join('、'),
+          log.plannedCount ?? '', log.actualCount ?? '', log.eventsNote || '', log.incidentFlag || '', log.incidentNote || '', log.generalNote || '', log.managerConfirm || '', log.updatedAt || '']);
+      });
+      addSheet('業務日誌', dlRows);
+
+      // ⑭ 利用時間・入浴状況
+      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考']];
+      Object.keys(db.usageLog).sort().forEach(date => {
+        Object.entries(db.usageLog[date]).forEach(([rid, u]) => {
+          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '']);
+        });
+      });
+      addSheet('利用時間・入浴状況', usRows);
+
+      // ⑮ 設定・マスタ情報
       const setRows = [
         ['項目', '内容'],
         ['施設名', db.facility || ''],
@@ -3785,6 +3971,395 @@
     </style></head><body>
     <h1>送迎表　${escHtml(appState.db.facility || '')}　${dateStr}</h1>
     <table><tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>送り時刻</th><th>車両</th><th>運転手</th><th>備考</th></tr>${rows}</table>
+    </body></html>`);
+      win.document.close();
+      win.print();
+    }
+
+    // ============================================================
+    // MONITORING（リハビリ／介護モニタリング：1ヶ月分の記録からAI作成）
+    // ============================================================
+    function renderMonitoringResidentSelector() {
+      const el = document.getElementById('monitoringResidentSelector');
+      if (!el) return;
+      const residents = appState.db.residentDb;
+      if (!residents.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
+        return;
+      }
+      el.innerHTML = residents.map(r => {
+        const selected = appState.monitoring.selectedResident?.id === r.id;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMonitoringResident('${r.id}')">${r.name}</span>`;
+      }).join('');
+    }
+
+    function currentYearMonth() {
+      const n = new Date();
+      return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function selectMonitoringResident(id) {
+      const r = appState.db.residentDb.find(x => x.id === id);
+      if (!r) return;
+      appState.monitoring.selectedResident = r;
+      renderMonitoringResidentSelector();
+      document.getElementById('monitoringFormArea').style.display = 'block';
+      if (!document.getElementById('mo_month').value) document.getElementById('mo_month').value = currentYearMonth();
+      loadMonitoringForm();
+    }
+
+    function onMonitoringMonthChange() { loadMonitoringForm(); }
+
+    function loadMonitoringForm() {
+      const r = appState.monitoring.selectedResident;
+      if (!r) return;
+      const ym = document.getElementById('mo_month').value || currentYearMonth();
+
+      const rehabRecs = collectMonthlyRehabRecords(r.id, ym);
+      const careRecs = collectMonthlyCareRecords(r.id, ym);
+      document.getElementById('rehabMoSourceInfo').textContent = `対象月のリハビリ記録：${rehabRecs.length}件`;
+      document.getElementById('careMoSourceInfo').textContent = `対象月の記録：${careRecs.filter(x => x.renrakucho).length}件／経過記録：${careRecs.filter(x => x.keiroka).length}件`;
+
+      const rehabSaved = (appState.db.rehabMonitoring[r.id] || {})[ym];
+      const careSaved = (appState.db.careMonitoring[r.id] || {})[ym];
+      document.getElementById('rehabMoText').value = rehabSaved?.text || '';
+      document.getElementById('careMoText').value = careSaved?.text || '';
+      showStatus('rehabMoStatus', rehabSaved?.updatedAt ? `最終更新：${rehabSaved.updatedAt}` : '', 'info');
+      showStatus('careMoStatus', careSaved?.updatedAt ? `最終更新：${careSaved.updatedAt}` : '', 'info');
+    }
+
+    function collectMonthlyRehabRecords(residentId, ym) {
+      const out = [];
+      Object.keys(appState.db.rehabRecordLog).filter(d => d.startsWith(ym)).sort().forEach(date => {
+        const rec = appState.db.rehabRecordLog[date][residentId];
+        if (rec) out.push({ date, rec });
+      });
+      return out;
+    }
+
+    function collectMonthlyCareRecords(residentId, ym) {
+      const dates = new Set([
+        ...Object.keys(appState.db.renrakuchoLog).filter(d => d.startsWith(ym)),
+        ...Object.keys(appState.db.keirokaLog).filter(d => d.startsWith(ym))
+      ]);
+      return Array.from(dates).sort().map(date => ({
+        date,
+        renrakucho: appState.db.renrakuchoLog[date]?.[residentId] || '',
+        keiroka: appState.db.keirokaLog[date]?.[residentId] || ''
+      })).filter(x => x.renrakucho || x.keiroka);
+    }
+
+    async function generateRehabMonitoring(btn) {
+      const r = appState.monitoring.selectedResident;
+      if (!r) { showStatus('rehabMoStatus', '⚠️ 利用者を選択してください', 'info'); return; }
+      const key = appState.renrakucho.apiKey;
+      if (!key) { showStatus('rehabMoStatus', '⚠️ APIキーを設定してください（記録タブで設定できます）', 'info'); return; }
+
+      const ym = document.getElementById('mo_month').value || currentYearMonth();
+      const records = collectMonthlyRehabRecords(r.id, ym);
+      if (!records.length) { showStatus('rehabMoStatus', `⚠️ ${ym}のリハビリ記録がありません`, 'info'); return; }
+
+      const plan = appState.db.rehabPlans[r.id] || {};
+      const goals = [
+        plan.shortGoalMind ? `心身機能：${plan.shortGoalMind}` : '',
+        plan.shortGoalActivity ? `活動：${plan.shortGoalActivity}` : '',
+        plan.shortGoalParticipation ? `参加：${plan.shortGoalParticipation}` : ''
+      ].filter(Boolean).join('／');
+
+      const sessionLines = records.map(({ date, rec }) =>
+        `${date}：内容[${[rec.content, rec.contentOther].filter(Boolean).join('、') || '記載なし'}] 体調[${rec.condition || '－'}] 反応[${rec.reaction || '－'}] 特記[${rec.notes || '－'}]`
+      ).join('\n');
+
+      const orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> 作成中...';
+      showStatus('rehabMoStatus', '', '');
+
+      const prompt = `あなたは通所リハビリのスタッフです。以下は${r.name}様の${ym}のリハビリ記録（${records.length}回分）です。これをもとに、月次モニタリングの文章を作成してください。
+
+短期目標：${goals || '設定なし'}
+
+【リハビリ記録一覧】
+${sessionLines}
+
+ルール：
+・実施回数、実施内容の傾向、体調・反応の傾向をまとめる
+・短期目標に対する進捗状況・達成度を評価する（記録から読み取れる範囲で。無理な推測はしない）
+・今後の方針や留意点があれば触れる
+・記録にない情報を創作しない
+・300〜500文字程度、記録調（敬語不要、客観的に）
+・見出しなど不要。本文のみを出力する。`;
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1536, temperature: 0.6 } })
+          });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+        document.getElementById('rehabMoText').value = text;
+        showStatus('rehabMoStatus', text ? '✅ 作成しました（内容を確認し、保存してください）' : '⚠️ 生成に失敗しました', text ? 'success' : 'info');
+      } catch (err) {
+        showStatus('rehabMoStatus', `❌ エラー: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false; btn.innerHTML = orig;
+      }
+    }
+
+    async function generateCareMonitoring(btn) {
+      const r = appState.monitoring.selectedResident;
+      if (!r) { showStatus('careMoStatus', '⚠️ 利用者を選択してください', 'info'); return; }
+      const key = appState.renrakucho.apiKey;
+      if (!key) { showStatus('careMoStatus', '⚠️ APIキーを設定してください（記録タブで設定できます）', 'info'); return; }
+
+      const ym = document.getElementById('mo_month').value || currentYearMonth();
+      const records = collectMonthlyCareRecords(r.id, ym);
+      if (!records.length) { showStatus('careMoStatus', `⚠️ ${ym}の記録・経過記録がありません`, 'info'); return; }
+
+      const lines = records.map(({ date, keiroka, renrakucho }) =>
+        `${date}：${keiroka || renrakucho}`
+      ).join('\n');
+
+      const orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> 作成中...';
+      showStatus('careMoStatus', '', '');
+
+      const prompt = `あなたは通所サービスのスタッフです。以下は${r.name}様の${ym}の日々の記録（経過記録を優先し、ない日は家族向け記録を使用、${records.length}日分）です。これをもとに、月次モニタリングの文章を作成してください。
+
+【日々の記録一覧】
+${lines}
+
+ルール：
+・利用状況、体調・ADL・気分・活動状況の傾向や変化をまとめる
+・特記すべき出来事（体調変化、転倒、トラブル等）があれば触れる
+・記録にない情報を創作しない
+・300〜500文字程度、記録調（敬語不要、客観的に）
+・見出しなど不要。本文のみを出力する。`;
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1536, temperature: 0.6 } })
+          });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+        document.getElementById('careMoText').value = text;
+        showStatus('careMoStatus', text ? '✅ 作成しました（内容を確認し、保存してください）' : '⚠️ 生成に失敗しました', text ? 'success' : 'info');
+      } catch (err) {
+        showStatus('careMoStatus', `❌ エラー: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false; btn.innerHTML = orig;
+      }
+    }
+
+    function saveMonitoring(kind) {
+      const r = appState.monitoring.selectedResident;
+      if (!r) { alert('利用者を選択してください'); return; }
+      const ym = document.getElementById('mo_month').value || currentYearMonth();
+      const store = kind === 'rehab' ? appState.db.rehabMonitoring : appState.db.careMonitoring;
+      const text = document.getElementById(kind === 'rehab' ? 'rehabMoText' : 'careMoText').value.trim();
+
+      if (!store[r.id]) store[r.id] = {};
+      const updatedAt = new Date().toLocaleString('ja-JP');
+      store[r.id][ym] = { text, updatedAt };
+      saveDb();
+      showStatus(kind === 'rehab' ? 'rehabMoStatus' : 'careMoStatus', `✅ ${updatedAt} に保存しました`, 'success');
+    }
+
+    function printMonitoring(kind) {
+      const r = appState.monitoring.selectedResident;
+      if (!r) { alert('利用者を選択してください'); return; }
+      const ym = document.getElementById('mo_month').value || currentYearMonth();
+      const text = document.getElementById(kind === 'rehab' ? 'rehabMoText' : 'careMoText').value;
+      const title = kind === 'rehab' ? 'リハビリモニタリング' : '介護モニタリング';
+
+      const win = window.open('', '_blank');
+      win.document.write(`
+    <html><head><title>${title} ${ym}</title>
+    <style>body{font-family:sans-serif;padding:24px;line-height:1.8;font-size:13px;} h1{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px;}</style>
+    </head><body>
+    <h1>${title}　${escHtml(appState.db.facility || '')}　${ym}</h1>
+    <div>氏名：${escHtml(r.name)}様</div>
+    <p>${escHtml(text).replace(/\n/g, '<br>')}</p>
+    </body></html>`);
+      win.document.close();
+      win.print();
+    }
+
+    // ============================================================
+    // DAILY LOG（業務日誌）
+    // ============================================================
+    function setDailyLogToday() {
+      document.getElementById('dl_date').value = todayStr();
+      loadDailyLog();
+      renderUsageTable();
+    }
+
+    // ============================================================
+    // USAGE（利用者別 利用時間・入浴状況）
+    // ============================================================
+    function renderUsageTable() {
+      const el = document.getElementById('usageTableArea');
+      if (!el) return;
+      const dateStr = document.getElementById('dl_date').value || todayStr();
+      const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
+      const log = appState.db.usageLog[dateStr] || {};
+
+      if (!residents.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません</div>`;
+        return;
+      }
+
+      const bathOptions = ['', 'あり', 'シャワーのみ', 'なし', '清拭'];
+      const rows = residents.map(r => {
+        const u = log[r.id] || {};
+        const bathSel = bathOptions.map(o => `<option value="${o}" ${u.bathing === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
+        return `<tr>
+      <td class="tp-name">${r.name}</td>
+      <td><input type="time" value="${u.startTime || ''}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
+      <td><input type="time" value="${u.endTime || ''}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
+      <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
+      <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
+    </tr>`;
+      }).join('');
+
+      el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table">
+    <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>入浴</th><th>備考</th></tr>
+    ${rows}
+  </table></div>
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">入力内容は自動保存されます。</div>`;
+    }
+
+    function saveUsageField(dateStr, residentId, field, value) {
+      if (!appState.db.usageLog[dateStr]) appState.db.usageLog[dateStr] = {};
+      if (!appState.db.usageLog[dateStr][residentId]) appState.db.usageLog[dateStr][residentId] = {};
+      appState.db.usageLog[dateStr][residentId][field] = value;
+      saveDb();
+    }
+
+    function printUsageTable() {
+      const dateStr = document.getElementById('dl_date').value || todayStr();
+      const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
+      if (!residents.length) { alert('この日の利用予定者がいません'); return; }
+      const log = appState.db.usageLog[dateStr] || {};
+
+      const rows = residents.map(r => {
+        const u = log[r.id] || {};
+        return `<tr><td>${escHtml(r.name)}</td><td>${u.startTime || ''}</td><td>${u.endTime || ''}</td><td>${escHtml(u.bathing || '')}</td><td>${escHtml(u.note || '')}</td></tr>`;
+      }).join('');
+
+      const win = window.open('', '_blank');
+      win.document.write(`
+    <html><head><title>利用時間・入浴状況 ${dateStr}</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; font-size: 12.5px; }
+      h1 { font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border: 1px solid #999; padding: 5px 7px; text-align: left; }
+      th { background: #f0f0f0; }
+    </style></head><body>
+    <h1>利用時間・入浴状況　${escHtml(appState.db.facility || '')}　${dateStr}</h1>
+    <table><tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>入浴</th><th>備考</th></tr>${rows}</table>
+    </body></html>`);
+      win.document.close();
+      win.print();
+    }
+
+    function renderDailyLogStaffChips() {
+      const row = document.getElementById('dlStaffChipRow');
+      if (!row) return;
+      const combined = [
+        ...(appState.db.rehabStaffList || []).map(n => ({ n, group: 'リハビリ' })),
+        ...(appState.db.careStaffList || []).map(n => ({ n, group: '介護' })),
+        ...(appState.db.otherStaffList || []).map(n => ({ n, group: 'その他' }))
+      ];
+      row.innerHTML = combined.length
+        ? combined.map(s => `<span class="rp-type-chip" data-v="${escAttr(s.n)}" onclick="toggleChipGeneric(this,'dlStaffChipRow','dl_staff')">${escHtml(s.n)}</span>`).join('')
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</span>`;
+      syncChipRow('dlStaffChipRow', 'dl_staff');
+    }
+
+    function loadDailyLog() {
+      const dateStr = document.getElementById('dl_date').value || todayStr();
+      const log = appState.db.dailyLog[dateStr] || {};
+
+      document.getElementById('dl_weather').value = log.weather || '';
+      document.getElementById('dl_temp').value = log.temp || '';
+      document.getElementById('dl_staff').value = log.staff || '';
+      document.getElementById('dl_actualCount').value = log.actualCount ?? '';
+      document.getElementById('dl_incidentFlag').value = log.incidentFlag || '';
+      document.getElementById('dl_incidentNote').value = log.incidentNote || '';
+      document.getElementById('dl_generalNote').value = log.generalNote || '';
+      document.getElementById('dl_managerConfirm').value = log.managerConfirm || '';
+
+      // 利用予定人数は常に最新のスケジュール／出欠データから自動集計
+      const plannedCount = getAttendingCountForDate(dateStr);
+      document.getElementById('dl_plannedCount').value = `${plannedCount}人`;
+      if (log.actualCount === undefined || log.actualCount === null) {
+        document.getElementById('dl_actualCount').value = plannedCount;
+      }
+
+      // 予定・行事欄：保存済みメモがあればそれを、無ければスケジュールの予定から自動生成
+      if (log.eventsNote !== undefined) {
+        document.getElementById('dl_eventsNote').value = log.eventsNote;
+      } else {
+        const events = appState.db.scheduleEvents[dateStr] || [];
+        document.getElementById('dl_eventsNote').value = events.length
+          ? events.map(e => `${e.time ? e.time + ' ' : ''}${EVENT_TYPE_LABELS[e.type] || e.type}：${e.title}${e.memo ? '（' + e.memo + '）' : ''}`).join('\n')
+          : '';
+      }
+
+      renderDailyLogStaffChips();
+      showStatus('dailyLogSaveStatus', log.updatedAt ? `最終更新：${log.updatedAt}` : '', 'info');
+    }
+
+    function saveDailyLog() {
+      const dateStr = document.getElementById('dl_date').value || todayStr();
+      const log = {
+        weather: document.getElementById('dl_weather').value,
+        temp: document.getElementById('dl_temp').value.trim(),
+        staff: document.getElementById('dl_staff').value,
+        plannedCount: getAttendingCountForDate(dateStr),
+        actualCount: document.getElementById('dl_actualCount').value,
+        eventsNote: document.getElementById('dl_eventsNote').value.trim(),
+        incidentFlag: document.getElementById('dl_incidentFlag').value,
+        incidentNote: document.getElementById('dl_incidentNote').value.trim(),
+        generalNote: document.getElementById('dl_generalNote').value.trim(),
+        managerConfirm: document.getElementById('dl_managerConfirm').value.trim(),
+        updatedAt: new Date().toLocaleString('ja-JP')
+      };
+      appState.db.dailyLog[dateStr] = log;
+      saveDb();
+      showStatus('dailyLogSaveStatus', `✅ ${log.updatedAt} に保存しました`, 'success');
+    }
+
+    function printDailyLog() {
+      const dateStr = document.getElementById('dl_date').value || todayStr();
+      const log = appState.db.dailyLog[dateStr];
+      if (!log) { alert('先に保存してください'); return; }
+      const staffNames = (log.staff || '').split(',').filter(Boolean).join('、');
+
+      const win = window.open('', '_blank');
+      win.document.write(`
+    <html><head><title>業務日誌 ${dateStr}</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; line-height: 1.8; font-size: 13px; }
+      h1 { font-size: 17px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+      .row { margin: 5px 0; }
+      .label { font-weight: bold; }
+      .incident { color: ${log.incidentFlag === 'あり' ? '#c0392b' : '#333'}; font-weight: ${log.incidentFlag === 'あり' ? 'bold' : 'normal'}; }
+    </style></head><body>
+    <h1>業務日誌　${escHtml(appState.db.facility || '')}　${dateStr}（${weekdayLabelOf(dateStr)}）</h1>
+    <div class="row"><span class="label">天候：</span>${escHtml(log.weather || '')}　<span class="label">気温：</span>${escHtml(log.temp || '')}℃</div>
+    <div class="row"><span class="label">出勤職員：</span>${escHtml(staffNames)}</div>
+    <div class="row"><span class="label">利用予定人数：</span>${log.plannedCount}人　<span class="label">利用実績人数：</span>${escHtml(String(log.actualCount || ''))}人</div>
+    <div class="row"><span class="label">本日の予定・行事：</span><br>${escHtml(log.eventsNote || '').replace(/\n/g, '<br>')}</div>
+    <div class="row incident"><span class="label">ヒヤリハット・事故等：</span>${escHtml(log.incidentFlag || '')}${log.incidentNote ? '　' + escHtml(log.incidentNote) : ''}</div>
+    <div class="row"><span class="label">その他特記事項：</span><br>${escHtml(log.generalNote || '').replace(/\n/g, '<br>')}</div>
+    <div class="row"><span class="label">管理者確認：</span>${escHtml(log.managerConfirm || '')}</div>
     </body></html>`);
       win.document.close();
       win.print();

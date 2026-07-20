@@ -125,44 +125,6 @@
       background: rgba(255, 255, 255, 0.08);
     }
 
-    /* カテゴリタブ（上段） */
-    .header-cat-nav {
-      display: flex;
-      gap: 6px;
-      margin-top: 12px;
-    }
-
-    .cat-btn {
-      flex: 1;
-      padding: 8px 6px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1.5px solid rgba(255, 255, 255, 0.15);
-      border-radius: 10px;
-      color: rgba(255, 255, 255, 0.75);
-      font-size: 12px;
-      font-weight: 700;
-      font-family: inherit;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.15s;
-    }
-
-    .cat-btn.active {
-      background: rgba(255, 255, 255, 0.9);
-      color: var(--green-dark);
-      border-color: rgba(255, 255, 255, 0.9);
-    }
-
-    .cat-btn:hover:not(.active) {
-      background: rgba(255, 255, 255, 0.16);
-      color: white;
-    }
-
-    /* サブタブ（下段） */
-    .header-nav {
-      margin-top: 6px;
-    }
-
     /* ===== LAYOUT ===== */
     .container {
       max-width: 720px;
@@ -1827,8 +1789,38 @@
       </div>
       <button class="btn btn-secondary btn-sm" onclick="openSettings()" style="flex-shrink:0;">⚙️</button>
     </div>
-    <nav class="header-cat-nav" id="catNav"></nav>
-    <nav class="header-nav" id="subNav"></nav>
+    <nav class="header-nav">
+      <button class="nav-btn" onclick="switchPage('shorui')">
+        <span class="nav-icon">📄</span>書類読取
+      </button>
+      <button class="nav-btn active" onclick="switchPage('db')">
+        <span class="nav-icon">👥</span>利用者DB
+      </button>
+      <button class="nav-btn" onclick="switchPage('schedule')">
+        <span class="nav-icon">📅</span>スケジュール
+      </button>
+      <button class="nav-btn" onclick="switchPage('transport')">
+        <span class="nav-icon">🚐</span>送迎表
+      </button>
+      <button class="nav-btn" onclick="switchPage('renrakucho')">
+        <span class="nav-icon">📋</span>記録
+      </button>
+      <button class="nav-btn" onclick="switchPage('rehabrecord')">
+        <span class="nav-icon">📝</span>リハビリ記録
+      </button>
+      <button class="nav-btn" onclick="switchPage('rehab')">
+        <span class="nav-icon">📘</span>リハビリ計画書
+      </button>
+      <button class="nav-btn" onclick="switchPage('assessment')">
+        <span class="nav-icon">✅</span>アセスメント
+      </button>
+      <button class="nav-btn" onclick="switchPage('monitoring')">
+        <span class="nav-icon">📈</span>モニタリング
+      </button>
+      <button class="nav-btn" onclick="switchPage('dailylog')">
+        <span class="nav-icon">📓</span>業務日誌
+      </button>
+    </nav>
   </header>
 
   <div class="container">
@@ -3093,7 +3085,17 @@
           <div class="form-group"><label>コミュニケーション</label><input type="text" id="rf_communication"
               placeholder="難聴あり・大声でゆっくり など"></div>
         </div>
-        <div class="form-grid single">
+
+        <div class="form-group" style="margin-top:6px;">
+          <label>基本動作評価（現況・リハビリ計画書に取り込まれます）</label>
+          <div id="dbBasicMotionTable"></div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>ADL評価（Barthel Index相当・現況）</label>
+          <div id="dbAdlTable"></div>
+        </div>
+
+        <div class="form-grid single" style="margin-top:6px;">
           <div class="form-group"><label>その他の抽出情報（自動保存・未分類項目）</label><textarea id="rf_extraInfo"
               placeholder="書類から読み取ったが定型項目に当てはまらなかった情報がここに残ります"></textarea></div>
         </div>
@@ -3240,66 +3242,12 @@
     const EVENT_TYPE_LABELS = { meeting: '会議', event: '行事', other: 'その他' };
 
     // ============================================================
-    // NAV（2段タブ：カテゴリ＋サブタブ）
-    // ============================================================
-    const PAGE_META = {
-      shorui: { icon: '📄', label: '書類読取' },
-      db: { icon: '👥', label: '利用者DB' },
-      schedule: { icon: '📅', label: 'スケジュール' },
-      transport: { icon: '🚐', label: '送迎表' },
-      renrakucho: { icon: '📋', label: '記録' },
-      rehabrecord: { icon: '📝', label: 'リハビリ記録' },
-      dailylog: { icon: '📓', label: '業務日誌' },
-      rehab: { icon: '📘', label: 'リハビリ計画書' },
-      assessment: { icon: '✅', label: 'アセスメント' },
-      monitoring: { icon: '📈', label: 'モニタリング' },
-    };
-    const CATEGORY_LABELS = { user: '👥 利用者管理', record: '📝 記録', plan: '📘 計画・評価' };
-    const CATEGORY_PAGES = {
-      user: ['shorui', 'db', 'schedule', 'transport'],
-      record: ['renrakucho', 'rehabrecord', 'dailylog'],
-      plan: ['rehab', 'assessment', 'monitoring'],
-    };
-    const PAGE_TO_CATEGORY = {};
-    Object.entries(CATEGORY_PAGES).forEach(([cat, pages]) => pages.forEach(p => PAGE_TO_CATEGORY[p] = cat));
-    let currentCategory = 'user';
-
-    function renderCatNav() {
-      const el = document.getElementById('catNav');
-      if (!el) return;
-      el.innerHTML = Object.entries(CATEGORY_LABELS).map(([cat, label]) =>
-        `<button class="cat-btn ${cat === currentCategory ? 'active' : ''}" onclick="switchCategory('${cat}')">${label}</button>`
-      ).join('');
-    }
-
-    function renderSubNav() {
-      const el = document.getElementById('subNav');
-      if (!el) return;
-      el.innerHTML = CATEGORY_PAGES[currentCategory].map(p => {
-        const m = PAGE_META[p];
-        return `<button class="nav-btn" onclick="switchPage('${p}')" data-page="${p}">
-      <span class="nav-icon">${m.icon}</span>${m.label}
-    </button>`;
-      }).join('');
-    }
-
-    function switchCategory(cat) {
-      currentCategory = cat;
-      renderCatNav();
-      renderSubNav();
-      switchPage(CATEGORY_PAGES[cat][0]);
-    }
-
-    // ============================================================
     // INIT
     // ============================================================
     function init() {
       loadDb();
       setToday();
       updateHeader();
-      renderCatNav();
-      renderSubNav();
-      document.querySelector(`#subNav [data-page="db"]`)?.classList.add('active');
       renderDbList();
       renderResidentSelector();
       renderRenrakuchoWeekMatrix();
@@ -3328,16 +3276,10 @@
     // NAVIGATION
     // ============================================================
     function switchPage(page) {
-      const cat = PAGE_TO_CATEGORY[page];
-      if (cat && cat !== currentCategory) {
-        currentCategory = cat;
-        renderCatNav();
-        renderSubNav();
-      }
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.getElementById('page-' + page).classList.add('active');
-      document.querySelector(`#subNav [data-page="${page}"]`)?.classList.add('active');
+      document.querySelector(`[onclick="switchPage('${page}')"]`)?.classList.add('active');
       if (page === 'db') renderDbList();
       if (page === 'renrakucho') { renderResidentSelector(); renderRenrakuchoWeekMatrix(); renderTodayRenrakuchoList(); renderCareStaffChips(); }
       if (page === 'rehab') { renderRehabResidentSelector(); renderReviewDueList(); }
@@ -3560,6 +3502,15 @@
         ['ID', ...RF_FIELDS.map(f => FIELD_LABELS[f] || f)],
         ...db.residentDb.map(r => [r.id, ...RF_FIELDS.map(f => r[f] || '')])
       ]);
+
+      // ①-2 利用者DB 基本動作・ADL評価（現況）
+      const dbAssessRows = [['利用者名', ...BASIC_MOTION_ITEMS.map(t => '基本動作:' + t), ...ADL_ITEMS.map(t => 'ADL:' + t)]];
+      db.residentDb.forEach(r => {
+        const bm = BASIC_MOTION_ITEMS.map((_, i) => { const d = r.basicMotionAssess?.[i]; return d ? [d.level, d.note].filter(Boolean).join('/') : ''; });
+        const adl = ADL_ITEMS.map((_, i) => { const d = r.adlAssess?.[i]; return d ? [d.level, d.note].filter(Boolean).join('/') : ''; });
+        dbAssessRows.push([r.name, ...bm, ...adl]);
+      });
+      addSheet('利用者DB評価(現況)', dbAssessRows);
 
       // ② 記録（連絡帳）
       const rcRows = [['日付', '利用者名', '記録者', '記録文']];
@@ -4617,18 +4568,71 @@ ${lines}
       'mealRestriction', 'fluidRestriction', 'medicineTiming', 'history', 'currentDisease', 'adl', 'dementia', 'communication', 'extraInfo',
       'rehabStaffInCharge', 'careStaffInCharge'];
 
+    function buildDbAssessTables() {
+      const bm = document.getElementById('dbBasicMotionTable');
+      if (bm) {
+        bm.innerHTML = `<div class="rp-assess-table-wrap"><table class="rp-assess-table">
+      <tr><th style="width:30%;">項目</th><th style="width:32%;">状況</th><th>特記事項</th></tr>
+      ${BASIC_MOTION_ITEMS.map((item, i) => `<tr>
+        <td class="rp-item-name">${item}</td>
+        <td>${buildSelect('db_bm_' + i + '_level', ADL_LEVELS)}</td>
+        <td><input type="text" id="db_bm_${i}_note"></td>
+      </tr>`).join('')}
+    </table></div>`;
+      }
+      const adl = document.getElementById('dbAdlTable');
+      if (adl) {
+        adl.innerHTML = `<div class="rp-assess-table-wrap"><table class="rp-assess-table">
+      <tr><th style="width:30%;">項目</th><th style="width:32%;">状況</th><th>特記事項</th></tr>
+      ${ADL_ITEMS.map((item, i) => `<tr>
+        <td class="rp-item-name">${item}</td>
+        <td>${buildSelect('db_adl_' + i + '_level', ADL_LEVELS)}</td>
+        <td><input type="text" id="db_adl_${i}_note"></td>
+      </tr>`).join('')}
+    </table></div>`;
+      }
+    }
+
+    function loadDbAssessValues(r) {
+      const bm = r?.basicMotionAssess || [];
+      BASIC_MOTION_ITEMS.forEach((_, i) => {
+        document.getElementById('db_bm_' + i + '_level').value = bm[i]?.level || '';
+        document.getElementById('db_bm_' + i + '_note').value = bm[i]?.note || '';
+      });
+      const adl = r?.adlAssess || [];
+      ADL_ITEMS.forEach((_, i) => {
+        document.getElementById('db_adl_' + i + '_level').value = adl[i]?.level || '';
+        document.getElementById('db_adl_' + i + '_note').value = adl[i]?.note || '';
+      });
+    }
+
+    function collectDbAssessValues() {
+      const basicMotionAssess = BASIC_MOTION_ITEMS.map((_, i) => ({
+        level: document.getElementById('db_bm_' + i + '_level').value,
+        note: document.getElementById('db_bm_' + i + '_note').value.trim()
+      }));
+      const adlAssess = ADL_ITEMS.map((_, i) => ({
+        level: document.getElementById('db_adl_' + i + '_level').value,
+        note: document.getElementById('db_adl_' + i + '_note').value.trim()
+      }));
+      return { basicMotionAssess, adlAssess };
+    }
+
     function openResidentModal(id) {
       populateStaffInChargeSelects();
+      buildDbAssessTables();
       if (id) {
         const r = appState.db.residentDb.find(x => x.id === id);
         if (!r) return;
         document.getElementById('residentModalTitle').textContent = '👤 利用者編集';
         document.getElementById('rf_id').value = id;
         RF_FIELDS.forEach(f => { const el = document.getElementById('rf_' + f); if (el) el.value = r[f] || ''; });
+        loadDbAssessValues(r);
       } else {
         document.getElementById('residentModalTitle').textContent = '👤 利用者登録';
         document.getElementById('rf_id').value = '';
         RF_FIELDS.forEach(f => { const el = document.getElementById('rf_' + f); if (el) el.value = ''; });
+        loadDbAssessValues(null);
       }
       syncWeekdayChips();
       updateAgeFromDob();
@@ -4679,6 +4683,7 @@ ${lines}
       RF_FIELDS.filter(f => f !== 'name').forEach(f => {
         data[f] = document.getElementById('rf_' + f).value.trim();
       });
+      Object.assign(data, collectDbAssessValues());
 
       const existingId = document.getElementById('rf_id').value;
       if (existingId) {
@@ -6675,20 +6680,33 @@ ${lines}
         document.getElementById('mb_' + i + '_impact').value = mb[i]?.impact || '';
         document.getElementById('mb_' + i + '_note').value = mb[i]?.note || '';
       });
+      const isNewPlan = !appState.db.rehabPlans[residentId];
+
       const bm = plan.basicMotion || [];
       BASIC_MOTION_ITEMS.forEach((_, i) => {
-        document.getElementById('bm_' + i + '_start').value = bm[i]?.start || '';
-        document.getElementById('bm_' + i + '_now').value = bm[i]?.now || '';
-        document.getElementById('bm_' + i + '_note').value = bm[i]?.note || '';
+        const dbVal = resident?.basicMotionAssess?.[i];
+        const start = bm[i]?.start || (isNewPlan && dbVal?.level) || '';
+        const now = bm[i]?.now || (isNewPlan && dbVal?.level) || '';
+        const note = bm[i]?.note || (isNewPlan && dbVal?.note) || '';
+        document.getElementById('bm_' + i + '_start').value = start;
+        document.getElementById('bm_' + i + '_now').value = now;
+        document.getElementById('bm_' + i + '_note').value = note;
       });
       const adl = plan.adl || [];
       ADL_ITEMS.forEach((_, i) => {
-        document.getElementById('adl_' + i + '_start').value = adl[i]?.start || '';
-        document.getElementById('adl_' + i + '_now').value = adl[i]?.now || '';
-        document.getElementById('adl_' + i + '_note').value = adl[i]?.note || '';
+        const dbVal = resident?.adlAssess?.[i];
+        const start = adl[i]?.start || (isNewPlan && dbVal?.level) || '';
+        const now = adl[i]?.now || (isNewPlan && dbVal?.level) || '';
+        const note = adl[i]?.note || (isNewPlan && dbVal?.note) || '';
+        document.getElementById('adl_' + i + '_start').value = start;
+        document.getElementById('adl_' + i + '_now').value = now;
+        document.getElementById('adl_' + i + '_note').value = note;
       });
-
-      showStatus('rehabSaveStatus', plan.updatedAt ? `最終更新：${plan.updatedAt}` : '', 'info');
+      if (isNewPlan && (resident?.basicMotionAssess?.some(x => x?.level) || resident?.adlAssess?.some(x => x?.level))) {
+        showStatus('rehabSaveStatus', '📥 利用者DBの現況評価を初期値として反映しました（内容を確認・調整してください）', 'info');
+      } else {
+        showStatus('rehabSaveStatus', plan.updatedAt ? `最終更新：${plan.updatedAt}` : '', 'info');
+      }
     }
 
     function todayStr() {

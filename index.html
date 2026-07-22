@@ -2783,8 +2783,9 @@
 
         <div class="form-grid single">
           <div class="form-group">
-            <label>職員の勤務状況</label>
-            <div id="dlStaffTableArea"></div>
+            <label>出勤職員</label>
+            <div class="weekday-chip-row" id="dlStaffChipRow" style="flex-wrap:wrap;"></div>
+            <input type="hidden" id="dl_staff">
           </div>
         </div>
 
@@ -2936,6 +2937,15 @@
             全データをExcelに書き出す</button>
           <div style="font-size:11px; color:var(--muted); margin-top:6px;">
             利用者DB・記録・経過記録・リハビリ記録／計画書・スケジュール・バイタルなど、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
+          <label class="btn btn-secondary btn-sm"
+            style="width:100%; margin-top:10px; cursor:pointer; display:block; text-align:center;">
+            📤 バックアップから復元する
+            <input type="file" id="restoreFileInput" accept=".xlsx,.xls" style="display:none;"
+              onchange="handleRestoreFile(event)">
+          </label>
+          <div style="font-size:11px; color:var(--warn); margin-top:6px;">⚠️
+            復元すると、現在のデータはすべて選択したファイルの内容に置き換わります（元に戻せません）。</div>
+          <div id="restoreStatus" style="margin-top:6px;"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -3652,28 +3662,13 @@
       addSheet('モニタリング', moRows);
 
       // ⑬ 業務日誌
-      const dlRows = [['日付', '曜日', '天候', '気温', '出勤職員（勤務区分）', '利用予定人数', '利用実績人数', '予定・行事', 'ヒヤリハット・事故', '事故内容', 'その他特記事項', '管理者確認', '最終更新']];
+      const dlRows = [['日付', '曜日', '天候', '気温', '出勤職員', '利用予定人数', '利用実績人数', '予定・行事', 'ヒヤリハット・事故', '事故内容', 'その他特記事項', '管理者確認', '最終更新']];
       Object.keys(db.dailyLog).sort().forEach(date => {
         const log = db.dailyLog[date];
-        const staffSummary = Object.entries(log.staffShifts || {})
-          .filter(([, s]) => s.type && s.type !== 'off')
-          .map(([name, s]) => `${name}(${shiftTypeDefault(s.type)?.label || s.type})`)
-          .join('、');
-        dlRows.push([date, weekdayLabelOf(date), log.weather || '', log.temp || '', staffSummary,
+        dlRows.push([date, weekdayLabelOf(date), log.weather || '', log.temp || '', (log.staff || '').split(',').filter(Boolean).join('、'),
           log.plannedCount ?? '', log.actualCount ?? '', log.eventsNote || '', log.incidentFlag || '', log.incidentNote || '', log.generalNote || '', log.managerConfirm || '', log.updatedAt || '']);
       });
       addSheet('業務日誌', dlRows);
-
-      // ⑬-2 職員勤務状況（詳細）
-      const staffShiftRows = [['日付', '氏名', '勤務区分', '開始時刻', '終了時刻']];
-      Object.keys(db.dailyLog).sort().forEach(date => {
-        const shifts = db.dailyLog[date].staffShifts || {};
-        Object.entries(shifts).forEach(([name, s]) => {
-          if (!s.type) return;
-          staffShiftRows.push([date, name, shiftTypeDefault(s.type)?.label || s.type, s.start || '', s.end || '']);
-        });
-      });
-      addSheet('職員勤務状況', staffShiftRows);
 
       // ⑭ 利用時間・入浴状況
       const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考']];
@@ -3701,6 +3696,227 @@
 
       const today = todayStr();
       XLSX.writeFile(wb, `通所サービス管理アシスタント_バックアップ_${today}.xlsx`);
+    }
+
+    // ============================================================
+    // RESTORE（バックアップExcelからの完全復元）
+    // ============================================================
+    function handleRestoreFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!confirm('現在のデータをすべて消去し、選択したバックアップファイルの内容で置き換えます。\nこの操作は取り消せません。よろしいですか？')) {
+        event.target.value = '';
+        return;
+      }
+
+      const statusEl = document.getElementById('restoreStatus');
+      statusEl.innerHTML = '復元中...';
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const count = restoreFromWorkbook(wb);
+          saveDb();
+          location.reload(); // 全画面を最新の状態で再描画するためリロード
+        } catch (err) {
+          statusEl.innerHTML = `<span class="import-status-err">❌ 復元に失敗しました：${err.message}</span>`;
+        }
+        event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function getSheetRows(wb, name) {
+      const sheet = wb.Sheets[name];
+      if (!sheet) return [];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      return rows.slice(1).filter(r => r.some(c => String(c || '').trim() !== ''));
+    }
+
+    function restoreFromWorkbook(wb) {
+      const newDb = {
+        facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {},
+        renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土',
+        dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [],
+        rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {},
+        transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
+        dailyLog: {}, usageLog: {}
+      };
+
+      // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
+      const nameToId = {};
+      getSheetRows(wb, '利用者DB').forEach((row, idx) => {
+        const id = 'r_' + Date.now() + '_' + idx;
+        const obj = { id };
+        RF_FIELDS.forEach((f, i) => { obj[f] = row[i + 1] || ''; }); // row[0]は旧ID
+        newDb.residentDb.push(obj);
+        if (obj.name) nameToId[obj.name] = id;
+      });
+      const findId = (name) => nameToId[name];
+
+      // ② 記録
+      getSheetRows(wb, '記録').forEach(([date, name, staff, text]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.renrakuchoLog[date]) newDb.renrakuchoLog[date] = {};
+        newDb.renrakuchoLog[date][id] = text || '';
+        if (staff) {
+          if (!newDb.renrakuchoStaffLog[date]) newDb.renrakuchoStaffLog[date] = {};
+          newDb.renrakuchoStaffLog[date][id] = staff;
+        }
+      });
+
+      // ③ 経過記録
+      getSheetRows(wb, '経過記録').forEach(([date, name, text]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.keirokaLog[date]) newDb.keirokaLog[date] = {};
+        newDb.keirokaLog[date][id] = text || '';
+      });
+
+      // ④ リハビリ記録
+      getSheetRows(wb, 'リハビリ記録').forEach(([date, name, startTime, endTime, staff, content, contentOther, condition, reaction, notes, updatedAt]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.rehabRecordLog[date]) newDb.rehabRecordLog[date] = {};
+        let durationMin = 20;
+        if (startTime && endTime) {
+          const [sh, sm] = String(startTime).split(':').map(Number);
+          const [eh, em] = String(endTime).split(':').map(Number);
+          const diff = (eh * 60 + em) - (sh * 60 + sm);
+          if (diff > 0) durationMin = diff;
+        }
+        newDb.rehabRecordLog[date][id] = {
+          startTime: startTime || '', durationMin, staff: staff || '',
+          content: content || '', contentOther: contentOther || '', condition: condition || '',
+          reaction: reaction || '', notes: notes || '', updatedAt: updatedAt || ''
+        };
+      });
+
+      // ⑤ リハビリ計画書（本文項目のみ復元。心身機能・基本動作・ADLの評価表は再入力が必要）
+      const rpFlatFields = [...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS];
+      getSheetRows(wb, 'リハビリ計画書').forEach(row => {
+        const name = row[0];
+        const id = findId(name); if (!id) return;
+        const plan = {};
+        rpFlatFields.forEach((f, i) => { plan[f] = row[i + 1] || ''; });
+        plan.mindBody = []; plan.basicMotion = []; plan.adl = [];
+        plan.updatedAt = row[1 + rpFlatFields.length + 3] || '';
+        newDb.rehabPlans[id] = plan;
+      });
+
+      // ⑥ スケジュール
+      const reverseEventType = {};
+      Object.entries(EVENT_TYPE_LABELS).forEach(([k, v]) => reverseEventType[v] = k);
+      getSheetRows(wb, 'スケジュール').forEach(([date, typeLabel, title, time, memo]) => {
+        if (!date || !title) return;
+        if (!newDb.scheduleEvents[date]) newDb.scheduleEvents[date] = [];
+        newDb.scheduleEvents[date].push({ id: 'ev_' + Date.now() + Math.random(), type: reverseEventType[typeLabel] || 'other', title, time: time || '', memo: memo || '' });
+      });
+
+      // ⑦ 出欠ステータス
+      getSheetRows(wb, '出欠ステータス').forEach(([date, name, status]) => {
+        const id = findId(name); if (!id || !date || !status) return;
+        if (!newDb.dayStatusOverrides[date]) newDb.dayStatusOverrides[date] = {};
+        newDb.dayStatusOverrides[date][id] = status;
+      });
+
+      // ⑧ 通所の臨時変更
+      getSheetRows(wb, '通所の臨時変更').forEach(([date, name, kind]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.attendanceOverrides[date]) newDb.attendanceOverrides[date] = { add: [], remove: [] };
+        if (kind === '臨時追加') newDb.attendanceOverrides[date].add.push(id);
+        else newDb.attendanceOverrides[date].remove.push(id);
+      });
+
+      // ⑨ バイタル
+      getSheetRows(wb, 'バイタル').forEach(([date, name, temp, bpSys, bpDia, pulse, spo2, weight]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.vitalsLog[date]) newDb.vitalsLog[date] = {};
+        newDb.vitalsLog[date][id] = { temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia), pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight) };
+      });
+
+      // ⑩ アセスメント
+      getSheetRows(wb, 'アセスメント').forEach(row => {
+        const [name, date, height, weight, bmi] = row;
+        const id = findId(name); if (!id) return;
+        const answers = {};
+        CHECKLIST_ITEMS.forEach((it, i) => {
+          const v = row[5 + i];
+          answers[it.n] = v === 'はい' ? 'yes' : v === 'いいえ' ? 'no' : '';
+        });
+        const flagsStart = 5 + CHECKLIST_ITEMS.length;
+        const isRisk = n => { const it = CHECKLIST_ITEMS.find(x => x.n === n); return it && answers[n] === it.riskAnswer; };
+        const countRisk = nums => nums.filter(isRisk).length;
+        const bmiRisk = bmi !== '' && parseFloat(bmi) < 18.5;
+        const range1to20 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20];
+        newDb.assessments[id] = {
+          date: date || '', height: height || '', weight: weight || '', answers,
+          result: {
+            bmi: bmi || '',
+            overall: { flag: countRisk(range1to20) + (bmiRisk ? 1 : 0) >= 10, count: countRisk(range1to20) + (bmiRisk ? 1 : 0), total: 20 },
+            motor: { flag: countRisk([6, 7, 8, 9, 10]) >= 3, count: countRisk([6, 7, 8, 9, 10]), total: 5 },
+            nutrition: { flag: isRisk(11) && bmiRisk },
+            oral: { flag: countRisk([13, 14, 15]) >= 2, count: countRisk([13, 14, 15]), total: 3 },
+            seclusion: { flag: isRisk(16) },
+            cognitive: { flag: countRisk([18, 19, 20]) >= 1, count: countRisk([18, 19, 20]), total: 3 },
+            depression: { flag: countRisk([21, 22, 23, 24, 25]) >= 2, count: countRisk([21, 22, 23, 24, 25]), total: 5 },
+          },
+          updatedAt: row[flagsStart + 7] || ''
+        };
+      });
+
+      // ⑪ 送迎表
+      getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, dropoffTime, vehicle, driver, note]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.transportLog[date]) newDb.transportLog[date] = {};
+        newDb.transportLog[date][id] = { order: order || '', pickupTime: pickupTime || '', dropoffTime: dropoffTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '' };
+      });
+
+      // ⑫ モニタリング
+      getSheetRows(wb, 'モニタリング').forEach(([kind, ym, name, text, updatedAt]) => {
+        const id = findId(name); if (!id || !ym) return;
+        const store = kind === 'リハビリ' ? newDb.rehabMonitoring : newDb.careMonitoring;
+        if (!store[id]) store[id] = {};
+        store[id][ym] = { text: text || '', updatedAt: updatedAt || '' };
+      });
+
+      // ⑬ 業務日誌
+      getSheetRows(wb, '業務日誌').forEach(([date, , weather, temp, staffNames, plannedCount, actualCount, eventsNote, incidentFlag, incidentNote, generalNote, managerConfirm, updatedAt]) => {
+        if (!date) return;
+        newDb.dailyLog[date] = {
+          weather: weather || '', temp: temp || '', staff: (staffNames || '').split('、').filter(Boolean).join(','),
+          plannedCount: plannedCount || '', actualCount: actualCount || '', eventsNote: eventsNote || '',
+          incidentFlag: incidentFlag || '', incidentNote: incidentNote || '', generalNote: generalNote || '',
+          managerConfirm: managerConfirm || '', updatedAt: updatedAt || ''
+        };
+      });
+
+      // ⑭ 利用時間・入浴状況
+      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.usageLog[date]) newDb.usageLog[date] = {};
+        newDb.usageLog[date][id] = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
+      });
+
+      // ⑮ 設定情報
+      const settingsRows = getSheetRows(wb, '設定情報');
+      settingsRows.forEach(([key, val]) => {
+        if (key === '施設名') newDb.facility = val || '';
+        if (key === '記録の文体' || key === '連絡帳の文体') newDb.style = val || 'warm';
+        if (key === '営業曜日') newDb.businessDays = val || '月,火,水,木,金,土';
+        if (key === 'リハビリスタッフ') newDb.rehabStaffList = (val || '').split('、').filter(Boolean);
+        if (key === '介護スタッフ') newDb.careStaffList = (val || '').split('、').filter(Boolean);
+        if (key === 'その他の職員') newDb.otherStaffList = (val || '').split('、').filter(Boolean);
+        if (key === '車両') newDb.vehicleList = (val || '').split('、').filter(Boolean);
+        if (key === 'リハビリ実施内容の選択肢') newDb.rehabContentList = (val || '').split('、').filter(Boolean);
+      });
+      if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
+        newDb.rehabContentList = ['関節可動域訓練', '筋力増強訓練', '歩行訓練', '立位・座位訓練', 'バランス訓練', 'ADL訓練', '嚥下訓練', '言語訓練', '巧緻動作訓練', 'レクリエーション訓練'];
+      }
+
+      appState.db = newDb;
+      return newDb.residentDb.length;
     }
 
     // ============================================================
@@ -4339,75 +4555,18 @@ ${lines}
       win.print();
     }
 
-    const SHIFT_TYPES = [
-      { key: '', label: '－' },
-      { key: 'full', label: '1日勤務', start: '08:30', end: '17:30' },
-      { key: 'am', label: '午前勤務（午後休み）', start: '08:30', end: '12:30' },
-      { key: 'pm', label: '午後勤務（午前休み）', start: '13:30', end: '17:30' },
-      { key: 'leave2h', label: '2時間有給（早退）', start: '08:30', end: '15:30' },
-      { key: 'leave1h', label: '1時間有給（早退）', start: '08:30', end: '16:30' },
-      { key: 'off', label: '休み', start: '', end: '' },
-      { key: 'other', label: 'その他（時刻入力）', start: '', end: '' },
-    ];
-    function shiftTypeDefault(key) { return SHIFT_TYPES.find(s => s.key === key); }
-
-    function getCombinedStaffList() {
-      return [
+    function renderDailyLogStaffChips() {
+      const row = document.getElementById('dlStaffChipRow');
+      if (!row) return;
+      const combined = [
         ...(appState.db.rehabStaffList || []).map(n => ({ n, group: 'リハビリ' })),
         ...(appState.db.careStaffList || []).map(n => ({ n, group: '介護' })),
         ...(appState.db.otherStaffList || []).map(n => ({ n, group: 'その他' }))
       ];
-    }
-
-    function renderDailyLogStaffTable() {
-      const el = document.getElementById('dlStaffTableArea');
-      if (!el) return;
-      const dateStr = document.getElementById('dl_date').value || todayStr();
-      const combined = getCombinedStaffList();
-      const shifts = (appState.db.dailyLog[dateStr] || {}).staffShifts || {};
-
-      if (!combined.length) {
-        el.innerHTML = `<div style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</div>`;
-        return;
-      }
-
-      const options = SHIFT_TYPES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
-      const rows = combined.map(s => {
-        const cur = shifts[s.n] || {};
-        return `<tr>
-      <td class="tp-name">${escHtml(s.n)}<br><span style="font-size:10px; color:var(--muted); font-weight:400;">${s.group}</span></td>
-      <td><select onchange="onDailyStaffShiftTypeChange('${dateStr}','${escAttr(s.n)}', this.value)">${options.replace(`value="${cur.type || ''}"`, `value="${cur.type || ''}" selected`)}</select></td>
-      <td><input type="time" value="${cur.start || ''}" onchange="saveDailyStaffShiftField('${dateStr}','${escAttr(s.n)}','start', this.value)"></td>
-      <td><input type="time" value="${cur.end || ''}" onchange="saveDailyStaffShiftField('${dateStr}','${escAttr(s.n)}','end', this.value)"></td>
-    </tr>`;
-      }).join('');
-
-      el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table">
-    <tr><th>氏名</th><th>勤務区分</th><th>開始</th><th>終了</th></tr>
-    ${rows}
-  </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">勤務区分を選ぶと時刻が自動入力されます（時刻は個別に修正できます）。入力内容は自動保存されます。</div>`;
-    }
-
-    function ensureDailyLogEntry(dateStr) {
-      if (!appState.db.dailyLog[dateStr]) appState.db.dailyLog[dateStr] = {};
-      if (!appState.db.dailyLog[dateStr].staffShifts) appState.db.dailyLog[dateStr].staffShifts = {};
-      return appState.db.dailyLog[dateStr];
-    }
-
-    function onDailyStaffShiftTypeChange(dateStr, staffName, type) {
-      const log = ensureDailyLogEntry(dateStr);
-      const def = shiftTypeDefault(type);
-      log.staffShifts[staffName] = { type, start: def?.start || '', end: def?.end || '' };
-      saveDb();
-      renderDailyLogStaffTable();
-    }
-
-    function saveDailyStaffShiftField(dateStr, staffName, field, value) {
-      const log = ensureDailyLogEntry(dateStr);
-      if (!log.staffShifts[staffName]) log.staffShifts[staffName] = { type: 'other', start: '', end: '' };
-      log.staffShifts[staffName][field] = value;
-      saveDb();
+      row.innerHTML = combined.length
+        ? combined.map(s => `<span class="rp-type-chip" data-v="${escAttr(s.n)}" onclick="toggleChipGeneric(this,'dlStaffChipRow','dl_staff')">${escHtml(s.n)}</span>`).join('')
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</span>`;
+      syncChipRow('dlStaffChipRow', 'dl_staff');
     }
 
     function loadDailyLog() {
@@ -4416,6 +4575,7 @@ ${lines}
 
       document.getElementById('dl_weather').value = log.weather || '';
       document.getElementById('dl_temp').value = log.temp || '';
+      document.getElementById('dl_staff').value = log.staff || '';
       document.getElementById('dl_actualCount').value = log.actualCount ?? '';
       document.getElementById('dl_incidentFlag').value = log.incidentFlag || '';
       document.getElementById('dl_incidentNote').value = log.incidentNote || '';
@@ -4439,17 +4599,16 @@ ${lines}
           : '';
       }
 
-      renderDailyLogStaffTable();
+      renderDailyLogStaffChips();
       showStatus('dailyLogSaveStatus', log.updatedAt ? `最終更新：${log.updatedAt}` : '', 'info');
     }
 
     function saveDailyLog() {
       const dateStr = document.getElementById('dl_date').value || todayStr();
-      const staffShifts = (appState.db.dailyLog[dateStr] || {}).staffShifts || {};
       const log = {
         weather: document.getElementById('dl_weather').value,
         temp: document.getElementById('dl_temp').value.trim(),
-        staffShifts,
+        staff: document.getElementById('dl_staff').value,
         plannedCount: getAttendingCountForDate(dateStr),
         actualCount: document.getElementById('dl_actualCount').value,
         eventsNote: document.getElementById('dl_eventsNote').value.trim(),
@@ -4468,11 +4627,7 @@ ${lines}
       const dateStr = document.getElementById('dl_date').value || todayStr();
       const log = appState.db.dailyLog[dateStr];
       if (!log) { alert('先に保存してください'); return; }
-
-      const shiftRows = Object.entries(log.staffShifts || {})
-        .filter(([, s]) => s.type && s.type !== 'off')
-        .map(([name, s]) => `<tr><td>${escHtml(name)}</td><td>${shiftTypeDefault(s.type)?.label || s.type}</td><td>${s.start || ''}〜${s.end || ''}</td></tr>`)
-        .join('');
+      const staffNames = (log.staff || '').split(',').filter(Boolean).join('、');
 
       const win = window.open('', '_blank');
       win.document.write(`
@@ -4483,14 +4638,10 @@ ${lines}
       .row { margin: 5px 0; }
       .label { font-weight: bold; }
       .incident { color: ${log.incidentFlag === 'あり' ? '#c0392b' : '#333'}; font-weight: ${log.incidentFlag === 'あり' ? 'bold' : 'normal'}; }
-      table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12.5px; }
-      th, td { border: 1px solid #999; padding: 4px 8px; text-align: left; }
-      th { background: #f0f0f0; }
     </style></head><body>
     <h1>業務日誌　${escHtml(appState.db.facility || '')}　${dateStr}（${weekdayLabelOf(dateStr)}）</h1>
     <div class="row"><span class="label">天候：</span>${escHtml(log.weather || '')}　<span class="label">気温：</span>${escHtml(log.temp || '')}℃</div>
-    <div class="row"><span class="label">職員の勤務状況：</span></div>
-    <table><tr><th>氏名</th><th>勤務区分</th><th>時間</th></tr>${shiftRows || '<tr><td colspan="3">記録なし</td></tr>'}</table>
+    <div class="row"><span class="label">出勤職員：</span>${escHtml(staffNames)}</div>
     <div class="row"><span class="label">利用予定人数：</span>${log.plannedCount}人　<span class="label">利用実績人数：</span>${escHtml(String(log.actualCount || ''))}人</div>
     <div class="row"><span class="label">本日の予定・行事：</span><br>${escHtml(log.eventsNote || '').replace(/\n/g, '<br>')}</div>
     <div class="row incident"><span class="label">ヒヤリハット・事故等：</span>${escHtml(log.incidentFlag || '')}${log.incidentNote ? '　' + escHtml(log.incidentNote) : ''}</div>

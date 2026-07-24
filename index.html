@@ -229,7 +229,8 @@ header {
 .cal-day-count { font-size: 9.5px; color: var(--green); font-weight: 700; }
 .cal-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
 .cal-dot { width: 5px; height: 5px; border-radius: 50%; }
-.cal-dot.meeting { background: #2b6ea8; }
+.cal-dot.staffMeeting { background: #2b6ea8; }
+.cal-dot.dayMeeting { background: #7d5ba6; }
 .cal-dot.event { background: var(--accent); }
 .cal-dot.other { background: var(--muted); }
 
@@ -244,7 +245,8 @@ header {
   font-size: 13px;
 }
 .event-item .event-type-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px; color: white; flex-shrink: 0; }
-.event-item .event-type-badge.meeting { background: #2b6ea8; }
+.event-item .event-type-badge.staffMeeting { background: #2b6ea8; }
+.event-item .event-type-badge.dayMeeting { background: #7d5ba6; }
 .event-item .event-type-badge.event { background: var(--accent); }
 .event-item .event-type-badge.other { background: var(--muted); }
 .event-item .event-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
@@ -1937,13 +1939,21 @@ header {
     </div>
     <div class="form-grid">
       <div class="form-group"><label>種別</label>
-        <select id="ev_type">
-          <option value="meeting">会議</option>
+        <select id="ev_type" onchange="onEventTypeChange()">
+          <option value="staffMeeting">担当者会議</option>
+          <option value="dayMeeting">デイ会議</option>
           <option value="event">行事</option>
           <option value="other">その他</option>
         </select>
       </div>
       <div class="form-group"><label>時間</label><input type="time" id="ev_time"></div>
+    </div>
+    <div class="form-grid single" id="ev_attendeesArea">
+      <div class="form-group">
+        <label>出席者</label>
+        <div class="weekday-chip-row" id="evAttendeesChipRow" style="flex-wrap:wrap;"></div>
+        <input type="hidden" id="ev_attendees">
+      </div>
     </div>
     <div class="form-grid single">
       <div class="form-group"><label>メモ</label><textarea id="ev_memo" placeholder="任意"></textarea></div>
@@ -2042,7 +2052,7 @@ let appState = {
 };
 
 const WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
-const EVENT_TYPE_LABELS = { meeting:'会議', event:'行事', other:'その他' };
+const EVENT_TYPE_LABELS = { staffMeeting:'担当者会議', dayMeeting:'デイ会議', event:'行事', other:'その他' };
 
 // ============================================================
 // INIT
@@ -2362,10 +2372,10 @@ function exportBackupExcel() {
   addSheet('リハビリ計画書', rpRows);
 
   // ⑥ スケジュール（予定）
-  const evRows = [['日付','種別','タイトル','時間','メモ']];
+  const evRows = [['日付','種別','タイトル','時間','出席者','メモ']];
   Object.keys(db.scheduleEvents).sort().forEach(date => {
     (db.scheduleEvents[date] || []).forEach(ev => {
-      evRows.push([date, EVENT_TYPE_LABELS[ev.type] || ev.type, ev.title, ev.time || '', ev.memo || '']);
+      evRows.push([date, EVENT_TYPE_LABELS[ev.type] || ev.type, ev.title, ev.time || '', (ev.attendees||'').split(',').filter(Boolean).join('、'), ev.memo || '']);
     });
   });
   addSheet('スケジュール', evRows);
@@ -2575,10 +2585,10 @@ function restoreFromWorkbook(wb) {
   // ⑥ スケジュール
   const reverseEventType = {};
   Object.entries(EVENT_TYPE_LABELS).forEach(([k, v]) => reverseEventType[v] = k);
-  getSheetRows(wb, 'スケジュール').forEach(([date, typeLabel, title, time, memo]) => {
+  getSheetRows(wb, 'スケジュール').forEach(([date, typeLabel, title, time, attendees, memo]) => {
     if (!date || !title) return;
     if (!newDb.scheduleEvents[date]) newDb.scheduleEvents[date] = [];
-    newDb.scheduleEvents[date].push({ id: 'ev_' + Date.now() + Math.random(), type: reverseEventType[typeLabel] || 'other', title, time: time || '', memo: memo || '' });
+    newDb.scheduleEvents[date].push({ id: 'ev_' + Date.now() + Math.random(), type: reverseEventType[typeLabel] || 'other', title, time: time || '', attendees: (attendees||'').split('、').filter(Boolean).join(','), memo: memo || '' });
   });
 
   // ⑦ 出欠ステータス
@@ -3423,7 +3433,7 @@ function loadDailyLog() {
   } else {
     const events = appState.db.scheduleEvents[dateStr] || [];
     document.getElementById('dl_eventsNote').value = events.length
-      ? events.map(e => `${e.time ? e.time+' ' : ''}${EVENT_TYPE_LABELS[e.type]||e.type}：${e.title}${e.memo ? '（'+e.memo+'）' : ''}`).join('\n')
+      ? events.map(e => `${e.time ? e.time+' ' : ''}${EVENT_TYPE_LABELS[e.type]||e.type}：${e.title}${e.attendees ? '（出席者：'+e.attendees.split(',').join('、')+'）' : ''}${e.memo ? '（'+e.memo+'）' : ''}`).join('\n')
       : '';
   }
 
@@ -4149,7 +4159,7 @@ function renderDayDetail(dateStr) {
     ? events.map(e => `<div class="event-item">
         <span class="event-type-badge ${e.type}">${EVENT_TYPE_LABELS[e.type]}</span>
         ${e.time ? `<span class="event-time">${e.time}</span>` : ''}
-        <span class="event-title">${escHtml(e.title)}${e.memo ? `<br><span style="font-weight:400;color:var(--muted);font-size:11.5px;">${escHtml(e.memo)}</span>` : ''}</span>
+        <span class="event-title">${escHtml(e.title)}${e.attendees ? `<br><span style="font-weight:600;color:var(--green);font-size:11.5px;">出席者：${escHtml(e.attendees.split(',').join('、'))}</span>` : ''}${e.memo ? `<br><span style="font-weight:400;color:var(--muted);font-size:11.5px;">${escHtml(e.memo)}</span>` : ''}</span>
         <button class="icon-btn" onclick="openEventModal('${e.id}')">✏️</button>
         <button class="icon-btn danger" onclick="deleteEvent('${dateStr}','${e.id}')">🗑️</button>
       </div>`).join('')
@@ -4208,9 +4218,28 @@ function addResidentToDay(dateStr) {
 // ============================================================
 let editingEventId = null;
 
+function renderEventAttendeeChips() {
+  const row = document.getElementById('evAttendeesChipRow');
+  if (!row) return;
+  const combined = [
+    ...(appState.db.rehabStaffList || []).map(n => ({n, group:'リハビリ'})),
+    ...(appState.db.careStaffList || []).map(n => ({n, group:'介護'}))
+  ];
+  row.innerHTML = combined.length
+    ? combined.map(s => `<span class="rp-type-chip" data-v="${escAttr(s.n)}" onclick="toggleChipGeneric(this,'evAttendeesChipRow','ev_attendees')">${escHtml(s.n)}</span>`).join('')
+    : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフ／介護スタッフを登録してください</span>`;
+}
+
+function onEventTypeChange() {
+  const type = document.getElementById('ev_type').value;
+  const isMeeting = type === 'staffMeeting' || type === 'dayMeeting';
+  document.getElementById('ev_attendeesArea').style.display = isMeeting ? 'block' : 'none';
+}
+
 function openEventModal(eventId) {
   if (!appState.schedule.selectedDate) return;
   editingEventId = eventId || null;
+  renderEventAttendeeChips();
 
   if (editingEventId) {
     const ev = (appState.db.scheduleEvents[appState.schedule.selectedDate] || []).find(e => e.id === editingEventId);
@@ -4220,13 +4249,18 @@ function openEventModal(eventId) {
     document.getElementById('ev_time').value = ev.time || '';
     document.getElementById('ev_type').value = ev.type;
     document.getElementById('ev_memo').value = ev.memo || '';
+    document.getElementById('ev_attendees').value = ev.attendees || '';
+    syncChipRow('evAttendeesChipRow', 'ev_attendees');
   } else {
     document.getElementById('eventModalTitle').textContent = '📅 予定を追加';
     document.getElementById('ev_title').value = '';
     document.getElementById('ev_time').value = '';
-    document.getElementById('ev_type').value = 'meeting';
+    document.getElementById('ev_type').value = 'staffMeeting';
     document.getElementById('ev_memo').value = '';
+    document.getElementById('ev_attendees').value = '';
+    syncChipRow('evAttendeesChipRow', 'ev_attendees');
   }
+  onEventTypeChange();
   document.getElementById('eventModal').classList.add('open');
 }
 
@@ -4238,11 +4272,14 @@ function saveEvent() {
   const dateStr = appState.schedule.selectedDate;
   if (!appState.db.scheduleEvents[dateStr]) appState.db.scheduleEvents[dateStr] = [];
 
+  const type = document.getElementById('ev_type').value;
+  const isMeeting = type === 'staffMeeting' || type === 'dayMeeting';
   const values = {
-    type: document.getElementById('ev_type').value,
+    type,
     title,
     time: document.getElementById('ev_time').value,
-    memo: document.getElementById('ev_memo').value.trim()
+    memo: document.getElementById('ev_memo').value.trim(),
+    attendees: isMeeting ? document.getElementById('ev_attendees').value : ''
   };
 
   if (editingEventId) {

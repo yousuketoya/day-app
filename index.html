@@ -1646,6 +1646,13 @@ header {
       </div>
     </div>
     <div class="form-grid single">
+      <div class="form-group">
+        <label>🤖 AIへの追加指示（施設独自のルール）</label>
+        <textarea id="customPromptInput" style="min-height:120px;" placeholder="例：&#10;・入浴や排泄の状況には必ず触れる&#10;・利用者の呼び方は「〇〇様」で統一する&#10;・敬語ではなく体言止めで簡潔に書く"></textarea>
+        <div style="font-size:11px; color:var(--muted); margin-top:6px;">ここに書いた内容は、記録・経過記録・リハビリ記録の所見文・モニタリングなど、AIが文章を作成するすべての機能に共通のルールとして反映されます。</div>
+      </div>
+    </div>
+    <div class="form-grid single">
       <div class="form-group"><label>施設名</label><input type="text" id="facilityInput" placeholder="通所サービス○○"></div>
     </div>
     <div class="form-grid single">
@@ -2040,7 +2047,7 @@ header {
 const DB_KEY = 'deiservice_db';
 
 let appState = {
-  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {} },
+  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, customPromptInstructions: '' },
   shorui: { files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
             pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null },
   renrakucho: { selectedResident: null, chips: {}, apiKey: '' },
@@ -2075,7 +2082,7 @@ function init() {
 
 function loadDb() {
   const saved = localStorage.getItem(DB_KEY);
-  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, ...JSON.parse(saved) };
+  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, customPromptInstructions:'', ...JSON.parse(saved) };
   if (!appState.db.rehabContentList || !appState.db.rehabContentList.length) {
     appState.db.rehabContentList = ['関節可動域訓練','筋力増強訓練','歩行訓練','立位・座位訓練','バランス訓練','ADL訓練','嚥下訓練','言語訓練','巧緻動作訓練','レクリエーション訓練'];
   }
@@ -2134,6 +2141,7 @@ function switchPage(page) {
 function openSettings() {
   document.getElementById('apiKeyInput').value = appState.shorui.apiKey || '';
   showStatus('apiKeyStatus', appState.shorui.apiKey ? '✅ APIキー設定済み' : '', 'success');
+  document.getElementById('customPromptInput').value = appState.db.customPromptInstructions || '';
   document.getElementById('facilityInput').value = appState.db.facility;
   document.getElementById('styleSelect').value = appState.db.style;
   document.getElementById('settingsBusinessDays').value = appState.db.businessDays || '月,火,水,木,金,土';
@@ -2422,10 +2430,10 @@ function exportBackupExcel() {
   addSheet('アセスメント', asRows);
 
   // ⑪ 送迎表
-  const tpRows = [['日付','順','利用者名','迎え時刻','送り時刻','車両','運転手','備考']];
+  const tpRows = [['日付','順','利用者名','迎え時刻','到着時刻（施設）','送り時刻','到着時刻（自宅）','車両','運転手','備考']];
   Object.keys(db.transportLog).sort().forEach(date => {
     Object.entries(db.transportLog[date]).forEach(([rid, t]) => {
-      tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.dropoffTime || '', t.vehicle || '', t.driver || '', t.note || '']);
+      tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '']);
     });
   });
   addSheet('送迎表', tpRows);
@@ -2644,10 +2652,10 @@ function restoreFromWorkbook(wb) {
   });
 
   // ⑪ 送迎表
-  getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, dropoffTime, vehicle, driver, note]) => {
+  getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note]) => {
     const id = findId(name); if (!id || !date) return;
     if (!newDb.transportLog[date]) newDb.transportLog[date] = {};
-    newDb.transportLog[date][id] = { order: order || '', pickupTime: pickupTime || '', dropoffTime: dropoffTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '' };
+    newDb.transportLog[date][id] = { order: order || '', pickupTime: pickupTime || '', facilityArrivalTime: facilityArrivalTime || '', dropoffTime: dropoffTime || '', homeArrivalTime: homeArrivalTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '' };
   });
 
   // ⑫ モニタリング
@@ -2983,7 +2991,9 @@ function renderTransportTable() {
       <td><input type="number" value="${t.order ?? (i+1)}" style="width:44px;" onchange="saveTransportField('${dateStr}','${r.id}','order', this.value)"></td>
       <td class="tp-name">${r.name}</td>
       <td><input type="time" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"></td>
+      <td><input type="time" value="${t.facilityArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','facilityArrivalTime', this.value)"></td>
       <td><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"></td>
+      <td><input type="time" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"></td>
       <td><select onchange="saveTransportField('${dateStr}','${r.id}','vehicle', this.value)">${buildVehicleOptions(t.vehicle)}</select></td>
       <td><select onchange="saveTransportField('${dateStr}','${r.id}','driver', this.value)">${buildDriverOptions(t.driver)}</select></td>
       <td><input type="text" value="${escAttr(t.note || '')}" placeholder="備考" onchange="saveTransportField('${dateStr}','${r.id}','note', this.value)"></td>
@@ -2991,7 +3001,7 @@ function renderTransportTable() {
   }).join('');
 
   el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table">
-    <tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>送り時刻</th><th>車両</th><th>運転手</th><th>備考</th></tr>
+    <tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>到着時刻<br>（施設）</th><th>送り時刻</th><th>到着時刻<br>（自宅）</th><th>車両</th><th>運転手</th><th>備考</th></tr>
     ${rows}
   </table></div>
   <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。</div>`;
@@ -3014,7 +3024,7 @@ function printTransportTable() {
 
   const rows = sorted.map((r, i) => {
     const t = log[r.id] || {};
-    return `<tr><td>${t.order ?? (i+1)}</td><td>${escHtml(r.name)}</td><td>${t.pickupTime||''}</td><td>${t.dropoffTime||''}</td><td>${escHtml(t.vehicle||'')}</td><td>${escHtml(t.driver||'')}</td><td>${escHtml(t.note||'')}</td></tr>`;
+    return `<tr><td>${t.order ?? (i+1)}</td><td>${escHtml(r.name)}</td><td>${t.pickupTime||''}</td><td>${t.facilityArrivalTime||''}</td><td>${t.dropoffTime||''}</td><td>${t.homeArrivalTime||''}</td><td>${escHtml(t.vehicle||'')}</td><td>${escHtml(t.driver||'')}</td><td>${escHtml(t.note||'')}</td></tr>`;
   }).join('');
 
   const win = window.open('', '_blank');
@@ -3028,7 +3038,7 @@ function printTransportTable() {
       th { background: #f0f0f0; }
     </style></head><body>
     <h1>送迎表　${escHtml(appState.db.facility||'')}　${dateStr}</h1>
-    <table><tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>送り時刻</th><th>車両</th><th>運転手</th><th>備考</th></tr>${rows}</table>
+    <table><tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>到着時刻（施設）</th><th>送り時刻</th><th>到着時刻（自宅）</th><th>車両</th><th>運転手</th><th>備考</th></tr>${rows}</table>
     </body></html>`);
   win.document.close();
   win.print();
@@ -3113,6 +3123,11 @@ function collectMonthlyCareRecords(residentId, ym) {
   })).filter(x => x.renrakucho || x.keiroka);
 }
 
+function customInstructionsBlock() {
+  const c = (appState.db.customPromptInstructions || '').trim();
+  return c ? `\n【施設独自のルール（必ず守ること）】\n${c}\n` : '';
+}
+
 async function generateRehabMonitoring(btn) {
   const r = appState.monitoring.selectedResident;
   if (!r) { showStatus('rehabMoStatus', '⚠️ 利用者を選択してください', 'info'); return; }
@@ -3151,7 +3166,8 @@ ${sessionLines}
 ・今後の方針や留意点があれば触れる
 ・記録にない情報を創作しない
 ・300〜500文字程度、記録調（敬語不要、客観的に）
-・見出しなど不要。本文のみを出力する。`;
+・見出しなど不要。本文のみを出力する。
+${customInstructionsBlock()}`;
 
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
@@ -3197,7 +3213,8 @@ ${lines}
 ・特記すべき出来事（体調変化、転倒、トラブル等）があれば触れる
 ・記録にない情報を創作しない
 ・300〜500文字程度、記録調（敬語不要、客観的に）
-・見出しなど不要。本文のみを出力する。`;
+・見出しなど不要。本文のみを出力する。
+${customInstructionsBlock()}`;
 
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
@@ -3496,6 +3513,7 @@ function saveSettings() {
   appState.db.facility = document.getElementById('facilityInput').value.trim();
   appState.db.style = document.getElementById('styleSelect').value;
   appState.db.businessDays = document.getElementById('settingsBusinessDays').value || '月,火,水,木,金,土';
+  appState.db.customPromptInstructions = document.getElementById('customPromptInput').value.trim();
   saveDb();
   updateHeader();
   closeSettings();
@@ -5391,7 +5409,7 @@ async function generateRehabRecordNote(btn) {
 ・キーワードにない情報を勝手に付け足さない（誇張・創作しない）
 ・キーワードメモが「なし」の項目は、無理に文章を作らず「特記事項なし」のように短く返す
 ・各項目60〜100文字程度
-
+${customInstructionsBlock()}
 出力形式（この形式を厳守し、見出し以外の余計な文字は含めない）：
 【反応・様子】
 （ここに文章）
@@ -5601,7 +5619,7 @@ async function generateText() {
 ・体調・活動状況・特記すべき変化点を中心に記載する
 ・150〜300文字、記録調（敬語や気遣いの表現は不要、事実ベースで簡潔に）
 ・必ず文章を最後まで完結させる。署名・日付は不要。
-
+${customInstructionsBlock()}
 出力形式（この形式を厳守し、見出し以外の余計な文字は含めない）：
 【記録】
 （ここに記録の文章）

@@ -631,6 +631,12 @@ header {
 
 .upload-area:hover, .upload-area.dragover { border-color: var(--green); background: var(--green-light); }
 .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+.shorui-tips { margin-top: 10px; font-size: 12px; color: var(--muted); }
+.shorui-tips summary { cursor: pointer; font-weight: 700; color: var(--green); padding: 4px 0; }
+.shorui-tips ul { margin: 8px 0 2px 18px; padding: 0; line-height: 1.7; }
+.shorui-tips li { margin-bottom: 2px; }
+.quality-warn-item { display:flex; gap:8px; align-items:flex-start; background:#FFF7E6; border:1px solid #F5B942; color:#8A5A00; border-radius: var(--radius-sm); padding:8px 10px; font-size:12px; margin-top:8px; }
 .upload-icon { font-size: 40px; margin-bottom: 8px; }
 .upload-text { font-size: 14px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
 .upload-sub { font-size: 12px; color: var(--muted); }
@@ -884,6 +890,17 @@ header {
       <div class="upload-sub">タップして選択 / JPG・PNG・PDF / 複数枚OK</div>
     </div>
     <div class="preview-grid" id="previewGrid"></div>
+    <details class="shorui-tips">
+      <summary>💡 きれいに読み取るコツ（読み込めない時はこちら）</summary>
+      <ul>
+        <li>影が入らない明るい場所で、書類を<b>真上から</b>撮影する</li>
+        <li>書類全体が枠内に収まるように、なるべく大きく写す</li>
+        <li>手ブレ・ピンボケに注意（一度止まってからシャッター）</li>
+        <li>1枚で文字が小さく写る場合は、上半分・下半分に<b>分けて2枚</b>撮影すると精度が上がります</li>
+        <li>反射・折れ・書き込みの重なりがある部分は角度を変えてもう1枚追加してください</li>
+      </ul>
+    </details>
+    <div id="shorui-quality-warn" style="display:none;"></div>
   </div>
 
   <button class="btn btn-primary" id="analyzeBtn" onclick="analyze()">🔍 書類を読み取る</button>
@@ -4769,11 +4786,86 @@ function selectMode(el) {
   appState.shorui.mode = el.dataset.mode;
 }
 
-function handleFiles(files) {
-  Array.from(files).forEach(f => {
-    if (!appState.shorui.files.find(x => x.name === f.name)) appState.shorui.files.push(f);
+// ------------------------------------------------------------
+// 画像の自動リサイズ・圧縮・簡易画質チェック
+// スマホ撮影の高解像度写真をそのままAPIに送ると、送信失敗・タイムアウト・
+// トリミング漏れの原因になるため、長辺2000pxに縮小しJPEG圧縮してから送る。
+// 併せて「暗すぎる／小さすぎる」写真には注意メッセージを出す。
+// ------------------------------------------------------------
+const SHORUI_MAX_DIM = 2000;
+const SHORUI_JPEG_QUALITY = 0.88;
+const SHORUI_MIN_DIM_WARN = 900; // これより小さい画像は文字が潰れやすい
+
+function compressImageFile(file) {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) { resolve({ file, warning: null }); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const { width, height } = img;
+      const longSide = Math.max(width, height);
+      const scale = longSide > SHORUI_MAX_DIM ? SHORUI_MAX_DIM / longSide : 1;
+      const w = Math.round(width * scale), h = Math.round(height * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      // 明るさの軽い自動補正（暗い写真の文字を少し見やすくする）
+      ctx.filter = 'contrast(1.06) brightness(1.04)';
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+
+      // 簡易的な明るさチェック（サンプリングして平均輝度を見る）
+      let warning = null;
+      if (Math.min(width, height) < SHORUI_MIN_DIM_WARN) {
+        warning = `「${file.name}」は解像度が低めです。もう少し近づいて撮影すると文字が読み取りやすくなります。`;
+      } else {
+        try {
+          const sample = ctx.getImageData(0, 0, w, h).data;
+          let total = 0, n = 0;
+          for (let i = 0; i < sample.length; i += 4 * 97) { // 間引いてサンプリング
+            total += (sample[i] + sample[i+1] + sample[i+2]) / 3;
+            n++;
+          }
+          const avgBrightness = n ? total / n : 128;
+          if (avgBrightness < 60) {
+            warning = `「${file.name}」は暗く写っている可能性があります。明るい場所で撮り直すと精度が上がります。`;
+          }
+        } catch(e) { /* getImageData失敗時は無視 */ }
+      }
+
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve({ file, warning }); return; }
+        const compressed = new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+        resolve({ file: compressed, warning });
+      }, 'image/jpeg', SHORUI_JPEG_QUALITY);
+    };
+    img.onerror = () => resolve({ file, warning: `「${file.name}」を画像として読み込めませんでした。別の写真を試してください。` });
+    img.src = url;
   });
+}
+
+async function handleFiles(files) {
+  const warnings = [];
+  for (const f of Array.from(files)) {
+    if (appState.shorui.files.find(x => x.name === f.name)) continue;
+    if (f.type === 'application/pdf') {
+      appState.shorui.files.push(f);
+      continue;
+    }
+    const { file: processed, warning } = await compressImageFile(f);
+    appState.shorui.files.push(processed);
+    if (warning) warnings.push(warning);
+  }
   renderPreviews();
+  renderQualityWarnings(warnings);
+}
+
+function renderQualityWarnings(newWarnings) {
+  const el = document.getElementById('shorui-quality-warn');
+  if (!newWarnings || !newWarnings.length) { return; }
+  el.style.display = 'block';
+  el.innerHTML = newWarnings.map(w => `<div class="quality-warn-item">⚠️ ${escHtml(w)}</div>`).join('');
 }
 
 function handleDragOver(e) { e.preventDefault(); document.getElementById('uploadArea').classList.add('dragover'); }
@@ -4796,7 +4888,12 @@ function renderPreviews() {
   }).join('');
 }
 
-function removeFile(i) { appState.shorui.files.splice(i, 1); renderPreviews(); }
+function removeFile(i) {
+  appState.shorui.files.splice(i, 1);
+  renderPreviews();
+  document.getElementById('shorui-quality-warn').style.display = 'none';
+  document.getElementById('shorui-quality-warn').innerHTML = '';
+}
 
 // ============================================================
 // SHORUI - API Key
@@ -4815,14 +4912,34 @@ function saveApiKey() {
 // ============================================================
 // SHORUI - Analyze
 // ============================================================
+// 長文出力が必要なモードはトークン上限を多めに確保（途中で切れるのを防ぐ）
+const SHORUI_MAX_OUTPUT_TOKENS = { basic: 2048, care: 2048, plan: 8192, free: 8192 };
+const SHORUI_MAX_RETRIES = 2; // 空応答・通信エラー時の自動リトライ回数
+
+async function callGeminiOnce(imageParts, mode) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${appState.shorui.apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [...imageParts, { text: getPrompt(mode) }] }],
+        generationConfig: { maxOutputTokens: SHORUI_MAX_OUTPUT_TOKENS[mode] || 2048, temperature: 0.2 }
+      }) }
+  );
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text || '';
+  const truncated = candidate?.finishReason === 'MAX_TOKENS';
+  if (!text) throw new Error('EMPTY_RESULT');
+  return { text, truncated };
+}
+
 async function analyze() {
   if (!appState.shorui.files.length) { showStatus('analyzeStatus', '⚠️ 書類をアップロードしてください', 'info'); return; }
   if (!appState.shorui.apiKey) { showStatus('analyzeStatus', '⚠️ APIキーを設定してください（設定 ⚙️ から）', 'info'); return; }
 
   const btn = document.getElementById('analyzeBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> 読み取り中...';
-  showStatus('analyzeStatus', '', '');
   document.getElementById('resultSection').style.display = 'none';
 
   try {
@@ -4830,24 +4947,36 @@ async function analyze() {
       inline_data: { mime_type: f.type === 'application/pdf' ? 'application/pdf' : f.type, data: await fileToBase64(f) }
     })));
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${appState.shorui.apiKey}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [...imageParts, { text: getPrompt(appState.shorui.mode) }] }], generationConfig: { maxOutputTokens: 2048 } }) }
-    );
+    let lastErr = null, result = null;
+    for (let attempt = 1; attempt <= SHORUI_MAX_RETRIES; attempt++) {
+      btn.innerHTML = attempt === 1
+        ? '<div class="spinner"></div> 読み取り中...'
+        : `<div class="spinner"></div> 読み取り中...（再試行 ${attempt}/${SHORUI_MAX_RETRIES}）`;
+      showStatus('analyzeStatus', attempt === 1 ? '' : `⏳ うまく読み取れなかったため再試行しています…（${attempt}/${SHORUI_MAX_RETRIES}）`, 'info');
+      try {
+        result = await callGeminiOnce(imageParts, appState.shorui.mode);
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < SHORUI_MAX_RETRIES) continue;
+      }
+    }
+    if (!result) throw lastErr || new Error('EMPTY_RESULT');
 
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    if (!text) throw new Error('読み取り結果が空でした');
-
-    appState.shorui.rawText = text;
-    processResult(text, appState.shorui.mode);
+    appState.shorui.rawText = result.text;
+    processResult(result.text, appState.shorui.mode);
     document.getElementById('resultSection').style.display = 'block';
-    showStatus('analyzeStatus', '✅ 読み取り完了！下にスクロールして結果を確認してください', 'success');
+    if (result.truncated) {
+      showStatus('analyzeStatus', '⚠️ 読み取り完了しましたが、文章量が多く一部が省略された可能性があります。内容をご確認ください', 'info');
+    } else {
+      showStatus('analyzeStatus', '✅ 読み取り完了！下にスクロールして結果を確認してください', 'success');
+    }
     setTimeout(() => document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
   } catch(err) {
-    showStatus('analyzeStatus', `❌ エラー: ${err.message}`, 'error');
+    const msg = err.message === 'EMPTY_RESULT'
+      ? '読み取り結果が空でした。文字が写っていない・不鮮明な可能性があります。「きれいに読み取るコツ」を確認のうえ、明るい場所で撮り直すか、書類を分割して撮影してお試しください。'
+      : err.message;
+    showStatus('analyzeStatus', `❌ エラー: ${msg}`, 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '🔍 書類を読み取る';
@@ -4863,11 +4992,19 @@ function fileToBase64(file) {
   });
 }
 
+// 全モード共通の注意書き：複数枚は同一書類の一部として扱い、不鮮明な箇所は
+// 推測で埋めず空欄／「不明瞭」と明記させる（誤情報の混入を防ぐ）
+const SHORUI_COMMON_NOTE = `
+※画像が複数枚ある場合は、同じ書類の異なる部分（1枚目・2枚目…）として扱い、情報を統合してください。
+※文字が不鮮明・判読不能な場合は、推測で埋めず空欄のままにするか「（判読不能）」と記載してください。存在しない情報を作り出さないでください。`;
+
 function getPrompt(mode) {
   if (mode === 'basic') return `この書類から以下の基本情報を抽出してください。JSONのみ返してください。
-{"氏名":"","フリガナ":"","生年月日":"","年齢":"","性別":"","要介護度":"","住所":"","電話番号":"","担当ケアマネ":"","ケアマネ事業所":"","主治医":"","病院名":"","緊急連絡先氏名":"","緊急連絡先続柄":"","緊急連絡先電話":""}`;
+{"氏名":"","フリガナ":"","生年月日":"","年齢":"","性別":"","要介護度":"","住所":"","電話番号":"","担当ケアマネ":"","ケアマネ事業所":"","主治医":"","病院名":"","緊急連絡先氏名":"","緊急連絡先続柄":"","緊急連絡先電話":""}
+${SHORUI_COMMON_NOTE}`;
   if (mode === 'care') return `この書類からケア・医療情報を抽出してください。JSONのみ返してください。
-{"食事形態":"","食事制限":"","アレルギー":"","水分制限":"","入浴方法":"","入浴頻度":"","服薬内容":"","服薬タイミング":"","既往歴":"","現在の疾患":"","注意事項":"","ADL状況":"","認知症の有無":"","コミュニケーション":""}`;
+{"食事形態":"","食事制限":"","アレルギー":"","水分制限":"","入浴方法":"","入浴頻度":"","服薬内容":"","服薬タイミング":"","既往歴":"","現在の疾患":"","注意事項":"","ADL状況":"","認知症の有無":"","コミュニケーション":""}
+${SHORUI_COMMON_NOTE}`;
   if (mode === 'plan') return `この居宅サービス計画書・アセスメントシートを読み取り、デイケア向けリハビリテーション計画書の雛形を作成してください。
 【利用者情報】氏名：要介護度：主疾患：
 【現状と課題】
@@ -4875,8 +5012,9 @@ function getPrompt(mode) {
 【リハビリテーション内容】1.種目：目的：方法・負荷：頻度：
 【留意事項・リスク管理】
 【家族への説明事項】
-※この雛形はAIが生成した案です。担当スタッフが必ず確認・修正してください。`;
-  return `この書類の内容をすべて読み取り、全文テキストと重要情報まとめを出力してください。`;
+※この雛形はAIが生成した案です。担当スタッフが必ず確認・修正してください。
+${SHORUI_COMMON_NOTE}`;
+  return `この書類の内容をすべて読み取り、全文テキストと重要情報まとめを出力してください。${SHORUI_COMMON_NOTE}`;
 }
 
 function processResult(text, mode) {

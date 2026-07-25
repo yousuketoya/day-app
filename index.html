@@ -1734,7 +1734,7 @@ header {
       <div class="form-group">
         <label>データのバックアップ</label>
         <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="exportBackupExcel()">📥 全データをExcelに書き出す</button>
-        <div style="font-size:11px; color:var(--muted); margin-top:6px;">利用者DB・記録・経過記録・リハビリ記録／計画書・スケジュール・バイタルなど、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:6px;">利用者DB（「詳細情報を表示・編集（書類読取で拾った追加項目）」の内容を含む）・記録・経過記録・リハビリ記録／計画書・スケジュール・バイタルなど、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
         <label class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px; cursor:pointer; display:block; text-align:center;">
           📤 バックアップから復元する
           <input type="file" id="restoreFileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleRestoreFile(event)">
@@ -1824,7 +1824,8 @@ header {
       <div class="form-group"><label>食事形態</label>
         <select id="rf_meal">
           <option value="">未設定</option>
-          <option value="普通食">普通食</option><option value="刻み食">刻み食</option>
+          <option value="普通食">普通食</option><option value="一口大">一口大</option>
+          <option value="刻み食">刻み食</option><option value="刻みあんかけ食">刻みあんかけ食</option>
           <option value="ミキサー食">ミキサー食</option><option value="ソフト食">ソフト食</option>
           <option value="流動食">流動食</option>
         </select>
@@ -1837,7 +1838,13 @@ header {
         </select>
       </div>
     </div>
-    <div class="form-grid single">
+    <div class="form-grid">
+      <div class="form-group"><label>水分摂取</label>
+        <select id="rf_fluidIntake">
+          <option value="">未設定</option>
+          <option value="普通">普通</option><option value="とろみ付き">とろみ付き</option>
+        </select>
+      </div>
       <div class="form-group"><label>アレルギー・禁忌食品</label><input type="text" id="rf_allergy" placeholder="例：そば、牛乳アレルギー"></div>
     </div>
     <div class="form-grid single">
@@ -3533,7 +3540,7 @@ function updateHeader() {
 // ============================================================
 const REQUIRED_FIELDS = ['name','kana','careLevel','dob','attendanceDays','meal','bath','allergy','medicine','notes','cm','family'];
 const FIELD_LABELS = { name:'氏名', kana:'フリガナ', careLevel:'要介護度', dob:'生年月日',
-  meal:'食事形態', bath:'入浴方法', allergy:'アレルギー', medicine:'服薬情報',
+  meal:'食事形態', fluidIntake:'水分摂取', bath:'入浴方法', allergy:'アレルギー', medicine:'服薬情報',
   notes:'注意事項', cm:'担当ケアマネ', family:'家族連絡先', attendanceDays:'通所曜日', bathDays:'入浴曜日',
   age:'年齢', gender:'性別', address:'住所', phone:'電話番号',
   cmOffice:'ケアマネ事業所', doctor:'主治医', hospital:'病院名',
@@ -3596,6 +3603,7 @@ function renderDbList() {
       r.age ? `<span class="tag ok">🎂 ${r.age}</span>` : '',
       r.attendanceDays ? `<span class="tag ok">📅 ${r.attendanceDays.split(',').join('・')}</span>` : `<span class="tag missing">📅 通所曜日未設定</span>`,
       r.meal ? `<span class="tag ok">🍱 ${r.meal}</span>` : `<span class="tag missing">🍱 食事未設定</span>`,
+      r.fluidIntake ? `<span class="tag ok">💧 ${r.fluidIntake}</span>` : '',
       r.bath ? `<span class="tag ok">🛁 ${r.bath}</span>` : `<span class="tag missing">🛁 入浴未設定</span>`,
       r.allergy ? `<span class="tag warn">⚠️ ${r.allergy}</span>` : '',
       r.medicine ? `<span class="tag ok">💊 服薬あり</span>` : '',
@@ -3674,7 +3682,7 @@ function jumpToDoc(page, residentId) {
 // ============================================================
 // DB - 利用者登録・編集・削除
 // ============================================================
-const RF_FIELDS = ['name','kana','careLevel','dob','attendanceDays','bathDays','meal','bath','allergy','medicine','notes','cm','family',
+const RF_FIELDS = ['name','kana','careLevel','dob','attendanceDays','bathDays','meal','fluidIntake','bath','allergy','medicine','notes','cm','family',
   'age','gender','address','phone','cmOffice','doctor','hospital','emergencyRelation','emergencyPhone',
   'mealRestriction','fluidRestriction','medicineTiming','history','currentDisease','adl','dementia','communication','extraInfo',
   'rehabStaffInCharge','careStaffInCharge'];
@@ -4334,6 +4342,7 @@ const IMPORT_ALIASES = {
   dob: ['生年月日','誕生日'],
   attendanceDays: ['通所曜日','曜日','利用曜日'],
   meal: ['食事形態','食事'],
+  fluidIntake: ['水分摂取'],
   bath: ['入浴方法','入浴'],
   allergy: ['アレルギー'],
   medicine: ['服薬内容','服薬情報','服薬'],
@@ -4365,7 +4374,7 @@ function downloadResidentTemplate() {
 
   const sample = {
     name:'山田 花子', kana:'ヤマダ ハナコ', careLevel:'要介護2', dob:'1945-03-15',
-    attendanceDays:'月,水,金', meal:'常食', bath:'一般浴', allergy:'なし', medicine:'降圧剤（朝食後）',
+    attendanceDays:'月,水,金', meal:'普通食', fluidIntake:'普通', bath:'一般浴', allergy:'なし', medicine:'降圧剤（朝食後）',
     notes:'転倒に注意', cm:'鈴木 一郎', family:'長女 山田 幸子',
     age:'', gender:'女性', address:'宮崎県〇〇市〇〇1-2-3', phone:'0985-00-0000',
     cmOffice:'〇〇居宅介護支援事業所', doctor:'〇〇クリニック 田中医師', hospital:'〇〇病院',
@@ -4824,7 +4833,7 @@ function getPrompt(mode) {
   if (mode === 'basic') return `この書類から以下の基本情報を抽出してください。JSONのみ返してください。
 {"氏名":"","フリガナ":"","生年月日":"","年齢":"","性別":"","要介護度":"","住所":"","電話番号":"","担当ケアマネ":"","ケアマネ事業所":"","主治医":"","病院名":"","緊急連絡先氏名":"","緊急連絡先続柄":"","緊急連絡先電話":""}`;
   if (mode === 'care') return `この書類からケア・医療情報を抽出してください。JSONのみ返してください。
-{"食事形態":"","食事制限":"","アレルギー":"","水分制限":"","入浴方法":"","入浴頻度":"","服薬内容":"","服薬タイミング":"","既往歴":"","現在の疾患":"","注意事項":"","ADL状況":"","認知症の有無":"","コミュニケーション":""}`;
+{"食事形態":"","水分摂取":"","食事制限":"","アレルギー":"","水分制限":"","入浴方法":"","入浴頻度":"","服薬内容":"","服薬タイミング":"","既往歴":"","現在の疾患":"","注意事項":"","ADL状況":"","認知症の有無":"","コミュニケーション":""}`;
   if (mode === 'plan') return `この居宅サービス計画書・アセスメントシートを読み取り、デイケア向けリハビリテーション計画書の雛形を作成してください。
 【利用者情報】氏名：要介護度：主疾患：
 【現状と課題】
@@ -4875,7 +4884,7 @@ const EXTRACT_FIELD_MAP = {
   '年齢':'age', '性別':'gender', '住所':'address', '電話番号':'phone',
   '担当ケアマネ':'cm', 'ケアマネ事業所':'cmOffice', '主治医':'doctor', '病院名':'hospital',
   '緊急連絡先氏名':'family', '緊急連絡先続柄':'emergencyRelation', '緊急連絡先電話':'emergencyPhone',
-  '食事形態':'meal', '食事制限':'mealRestriction', 'アレルギー':'allergy', '水分制限':'fluidRestriction',
+  '食事形態':'meal', '水分摂取':'fluidIntake', '食事制限':'mealRestriction', 'アレルギー':'allergy', '水分制限':'fluidRestriction',
   '入浴方法':'bath', '入浴頻度':null, '服薬内容':'medicine', '服薬タイミング':'medicineTiming',
   '既往歴':'history', '現在の疾患':'currentDisease', '注意事項':'notes',
   'ADL状況':'adl', '認知症の有無':'dementia', 'コミュニケーション':'communication'
@@ -5548,6 +5557,7 @@ function showResidentInfo(r) {
   const tags = [
     r.careLevel ? r.careLevel : null,
     r.meal ? '食事: '+r.meal : null,
+    r.fluidIntake ? '水分: '+r.fluidIntake : null,
     r.bath ? '入浴: '+r.bath : null,
     r.medicine ? '服薬: '+r.medicine : null,
     r.allergy ? '⚠️ '+r.allergy : null,
@@ -5596,7 +5606,7 @@ async function generateText() {
   const styleDesc = { warm:'温かく親しみやすい文体', formal:'丁寧な敬語体', brief:'簡潔スタイル' }[appState.db.style] || '温かく親しみやすい文体';
   const vitals = [temp?`体温${temp}℃`:'', (bpSys&&bpDia)?`血圧${bpSys}/${bpDia}mmHg`:'', pulse?`脈拍${pulse}回/分`:'', spo2?`SpO₂ ${spo2}%`:'', weight?`体重${weight}kg`:''].filter(Boolean).join('、');
   const checkItems = Object.entries(appState.renrakucho.chips).map(([k,v]) => `${k}: ${v}`).join('\n');
-  const dbInfo = [r.careLevel?`要介護度: ${r.careLevel}`:'', r.meal?`食事形態: ${r.meal}`:'', r.bath?`入浴方法: ${r.bath}`:'', r.allergy?`アレルギー: ${r.allergy}`:'', r.medicine?`服薬: ${r.medicine}`:'', r.notes?`注意事項: ${r.notes}`:''].filter(Boolean).join('\n');
+  const dbInfo = [r.careLevel?`要介護度: ${r.careLevel}`:'', r.meal?`食事形態: ${r.meal}`:'', r.fluidIntake?`水分摂取: ${r.fluidIntake}`:'', r.bath?`入浴方法: ${r.bath}`:'', r.allergy?`アレルギー: ${r.allergy}`:'', r.medicine?`服薬: ${r.medicine}`:'', r.notes?`注意事項: ${r.notes}`:''].filter(Boolean).join('\n');
 
   const prompt = `あなたは通所サービスのスタッフです。以下の本日の記録内容をもとに、①ご家族向けの「記録」と、②施設内スタッフ向けの「経過記録」の、2種類の文章をそれぞれ作成してください。
 

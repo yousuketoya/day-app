@@ -448,6 +448,36 @@ header {
 .rp-assess-table select, .rp-assess-table input[type="text"] { width: 100%; padding: 5px 4px; font-size: 11.5px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; }
 .rp-assess-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* 出勤表 */
+.shift-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.shift-table th, .shift-table td { border: 1px solid var(--border); padding: 3px 2px; text-align: center; }
+.shift-table th { background: var(--bg); font-weight: 700; color: var(--muted); font-size: 10px; white-space: nowrap; line-height:1.3; }
+.shift-table th.shift-week-label { background: var(--green-light); color: var(--green); font-size: 10px; }
+.shift-table th.shift-day-off { background: #eee; color: #bbb; }
+.shift-table td.shift-staff-name { text-align: left; font-weight: 700; white-space: nowrap; padding: 4px 8px 4px 6px; font-size: 12px; position: sticky; left: 0; background: var(--card); z-index: 1; }
+.shift-table th.shift-staff-name-header { position: sticky; left: 0; background: var(--bg); z-index: 2; }
+.shift-cell { width: 26px; min-width:26px; height: 24px; cursor: pointer; font-weight: 700; border-radius: 4px; user-select: none; font-size:10.5px; }
+.shift-cell.work { background: var(--green-light); color: var(--green); }
+.shift-cell.off { background: #f0f0f0; color: #999; }
+.shift-cell.code-p { background: #E3F2FD; color: #1565C0; }
+.shift-cell.code-a { background: #FFF3E0; color: #E65100; }
+.shift-cell.code-pyu { background: #E1F5FE; color: #0277BD; }
+.shift-cell.code-ayu { background: #FFE0B2; color: #BF360C; }
+.shift-cell.code-2h { background: #F3E5F5; color: #7B1FA2; }
+.shift-cell.code-1h { background: #FCE4EC; color: #AD1457; }
+.shift-cell.code-ki { background: #E0F2F1; color: #00695C; }
+.shift-cell.non-business { background: repeating-linear-gradient(45deg,#f5f5f5,#f5f5f5 4px,#eeeeee 4px,#eeeeee 8px); color: #bbb; cursor: default; }
+.shift-legend { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.shift-legend-item { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); background:var(--bg); border-radius:6px; padding:3px 8px; }
+.shift-legend-item .swatch { width:16px; height:16px; border-radius:4px; display:inline-block; }
+
+.shift-preview-day { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:7px 4px; border-bottom:1px solid var(--border); font-size:12.5px; }
+.shift-preview-day:last-child { border-bottom:none; }
+.shift-preview-day .spd-date { font-weight:700; width: 76px; flex-shrink:0; }
+.shift-preview-day.non-biz { color: var(--muted); }
+.shift-preview-day .spd-staff { text-align:right; flex:1; }
+.shift-preview-staff-chip { display:inline-block; background:var(--green-light); color:var(--green); border-radius:8px; padding:2px 8px; font-size:11.5px; margin:2px 0 2px 4px; }
+
 /* ===== EXCEL IMPORT ===== */
 .import-map-row {
   display: flex;
@@ -743,8 +773,11 @@ header {
     <button class="nav-btn" onclick="switchPage('transport')">
       <span class="nav-icon">🚐</span>送迎表
     </button>
+    <button class="nav-btn" onclick="switchPage('shift')">
+      <span class="nav-icon">🗓️</span>出勤表
+    </button>
     <button class="nav-btn" onclick="switchPage('renrakucho')">
-      <span class="nav-icon">📋</span>記録
+      <span class="nav-icon">📋</span>連絡帳
     </button>
     <button class="nav-btn" onclick="switchPage('rehabrecord')">
       <span class="nav-icon">📝</span>リハビリ記録
@@ -947,14 +980,14 @@ header {
   </div>
 
   <div class="card">
-    <div class="card-title">📋 この日の記録一覧</div>
+    <div class="card-title">📋 この日の連絡帳一覧</div>
     <div id="todayRenrakuchoList"></div>
-    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printAllRenrakucho()">🖨️ この日の記録をまとめて印刷</button>
+    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printAllRenrakucho()">🖨️ この日の連絡帳をまとめて印刷</button>
     <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:6px;" onclick="printAllKeiroka()">🖨️ この日の経過記録をまとめて印刷</button>
   </div>
 
   <div class="card">
-    <div class="card-title">✅ 今週の記録チェック</div>
+    <div class="card-title">✅ 今週の連絡帳チェック</div>
     <div id="rcWeekMatrix"></div>
     <div style="font-size:11px; color:var(--muted); margin-top:8px;">緑＝作成済み／オレンジ＝未作成（通所日のみ表示）。丸をタップすると内容を確認・編集できます。</div>
   </div>
@@ -1118,12 +1151,12 @@ header {
       placeholder="気になった様子・会話・家族への伝達事項など&#10;⚠️ 氏名・住所など個人を特定できる情報は書かないでください"></textarea>
   </div>
 
-  <button class="btn btn-primary" id="generateBtn" onclick="generateText()">✨ AIで記録・経過記録を作成する</button>
+  <button class="btn btn-primary" id="generateBtn" onclick="generateText()">✨ AIで連絡帳・経過記録を作成する</button>
   <div id="generateStatus"></div>
 
   <div id="outputSection" style="display:none; margin-top:14px;">
     <div class="card" style="border:2px solid var(--green);">
-      <div class="card-title">📋 生成された記録文（ご家族向け）</div>
+      <div class="card-title">📋 生成された連絡帳（ご家族向け）</div>
       <div class="output-box" id="outputText"></div>
       <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="btn btn-secondary btn-sm" onclick="copyOutput()">📋 コピー</button>
@@ -1523,6 +1556,41 @@ header {
 
 </div>
 
+<!-- ==================== SHIFT PAGE ==================== -->
+<div class="page" id="page-shift">
+
+  <div class="card">
+    <div class="card-title">📌 サイクルの起点日（火曜日）</div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
+      出勤表は<b>4週28日</b>を1サイクルとして繰り返します。サイクル1日目にあたる<b>火曜日</b>の日付を選んでください。<br>
+      設定 ⚙️ の「営業曜日」に同期しており、営業曜日でない日はパターンに関わらず<b>全員休み</b>として自動表示されます。
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="date" id="shiftCycleStartInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;">
+      <button class="btn btn-secondary btn-sm" onclick="saveShiftCycleStart()">保存</button>
+    </div>
+    <div id="shiftCycleStartStatus" style="margin-top:6px;"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗓️ 4週間の勤務パターン</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">セルをタップして「出勤（緑）」「休み（グレー）」を切り替えてください。このパターンが起点日から28日周期で繰り返し適用されます。スタッフの追加・編集は設定 ⚙️ から行えます。</div>
+    <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
+  </div>
+
+  <div class="card">
+    <div class="cal-header">
+      <button class="icon-btn" onclick="changeShiftMonth(-1)">◀</button>
+      <div class="cal-month-label" id="shiftMonthLabel">2026年7月</div>
+      <button class="icon-btn" onclick="changeShiftMonth(1)">▶</button>
+    </div>
+    <div class="card-title" style="border:none; padding:6px 0 8px;">📋 月間プレビュー</div>
+    <div id="shiftMonthPreview"></div>
+    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printShiftMonth()">🖨️ この月を印刷</button>
+  </div>
+
+</div>
+
 <!-- ==================== MONITORING PAGE ==================== -->
 <div class="page" id="page-monitoring">
 
@@ -1679,8 +1747,21 @@ header {
       </div>
     </div>
     <div class="form-grid single">
+      <div class="form-group"><label>施設名</label><input type="text" id="facilityInput" placeholder="通所サービス○○"></div>
+    </div>
+    <div class="form-grid single">
       <div class="form-group">
-        <label>🤖 AIへの追加指示（記録・経過記録）</label>
+        <label>文体スタイル</label>
+        <select id="styleSelect">
+          <option value="warm">温かみのある文体（標準）</option>
+          <option value="formal">丁寧な敬語体</option>
+          <option value="brief">簡潔スタイル</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label>🤖 AIへの追加指示（連絡帳・経過記録）</label>
         <textarea id="customPromptRenrakuchoInput" style="min-height:100px;" placeholder="例：&#10;・入浴や排泄の状況には必ず触れる&#10;・利用者の呼び方は「〇〇様」で統一する"></textarea>
       </div>
     </div>
@@ -1695,19 +1776,6 @@ header {
         <label>🤖 AIへの追加指示（モニタリング）</label>
         <textarea id="customPromptMonitoringInput" style="min-height:100px;" placeholder="例：&#10;・目標達成度は5段階で評価するように含める&#10;・次月の方針を必ず1文加える"></textarea>
         <div style="font-size:11px; color:var(--muted); margin-top:6px;">それぞれの欄に書いた内容は、対応する機能でAIが文章を作成する際のルールとして反映されます。</div>
-      </div>
-    </div>
-    <div class="form-grid single">
-      <div class="form-group"><label>施設名</label><input type="text" id="facilityInput" placeholder="通所サービス○○"></div>
-    </div>
-    <div class="form-grid single">
-      <div class="form-group">
-        <label>文体スタイル</label>
-        <select id="styleSelect">
-          <option value="warm">温かみのある文体（標準）</option>
-          <option value="formal">丁寧な敬語体</option>
-          <option value="brief">簡潔スタイル</option>
-        </select>
       </div>
     </div>
     <div class="form-grid single">
@@ -1737,7 +1805,7 @@ header {
     </div>
     <div class="form-grid single">
       <div class="form-group">
-        <label>介護スタッフ登録（記録の「記録者」選択肢になります）</label>
+        <label>介護スタッフ登録（連絡帳の「記録者」選択肢になります）</label>
         <div style="display:flex; gap:6px;">
           <input type="text" id="newCareStaffInput" placeholder="例：佐藤 花子" style="flex:1;">
           <button class="btn btn-secondary btn-sm" onclick="addCareStaff()">＋ 追加</button>
@@ -1779,7 +1847,7 @@ header {
       <div class="form-group">
         <label>データのバックアップ</label>
         <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="exportBackupExcel()">📥 全データをExcelに書き出す</button>
-        <div style="font-size:11px; color:var(--muted); margin-top:6px;">利用者DB・記録・経過記録・リハビリ記録／計画書・スケジュール・バイタルなど、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:6px;">利用者DB・連絡帳・経過記録・リハビリ記録／計画書・スケジュール・バイタルなど、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
         <label class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px; cursor:pointer; display:block; text-align:center;">
           📤 バックアップから復元する
           <input type="file" id="restoreFileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleRestoreFile(event)">
@@ -2092,11 +2160,12 @@ header {
 const DB_KEY = 'deiservice_db';
 
 let appState = {
-  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '' },
+  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {} },
   shorui: { files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
             pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null },
   renrakucho: { selectedResident: null, chips: {}, apiKey: '' },
   schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
+  shift: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth() },
   rehab: { selectedResident: null },
   rehabRecord: { selectedResident: null },
   assessment: { selectedResident: null },
@@ -2127,7 +2196,7 @@ function init() {
 
 function loadDb() {
   const saved = localStorage.getItem(DB_KEY);
-  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', ...JSON.parse(saved) };
+  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, ...JSON.parse(saved) };
   // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
   if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
     appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -2164,6 +2233,10 @@ function switchPage(page) {
   if (page === 'transport') {
     if (!document.getElementById('tpDateInput').value) setTransportToday();
     renderTransportTable();
+  }
+  if (page === 'shift') {
+    renderShiftPatternTable();
+    renderShiftMonthPreview();
   }
   if (page === 'rehabrecord') {
     if (!document.getElementById('rrDateInput').value) setRehabRecordToday();
@@ -2386,7 +2459,7 @@ function exportBackupExcel() {
   });
   addSheet('利用者DB評価(現況)', dbAssessRows);
 
-  // ② 記録（連絡帳）
+  // ② 連絡帳
   const rcRows = [['日付','利用者名','記録者','記録文']];
   Object.keys(db.renrakuchoLog).sort().forEach(date => {
     Object.entries(db.renrakuchoLog[date]).forEach(([rid, text]) => {
@@ -2394,7 +2467,7 @@ function exportBackupExcel() {
       rcRows.push([date, residentNameOf(rid), staff, text]);
     });
   });
-  addSheet('記録', rcRows);
+  addSheet('連絡帳', rcRows);
 
   // ③ 経過記録
   const krRows = [['日付','利用者名','経過記録文']];
@@ -2519,7 +2592,21 @@ function exportBackupExcel() {
   });
   addSheet('利用時間・入浴状況', usRows);
 
-  // ⑮ 設定・マスタ情報
+  // ⑮ 出勤表（4週28日パターン）
+  const shiftStaffForExport = [
+    ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
+    ...(db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
+    ...(db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
+  ];
+  const shiftRows = [['スタッフ名', '職種', ...Array.from({length: 28}, (_, i) => `Day${i+1}`)]];
+  shiftStaffForExport.forEach(s => {
+    const pattern = (db.shiftPattern && db.shiftPattern[s.name]) || [];
+    const cells = Array.from({length: 28}, (_, i) => shiftCodeLabel(pattern[i] || 'work'));
+    shiftRows.push([s.name, s.group, ...cells]);
+  });
+  addSheet('出勤表', shiftRows);
+
+  // ⑯ 設定・マスタ情報
   const setRows = [
     ['項目', '内容'],
     ['施設名', db.facility || ''],
@@ -2530,6 +2617,7 @@ function exportBackupExcel() {
     ['その他の職員', (db.otherStaffList || []).join('、')],
     ['車両', (db.vehicleList || []).join('、')],
     ['リハビリ実施内容の選択肢', (db.rehabContentList || []).join('、')],
+    ['出勤表起点日', db.shiftCycleStart || ''],
     ['出力日時', new Date().toLocaleString('ja-JP')]
   ];
   addSheet('設定情報', setRows);
@@ -2570,7 +2658,10 @@ function handleRestoreFile(event) {
 }
 
 function getSheetRows(wb, name) {
-  const sheet = wb.Sheets[name];
+  // 複数のシート名候補を受け付け、旧バージョンのバックアップ（例：「記録」→「連絡帳」に改名）でも復元できるようにする
+  const names = Array.isArray(name) ? name : [name];
+  const foundName = names.find(n => wb.Sheets[n]);
+  const sheet = foundName ? wb.Sheets[foundName] : null;
   if (!sheet) return [];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
   return rows.slice(1).filter(r => r.some(c => String(c || '').trim() !== ''));
@@ -2583,7 +2674,7 @@ function restoreFromWorkbook(wb) {
     dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [],
     rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {},
     transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
-    dailyLog: {}, usageLog: {}
+    dailyLog: {}, usageLog: {}, shiftCycleStart: '', shiftPattern: {}
   };
 
   // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
@@ -2597,8 +2688,8 @@ function restoreFromWorkbook(wb) {
   });
   const findId = (name) => nameToId[name];
 
-  // ② 記録
-  getSheetRows(wb, '記録').forEach(([date, name, staff, text]) => {
+  // ② 連絡帳（旧バックアップの「記録」シートも読み込み可）
+  getSheetRows(wb, ['連絡帳', '記録']).forEach(([date, name, staff, text]) => {
     const id = findId(name); if (!id || !date) return;
     if (!newDb.renrakuchoLog[date]) newDb.renrakuchoLog[date] = {};
     newDb.renrakuchoLog[date][id] = text || '';
@@ -2748,10 +2839,21 @@ function restoreFromWorkbook(wb) {
     if (key === 'その他の職員') newDb.otherStaffList = (val || '').split('、').filter(Boolean);
     if (key === '車両') newDb.vehicleList = (val || '').split('、').filter(Boolean);
     if (key === 'リハビリ実施内容の選択肢') newDb.rehabContentList = (val || '').split('、').filter(Boolean);
+    if (key === '出勤表起点日') newDb.shiftCycleStart = val || '';
   });
   if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
     newDb.rehabContentList = ['関節可動域訓練','筋力増強訓練','歩行訓練','立位・座位訓練','バランス訓練','ADL訓練','嚥下訓練','言語訓練','巧緻動作訓練','レクリエーション訓練'];
   }
+
+  // ⑯ 出勤表パターン
+  const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', 'P': 'P', 'A': 'A', 'P有': 'P有', 'A有': 'A有', '2H有': '2H有', '1H有': '1H有', '記': '記' };
+  getSheetRows(wb, '出勤表').forEach(row => {
+    const [name, , ...cells] = row;
+    if (!name) return;
+    const pattern = cells.slice(0, 28).map(v => SHIFT_LABEL_TO_CODE[v] || 'work');
+    while (pattern.length < 28) pattern.push('work');
+    newDb.shiftPattern[name] = pattern;
+  });
 
   appState.db = newDb;
   return newDb.residentDb.length;
@@ -3097,6 +3199,235 @@ function printTransportTable() {
     </style></head><body>
     <h1>送迎表　${escHtml(appState.db.facility||'')}　${dateStr}</h1>
     <table><tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>到着時刻（施設）</th><th>送り時刻</th><th>到着時刻（自宅）</th><th>車両</th><th>運転手</th><th>備考</th></tr>${rows}</table>
+    </body></html>`);
+  win.document.close();
+  win.print();
+}
+
+// ============================================================
+// SHIFT（出勤表：4週28日サイクルの勤務パターン管理）
+// ============================================================
+const SHIFT_CYCLE_LEN = 28;
+// 出勤区分の並び：クリックするたびにこの順で切り替わる
+const SHIFT_CODES = ['work', 'off', 'P', 'A', 'P有', 'A有', '2H有', '1H有', '記'];
+function shiftCodeLabel(code) { return code === 'work' ? '出' : code === 'off' ? '休' : (code || '休'); }
+function shiftCodeClass(code) {
+  const map = { work: 'work', off: 'off', 'P': 'code-p', 'A': 'code-a', 'P有': 'code-pyu', 'A有': 'code-ayu', '2H有': 'code-2h', '1H有': 'code-1h', '記': 'code-ki' };
+  return map[code] || 'off';
+}
+
+function ymdToLocalDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function localDateToYmd(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+function addDaysToYmd(dateStr, days) {
+  const dt = ymdToLocalDate(dateStr);
+  dt.setDate(dt.getDate() + days);
+  return localDateToYmd(dt);
+}
+function daysBetweenYmd(d1Str, d2Str) {
+  return Math.round((ymdToLocalDate(d2Str) - ymdToLocalDate(d1Str)) / 86400000);
+}
+
+function getShiftStaffList() {
+  return [
+    ...(appState.db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
+    ...(appState.db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
+    ...(appState.db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
+  ];
+}
+
+function ensureShiftPattern(name) {
+  if (!appState.db.shiftPattern) appState.db.shiftPattern = {};
+  if (!appState.db.shiftPattern[name] || appState.db.shiftPattern[name].length !== SHIFT_CYCLE_LEN) {
+    // 新規スタッフはデフォルト「出勤」。休みの日だけ後から個別にオフへ切り替える運用を想定。
+    appState.db.shiftPattern[name] = Array(SHIFT_CYCLE_LEN).fill('work');
+  }
+}
+
+function shiftCycleDayIndex(dateStr) {
+  const start = appState.db.shiftCycleStart;
+  if (!start) return null;
+  const diff = daysBetweenYmd(start, dateStr);
+  return ((diff % SHIFT_CYCLE_LEN) + SHIFT_CYCLE_LEN) % SHIFT_CYCLE_LEN;
+}
+
+function isBusinessDayStr(dateStr) {
+  return getBusinessDays().includes(weekdayLabelOf(dateStr));
+}
+
+// 営業曜日でない日は問答無用で全員「休み」。営業日はパターンの該当セルを見る。
+function getStaffShiftStatus(name, dateStr) {
+  if (!isBusinessDayStr(dateStr)) return 'off';
+  const idx = shiftCycleDayIndex(dateStr);
+  if (idx === null) return null;
+  ensureShiftPattern(name);
+  return appState.db.shiftPattern[name][idx];
+}
+
+// ---- 起点日の設定 ----
+function saveShiftCycleStart() {
+  const val = document.getElementById('shiftCycleStartInput').value;
+  if (!val) { showStatus('shiftCycleStartStatus', '⚠️ 日付を選択してください', 'info'); return; }
+  if (weekdayLabelOf(val) !== '火') {
+    showStatus('shiftCycleStartStatus', '⚠️ 起点日は火曜日の日付を選んでください', 'error');
+    return;
+  }
+  appState.db.shiftCycleStart = val;
+  saveDb();
+  showStatus('shiftCycleStartStatus', '✅ 起点日を保存しました', 'success');
+  renderShiftPatternTable();
+  renderShiftMonthPreview();
+}
+
+// ---- パターン編集テーブル ----
+function renderShiftPatternTable() {
+  const el = document.getElementById('shiftPatternTableArea');
+  if (!el) return;
+
+  const startInput = document.getElementById('shiftCycleStartInput');
+  if (startInput) startInput.value = appState.db.shiftCycleStart || '';
+
+  const staffList = getShiftStaffList();
+  if (!staffList.length) {
+    el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">設定 ⚙️ からリハビリ・介護・その他のスタッフを登録してください</div>';
+    return;
+  }
+  const start = appState.db.shiftCycleStart;
+  if (!start) {
+    el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">上で起点日（火曜日）を保存すると、パターン編集ができるようになります</div>';
+    return;
+  }
+
+  staffList.forEach(s => ensureShiftPattern(s.name));
+
+  const dayDates = Array.from({ length: SHIFT_CYCLE_LEN }, (_, i) => addDaysToYmd(start, i));
+  const dayLabels = dayDates.map(d => weekdayLabelOf(d));
+  const dayIsBiz = dayDates.map(d => isBusinessDayStr(d));
+
+  const legend = `<div class="shift-legend">
+    ${SHIFT_CODES.map(c => `<span class="shift-legend-item"><span class="swatch shift-cell ${shiftCodeClass(c)}" style="cursor:default;"></span>${shiftCodeLabel(c)}</span>`).join('')}
+    <span class="shift-legend-item"><span class="swatch shift-cell non-business" style="cursor:default;"></span>休業日（自動）</span>
+  </div>`;
+
+  const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
+  const dayHeaderCells = dayLabels.map((wd, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${wd}</th>`).join('');
+
+  let bodyRows = '';
+  staffList.forEach(s => {
+    const pattern = appState.db.shiftPattern[s.name];
+    const cells = pattern.map((v, i) => {
+      if (!dayIsBiz[i]) {
+        // 営業曜日でない日はパターンに関わらず固定で「休」表示（クリック不可）
+        return `<td class="shift-cell non-business">休</td>`;
+      }
+      const cls = shiftCodeClass(v);
+      const label = shiftCodeLabel(v);
+      return `<td class="shift-cell ${cls}" onclick="toggleShiftCell('${escAttr(s.name)}', ${i})">${label}</td>`;
+    }).join('');
+    bodyRows += `<tr><td class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>${cells}</tr>`;
+  });
+
+  el.innerHTML = `${legend}<table class="shift-table">
+    <thead>
+      <tr><th class="shift-staff-name-header"></th>${weekHeaderCells}</tr>
+      <tr><th class="shift-staff-name-header">スタッフ</th>${dayHeaderCells}</tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+  </table>`;
+}
+
+function toggleShiftCell(name, idx) {
+  ensureShiftPattern(name);
+  const cur = appState.db.shiftPattern[name][idx];
+  const curIdx = SHIFT_CODES.indexOf(cur);
+  const nextIdx = (curIdx === -1 ? 0 : curIdx + 1) % SHIFT_CODES.length;
+  appState.db.shiftPattern[name][idx] = SHIFT_CODES[nextIdx];
+  saveDb();
+  renderShiftPatternTable();
+  renderShiftMonthPreview();
+}
+
+// ---- 月間プレビュー ----
+function changeShiftMonth(delta) {
+  appState.shift.viewMonth += delta;
+  if (appState.shift.viewMonth < 0) { appState.shift.viewMonth = 11; appState.shift.viewYear--; }
+  if (appState.shift.viewMonth > 11) { appState.shift.viewMonth = 0; appState.shift.viewYear++; }
+  renderShiftMonthPreview();
+}
+
+function renderShiftMonthPreview() {
+  const el = document.getElementById('shiftMonthPreview');
+  if (!el) return;
+  const y = appState.shift.viewYear, m = appState.shift.viewMonth;
+  const labelEl = document.getElementById('shiftMonthLabel');
+  if (labelEl) labelEl.textContent = `${y}年${m + 1}月`;
+
+  if (!appState.db.shiftCycleStart) {
+    el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">起点日を設定するとプレビューが表示されます</div>';
+    return;
+  }
+
+  const staffList = getShiftStaffList();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  let rows = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const wd = weekdayLabelOf(dateStr);
+    if (!isBusinessDayStr(dateStr)) {
+      rows += `<div class="shift-preview-day non-biz"><span class="spd-date">${d}日（${wd}）</span><span class="spd-staff">休業日・全員休み</span></div>`;
+      continue;
+    }
+    const present = staffList
+      .map(s => ({ name: s.name, code: getStaffShiftStatus(s.name, dateStr) }))
+      .filter(s => s.code && s.code !== 'off');
+    const staffHtml = present.length
+      ? present.map(s => `<span class="shift-preview-staff-chip">${escHtml(s.name)}${s.code === 'work' ? '' : `（${shiftCodeLabel(s.code)}）`}</span>`).join('')
+      : '<span style="color:var(--muted);">出勤者なし</span>';
+    rows += `<div class="shift-preview-day"><span class="spd-date">${d}日（${wd}）</span><span class="spd-staff">${staffHtml}</span></div>`;
+  }
+  el.innerHTML = rows;
+}
+
+function printShiftMonth() {
+  if (!appState.db.shiftCycleStart) { alert('起点日を設定してください'); return; }
+  const y = appState.shift.viewYear, m = appState.shift.viewMonth;
+  const facility = appState.db.facility || '';
+  const staffList = getShiftStaffList();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+  let bodyRows = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const wd = weekdayLabelOf(dateStr);
+    const isBiz = isBusinessDayStr(dateStr);
+    let cellText = '休業日（全員休み）';
+    if (isBiz) {
+      const present = staffList
+        .map(s => ({ name: s.name, code: getStaffShiftStatus(s.name, dateStr) }))
+        .filter(s => s.code && s.code !== 'off')
+        .map(s => s.code === 'work' ? s.name : `${s.name}（${shiftCodeLabel(s.code)}）`);
+      cellText = escHtml(present.join('、')) || '－';
+    }
+    bodyRows += `<tr><td>${d}</td><td>${wd}</td><td>${cellText}</td></tr>`;
+  }
+
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>出勤表 ${y}年${m + 1}月</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; font-size: 12.5px; }
+      h1 { font-size: 17px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border: 1px solid #999; padding: 5px 8px; text-align: left; }
+      th { background: #f3f3f3; }
+      @media print { body { padding: 8mm; } }
+    </style></head><body>
+    <h1>出勤表　${escHtml(facility)}　${y}年${m + 1}月</h1>
+    <table><thead><tr><th>日</th><th>曜</th><th>出勤スタッフ</th></tr></thead><tbody>${bodyRows}</tbody></table>
     </body></html>`);
   win.document.close();
   win.print();
@@ -3671,7 +4002,7 @@ function renderDbList() {
     const docBadges = `
       <span class="doc-badge ${hasPlan ? 'ok' : 'missing'}" onclick="event.stopPropagation(); jumpToDoc('rehab','${r.id}')">📋 計画書 ${hasPlan ? '✓' : '－'}</span>
       <span class="doc-badge ${hasRehabRecord ? 'ok' : 'missing'}" onclick="event.stopPropagation(); jumpToDoc('rehabrecord','${r.id}')">📝 リハ記録 ${hasRehabRecord ? '✓' : '－'}</span>
-      <span class="doc-badge ${hasRecord ? 'ok' : 'missing'}" onclick="event.stopPropagation(); jumpToDoc('renrakucho','${r.id}')">📄 記録 ${hasRecord ? '✓' : '－'}</span>`;
+      <span class="doc-badge ${hasRecord ? 'ok' : 'missing'}" onclick="event.stopPropagation(); jumpToDoc('renrakucho','${r.id}')">📄 連絡帳 ${hasRecord ? '✓' : '－'}</span>`;
 
     return `
     <div class="resident-card" onclick="openResidentModal('${r.id}')">
@@ -5293,12 +5624,12 @@ function renderTodayRenrakuchoList() {
       <div class="rc-today-item-header" onclick="toggleTodayItem('${r.id}')">
         <span class="rc-today-item-name">${r.name}</span>
         <span style="display:flex; gap:6px; flex-shrink:0;">
-          <span class="rc-today-badge ${text ? 'done' : 'pending'}">記録 ${text ? '✓' : '未'}</span>
+          <span class="rc-today-badge ${text ? 'done' : 'pending'}">連絡帳 ${text ? '✓' : '未'}</span>
           <span class="rc-today-badge ${krText ? 'done' : 'pending'}">経過記録 ${krText ? '✓' : '未'}</span>
         </span>
       </div>
       <div class="rc-today-item-body" id="rcTodayBody_${r.id}" style="display:none;">
-        ${text ? `${staff ? `記録者：${escHtml(staff)}<br>` : ''}<b>【記録】</b><br>${escHtml(text)}` : '<span style="color:var(--muted);">記録：まだ作成されていません</span>'}
+        ${text ? `${staff ? `記録者：${escHtml(staff)}<br>` : ''}<b>【連絡帳】</b><br>${escHtml(text)}` : '<span style="color:var(--muted);">連絡帳：まだ作成されていません</span>'}
         ${krText ? `<br><br><b>【経過記録】</b><br>${escHtml(krText)}` : ''}
         <div class="rc-today-item-actions">
           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openLogEntry('${dateStr}','${r.id}')">${text ? '✏️ 編集する' : '📝 作成する'}</button>
@@ -5333,14 +5664,14 @@ function printAllRenrakucho() {
 
   const win = window.open('', '_blank');
   win.document.write(`
-    <html><head><title>記録 ${dateStr}</title>
+    <html><head><title>連絡帳 ${dateStr}</title>
     <style>
       body { font-family: sans-serif; padding: 24px; line-height: 1.8; font-size: 13px; }
       h1 { font-size: 17px; border-bottom: 2px solid #333; padding-bottom: 8px; }
       .rc-print-block { margin-top: 18px; padding-top: 12px; border-top: 1px dashed #999; page-break-inside: avoid; }
       h2 { font-size: 14px; margin: 0 0 6px; }
     </style></head><body>
-    <h1>記録　${escHtml(facility)}　${dateStr}</h1>
+    <h1>連絡帳　${escHtml(facility)}　${dateStr}</h1>
     ${sections}
     </body></html>`);
   win.document.close();
@@ -5779,7 +6110,7 @@ async function generateText() {
   const checkItems = Object.entries(appState.renrakucho.chips).map(([k,v]) => `${k}: ${v}`).join('\n');
   const dbInfo = [r.careLevel?`要介護度: ${r.careLevel}`:'', r.meal?`食事形態: ${r.meal}`:'', r.bath?`入浴方法: ${r.bath}`:'', r.allergy?`アレルギー: ${r.allergy}`:'', r.medicine?`服薬: ${r.medicine}`:'', r.notes?`注意事項: ${r.notes}`:''].filter(Boolean).join('\n');
 
-  const prompt = `あなたは通所サービスのスタッフです。以下の本日の記録内容をもとに、①ご家族向けの「記録」と、②施設内スタッフ向けの「経過記録」の、2種類の文章をそれぞれ作成してください。
+  const prompt = `あなたは通所サービスのスタッフです。以下の本日の記録内容をもとに、①ご家族向けの「連絡帳」と、②施設内スタッフ向けの「経過記録」の、2種類の文章をそれぞれ作成してください。
 
 施設名：${appState.db.facility || '通所サービス事業所'}
 日付：${date}
@@ -5788,7 +6119,7 @@ async function generateText() {
 本日のチェック項目：\n${checkItems || 'なし'}
 本日の特記事項：${notes || 'なし'}
 
-【①記録のルール】
+【①連絡帳のルール】
 ・文体：${styleDesc}
 ・ご家族が読んで安心できる、温かみのある内容
 ・200〜400文字
@@ -5802,8 +6133,8 @@ async function generateText() {
 ・必ず文章を最後まで完結させる。署名・日付は不要。
 ${customInstructionsBlock('customPromptRenrakucho')}
 出力形式（この形式を厳守し、見出し以外の余計な文字は含めない）：
-【記録】
-（ここに記録の文章）
+【連絡帳】
+（ここに連絡帳の文章）
 【経過記録】
 （ここに経過記録の文章）`;
 
@@ -5815,7 +6146,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     if (data.error) throw new Error(data.error.message);
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    const rcMatch = rawText.match(/【記録】([\s\S]*?)【経過記録】/);
+    const rcMatch = rawText.match(/【連絡帳】([\s\S]*?)【経過記録】/);
     const krMatch = rawText.match(/【経過記録】([\s\S]*)$/);
     const rcRaw = rcMatch ? rcMatch[1].trim() : rawText.trim();
     const krRaw = krMatch ? krMatch[1].trim() : '';
@@ -5829,7 +6160,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     document.getElementById('keirokaEdit').value = krText;
 
     document.getElementById('outputSection').style.display = 'block';
-    showStatus('generateStatus', krText ? '✅ 記録・経過記録ともに生成完了！' : '⚠️ 記録は生成できましたが、経過記録の抽出に失敗しました', krText ? 'success' : 'info');
+    showStatus('generateStatus', krText ? '✅ 連絡帳・経過記録ともに生成完了！' : '⚠️ 連絡帳は生成できましたが、経過記録の抽出に失敗しました', krText ? 'success' : 'info');
 
     if (!appState.db.renrakuchoLog[date]) appState.db.renrakuchoLog[date] = {};
     appState.db.renrakuchoLog[date][r.id] = text;
@@ -5851,7 +6182,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     showStatus('generateStatus', `❌ エラー: ${err.message}`, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '✨ AIで記録・経過記録を作成する';
+    btn.innerHTML = '✨ AIで連絡帳・経過記録を作成する';
   }
 }
 
@@ -5933,7 +6264,7 @@ function printOutput() {
   const date = document.getElementById('dateInput').value;
   const name = appState.renrakucho.selectedResident?.name || '';
   const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>body{font-family:'Hiragino Kaku Gothic ProN',sans-serif;padding:40px;max-width:600px;margin:0 auto;}h2{font-size:18px;border-bottom:2px solid #2d7d5a;padding-bottom:8px;color:#2d7d5a;}p{font-size:16px;line-height:2;white-space:pre-wrap;margin-top:20px;}</style></head><body><h2>📋 記録</h2><div style="font-size:13px;color:#666;margin-top:8px;">${date}　${appState.db.facility||''}　${name} 様</div><p>${text}</p></body></html>`);
+  win.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>body{font-family:'Hiragino Kaku Gothic ProN',sans-serif;padding:40px;max-width:600px;margin:0 auto;}h2{font-size:18px;border-bottom:2px solid #2d7d5a;padding-bottom:8px;color:#2d7d5a;}p{font-size:16px;line-height:2;white-space:pre-wrap;margin-top:20px;}</style></head><body><h2>📋 連絡帳</h2><div style="font-size:13px;color:#666;margin-top:8px;">${date}　${appState.db.facility||''}　${name} 様</div><p>${text}</p></body></html>`);
   win.document.close();
   win.print();
 }

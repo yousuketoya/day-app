@@ -3351,8 +3351,11 @@ function renderShiftPatternTable() {
   const dayIsBiz = dayDates.map(d => isBusinessDayStr(d));
 
   // 「実績」行は、今日を含む現在のサイクル（28日）の実際の日付を対象に表示する
-  const todayOffset = ((daysBetweenYmd(start, todayStr()) % SHIFT_CYCLE_LEN) + SHIFT_CYCLE_LEN) % SHIFT_CYCLE_LEN;
-  const currentCycleStart = addDaysToYmd(todayStr(), -todayOffset);
+  // 「実績」行に表示する実日付：起点日がまだ来ていない場合はその最初のサイクル（起点日そのもの）を、
+  // すでに始まっている場合は今日を含む現在のサイクルを表示する
+  const currentCycleStart = daysBetweenYmd(start, todayStr()) < 0
+    ? start
+    : addDaysToYmd(todayStr(), -(((daysBetweenYmd(start, todayStr()) % SHIFT_CYCLE_LEN) + SHIFT_CYCLE_LEN) % SHIFT_CYCLE_LEN));
   const actualDayDates = Array.from({ length: SHIFT_CYCLE_LEN }, (_, i) => addDaysToYmd(currentCycleStart, i));
   const monthDay = (d) => { const [, mo, da] = d.split('-'); return `${Number(mo)}/${Number(da)}`; };
 
@@ -3360,7 +3363,7 @@ function renderShiftPatternTable() {
     ${SHIFT_CODES.map(c => `<span class="shift-legend-item"><span class="swatch shift-cell ${shiftCodeClass(c)}" style="cursor:default;"></span>${shiftCodeLabel(c)}</span>`).join('')}
     <span class="shift-legend-item"><span class="swatch shift-cell non-business" style="cursor:default;"></span>休業日（自動）</span>
   </div>
-  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">各スタッフ2行表示：上段＝<b>予定</b>（パターン）、下段＝<b>実績</b>（今週を含む今回のサイクル ${monthDay(currentCycleStart)}〜${monthDay(actualDayDates[SHIFT_CYCLE_LEN - 1])} の実際の記録）。実績セルをタップすると記録・変更できます。</div>`;
+  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">各スタッフ2行表示：上段＝<b>予定</b>（パターン）、下段＝<b>実績</b>（${monthDay(currentCycleStart)}〜${monthDay(actualDayDates[SHIFT_CYCLE_LEN - 1])} の実際の記録）。実績セルをタップすると記録・変更できます。</div>`;
 
   const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
   const dayHeaderCells = dayLabels.map((wd, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${wd}<br><span style="font-weight:400; font-size:8.5px;">${monthDay(actualDayDates[i])}</span></th>`).join('');

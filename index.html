@@ -448,7 +448,7 @@ header {
 .rp-assess-table select, .rp-assess-table input[type="text"] { width: 100%; padding: 5px 4px; font-size: 11.5px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; }
 .rp-assess-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-/* 出勤表 */
+/* 勤務表 */
 .shift-table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .shift-table th, .shift-table td { border: 1px solid var(--border); padding: 3px 2px; text-align: center; }
 .shift-table th { background: var(--bg); font-weight: 700; color: var(--muted); font-size: 10px; white-space: nowrap; line-height:1.3; }
@@ -774,7 +774,7 @@ header {
       <span class="nav-icon">🚐</span>送迎表
     </button>
     <button class="nav-btn" onclick="switchPage('shift')">
-      <span class="nav-icon">🗓️</span>出勤表
+      <span class="nav-icon">🗓️</span>勤務表
     </button>
     <button class="nav-btn" onclick="switchPage('renrakucho')">
       <span class="nav-icon">📋</span>連絡帳
@@ -1562,7 +1562,7 @@ header {
   <div class="card">
     <div class="card-title">📌 サイクルの起点日（火曜日）</div>
     <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
-      出勤表は<b>4週28日</b>を1サイクルとして繰り返します。サイクル1日目にあたる<b>火曜日</b>の日付を選んでください。<br>
+      勤務表は<b>4週28日</b>を1サイクルとして繰り返します。サイクル1日目にあたる<b>火曜日</b>の日付を選んでください。<br>
       設定 ⚙️ の「営業曜日」に同期しており、営業曜日でない日はパターンに関わらず<b>全員休み</b>として自動表示されます。
     </div>
     <div style="display:flex; gap:8px; align-items:center;">
@@ -1573,9 +1573,33 @@ header {
   </div>
 
   <div class="card">
-    <div class="card-title">🗓️ 4週間の勤務パターン</div>
-    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">セルをタップして「出勤（緑）」「休み（グレー）」を切り替えてください。このパターンが起点日から28日周期で繰り返し適用されます。スタッフの追加・編集は設定 ⚙️ から行えます。</div>
+    <div class="card-title">🗓️ 4週間の勤務パターン（予定）</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">セルをタップして出勤区分を切り替えてください（出→休→P→A→P有→A有→2H有→1H有→記→出…の順）。このパターンが起点日から28日周期で繰り返し適用されます。スタッフの追加・編集は設定 ⚙️ から行えます。<b>下の「予定の確定」で確定すると、このパターンは編集できなくなります。</b>変更が必要になった場合はその下の「実績」で日付ごとに記録してください。</div>
     <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔒 予定の確定</div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
+      勤務パターン（予定）が固まったら確定してください。確定後は上の予定パターン表を直接編集できなくなり、以後の変更は下の「実績」で日付ごとに記録する運用になります。
+    </div>
+    <div id="shiftConfirmStatus" style="margin-bottom:8px;"></div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" id="shiftConfirmBtn" style="flex:1;" onclick="confirmShiftPlan()">🔒 予定を確定する</button>
+      <button class="btn btn-secondary btn-sm" id="shiftUnlockBtn" style="display:none;" onclick="unlockShiftPlan()">🔓 確定を解除</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✏️ 実績（予定から変更があった日のみ入力）</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
+      日付を選び、変更があったスタッフのセルをタップして実績を記録してください（予定通り→出→休→P→A→P有→A有→2H有→1H有→記→予定通り…の順で切り替わります）。ここで記録した実績は業務日誌の「出勤職員」に自動反映されます。実績を入力しなければ、予定の内容がそのまま業務日誌に反映されます。
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <input type="date" id="shiftActualDateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderShiftActualTable()">
+      <button class="btn btn-secondary btn-sm" onclick="setShiftActualDateToday()">今日</button>
+    </div>
+    <div class="rp-assess-table-wrap" id="shiftActualTableArea"></div>
   </div>
 
   <div class="card">
@@ -1584,7 +1608,7 @@ header {
       <div class="cal-month-label" id="shiftMonthLabel">2026年7月</div>
       <button class="icon-btn" onclick="changeShiftMonth(1)">▶</button>
     </div>
-    <div class="card-title" style="border:none; padding:6px 0 8px;">📋 月間プレビュー</div>
+    <div class="card-title" style="border:none; padding:6px 0 8px;">📋 月間プレビュー（予定）</div>
     <div id="shiftMonthPreview"></div>
     <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printShiftMonth()">🖨️ この月を印刷</button>
   </div>
@@ -1675,7 +1699,7 @@ header {
 
     <div class="form-grid single">
       <div class="form-group">
-        <label>出勤職員</label>
+        <label>出勤職員（勤務表の予定・実績から自動反映）</label>
         <div class="weekday-chip-row" id="dlStaffChipRow" style="flex-wrap:wrap;"></div>
         <input type="hidden" id="dl_staff">
       </div>
@@ -2160,7 +2184,7 @@ header {
 const DB_KEY = 'deiservice_db';
 
 let appState = {
-  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {} },
+  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
   shorui: { files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
             pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null },
   renrakucho: { selectedResident: null, chips: {}, apiKey: '' },
@@ -2196,7 +2220,7 @@ function init() {
 
 function loadDb() {
   const saved = localStorage.getItem(DB_KEY);
-  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, ...JSON.parse(saved) };
+  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, shiftPlanConfirmed:false, shiftPlanConfirmedAt:'', shiftActual:{}, ...JSON.parse(saved) };
   // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
   if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
     appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -2237,6 +2261,8 @@ function switchPage(page) {
   if (page === 'shift') {
     renderShiftPatternTable();
     renderShiftMonthPreview();
+    if (!document.getElementById('shiftActualDateInput').value) document.getElementById('shiftActualDateInput').value = todayStr();
+    renderShiftActualTable();
   }
   if (page === 'rehabrecord') {
     if (!document.getElementById('rrDateInput').value) setRehabRecordToday();
@@ -2592,7 +2618,7 @@ function exportBackupExcel() {
   });
   addSheet('利用時間・入浴状況', usRows);
 
-  // ⑮ 出勤表（4週28日パターン）
+  // ⑮ 勤務表（予定：4週28日パターン）
   const shiftStaffForExport = [
     ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
     ...(db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
@@ -2604,7 +2630,16 @@ function exportBackupExcel() {
     const cells = Array.from({length: 28}, (_, i) => shiftCodeLabel(pattern[i] || 'work'));
     shiftRows.push([s.name, s.group, ...cells]);
   });
-  addSheet('出勤表', shiftRows);
+  addSheet('勤務表（予定）', shiftRows);
+
+  // ⑮b 勤務表（実績：予定から変更があった日のみ）
+  const shiftActualRows = [['日付', 'スタッフ名', '実績']];
+  Object.keys(db.shiftActual || {}).sort().forEach(date => {
+    Object.entries(db.shiftActual[date]).forEach(([name, code]) => {
+      shiftActualRows.push([date, name, shiftCodeLabel(code)]);
+    });
+  });
+  addSheet('勤務表（実績）', shiftActualRows);
 
   // ⑯ 設定・マスタ情報
   const setRows = [
@@ -2617,7 +2652,9 @@ function exportBackupExcel() {
     ['その他の職員', (db.otherStaffList || []).join('、')],
     ['車両', (db.vehicleList || []).join('、')],
     ['リハビリ実施内容の選択肢', (db.rehabContentList || []).join('、')],
-    ['出勤表起点日', db.shiftCycleStart || ''],
+    ['勤務表起点日', db.shiftCycleStart || ''],
+    ['勤務表予定確定', db.shiftPlanConfirmed ? 'はい' : 'いいえ'],
+    ['勤務表予定確定日時', db.shiftPlanConfirmedAt || ''],
     ['出力日時', new Date().toLocaleString('ja-JP')]
   ];
   addSheet('設定情報', setRows);
@@ -2674,7 +2711,8 @@ function restoreFromWorkbook(wb) {
     dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [],
     rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {},
     transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
-    dailyLog: {}, usageLog: {}, shiftCycleStart: '', shiftPattern: {}
+    dailyLog: {}, usageLog: {}, shiftCycleStart: '', shiftPattern: {},
+    shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}
   };
 
   // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
@@ -2839,20 +2877,31 @@ function restoreFromWorkbook(wb) {
     if (key === 'その他の職員') newDb.otherStaffList = (val || '').split('、').filter(Boolean);
     if (key === '車両') newDb.vehicleList = (val || '').split('、').filter(Boolean);
     if (key === 'リハビリ実施内容の選択肢') newDb.rehabContentList = (val || '').split('、').filter(Boolean);
-    if (key === '出勤表起点日') newDb.shiftCycleStart = val || '';
+    if (key === '勤務表起点日' || key === '出勤表起点日') newDb.shiftCycleStart = val || '';
+    if (key === '勤務表予定確定') newDb.shiftPlanConfirmed = (val === 'はい');
+    if (key === '勤務表予定確定日時') newDb.shiftPlanConfirmedAt = val || '';
   });
   if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
     newDb.rehabContentList = ['関節可動域訓練','筋力増強訓練','歩行訓練','立位・座位訓練','バランス訓練','ADL訓練','嚥下訓練','言語訓練','巧緻動作訓練','レクリエーション訓練'];
   }
 
-  // ⑯ 出勤表パターン
+  // ⑯ 勤務表パターン（予定）
   const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', 'P': 'P', 'A': 'A', 'P有': 'P有', 'A有': 'A有', '2H有': '2H有', '1H有': '1H有', '記': '記' };
-  getSheetRows(wb, '出勤表').forEach(row => {
+  getSheetRows(wb, ['勤務表（予定）', '出勤表']).forEach(row => {
     const [name, , ...cells] = row;
     if (!name) return;
     const pattern = cells.slice(0, 28).map(v => SHIFT_LABEL_TO_CODE[v] || 'work');
     while (pattern.length < 28) pattern.push('work');
     newDb.shiftPattern[name] = pattern;
+  });
+
+  // ⑯b 勤務表（実績）
+  getSheetRows(wb, '勤務表（実績）').forEach(([date, name, codeLabel]) => {
+    if (!date || !name) return;
+    const code = SHIFT_LABEL_TO_CODE[codeLabel];
+    if (!code) return;
+    if (!newDb.shiftActual[date]) newDb.shiftActual[date] = {};
+    newDb.shiftActual[date][name] = code;
   });
 
   appState.db = newDb;
@@ -3205,7 +3254,7 @@ function printTransportTable() {
 }
 
 // ============================================================
-// SHIFT（出勤表：4週28日サイクルの勤務パターン管理）
+// SHIFT（勤務表：4週28日サイクルの勤務パターン管理／予定と実績）
 // ============================================================
 const SHIFT_CYCLE_LEN = 28;
 // 出勤区分の並び：クリックするたびにこの順で切り替わる
@@ -3316,6 +3365,7 @@ function renderShiftPatternTable() {
   const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
   const dayHeaderCells = dayLabels.map((wd, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${wd}</th>`).join('');
 
+  const locked = !!appState.db.shiftPlanConfirmed;
   let bodyRows = '';
   staffList.forEach(s => {
     const pattern = appState.db.shiftPattern[s.name];
@@ -3326,7 +3376,9 @@ function renderShiftPatternTable() {
       }
       const cls = shiftCodeClass(v);
       const label = shiftCodeLabel(v);
-      return `<td class="shift-cell ${cls}" onclick="toggleShiftCell('${escAttr(s.name)}', ${i})">${label}</td>`;
+      const clickAttr = locked ? '' : ` onclick="toggleShiftCell('${escAttr(s.name)}', ${i})"`;
+      const lockedStyle = locked ? ' style="cursor:default; opacity:0.75;"' : '';
+      return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle}>${label}</td>`;
     }).join('');
     bodyRows += `<tr><td class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>${cells}</tr>`;
   });
@@ -3338,9 +3390,15 @@ function renderShiftPatternTable() {
     </thead>
     <tbody>${bodyRows}</tbody>
   </table>`;
+
+  renderShiftConfirmStatus();
 }
 
 function toggleShiftCell(name, idx) {
+  if (appState.db.shiftPlanConfirmed) {
+    showStatus('shiftConfirmStatus', '⚠️ 予定は確定済みのため編集できません。変更が必要な場合は下の「実績」に入力するか、確定を解除してください。', 'error');
+    return;
+  }
   ensureShiftPattern(name);
   const cur = appState.db.shiftPattern[name][idx];
   const curIdx = SHIFT_CODES.indexOf(cur);
@@ -3349,6 +3407,121 @@ function toggleShiftCell(name, idx) {
   saveDb();
   renderShiftPatternTable();
   renderShiftMonthPreview();
+}
+
+// ---- 予定の確定（確定後はパターン編集をロックし、以後の変更は実績で記録する） ----
+function confirmShiftPlan() {
+  if (!appState.db.shiftCycleStart) { alert('先に起点日を設定してください'); return; }
+  if (!confirm('勤務パターン（予定）を確定します。確定後は予定表を直接編集できなくなり、以後の変更は「実績」で日付ごとに記録する形になります。よろしいですか？')) return;
+  appState.db.shiftPlanConfirmed = true;
+  appState.db.shiftPlanConfirmedAt = new Date().toLocaleString('ja-JP');
+  saveDb();
+  renderShiftPatternTable();
+}
+
+function unlockShiftPlan() {
+  if (!confirm('確定を解除すると、再び予定パターンを直接編集できるようになります。すでに記録した実績には影響しません。よろしいですか？')) return;
+  appState.db.shiftPlanConfirmed = false;
+  saveDb();
+  renderShiftPatternTable();
+}
+
+function renderShiftConfirmStatus() {
+  const el = document.getElementById('shiftConfirmStatus');
+  const btn = document.getElementById('shiftConfirmBtn');
+  const unlockBtn = document.getElementById('shiftUnlockBtn');
+  if (!el) return;
+  if (appState.db.shiftPlanConfirmed) {
+    el.innerHTML = `<span class="import-status-ok">🔒 確定済み（${escHtml(appState.db.shiftPlanConfirmedAt || '')}）。予定パターンは編集できません。</span>`;
+    if (btn) btn.style.display = 'none';
+    if (unlockBtn) unlockBtn.style.display = '';
+  } else {
+    el.innerHTML = `<span style="color:var(--muted);">未確定（予定パターンは編集可能です）</span>`;
+    if (btn) btn.style.display = '';
+    if (unlockBtn) unlockBtn.style.display = 'none';
+  }
+}
+
+// ---- 実績（予定日ごとの変更を記録。未入力の場合は予定がそのまま使われる） ----
+const SHIFT_ACTUAL_CYCLE = [null, ...SHIFT_CODES]; // null = 予定通り（実績の上書きなし）
+
+function getShiftActual(name, dateStr) {
+  return (appState.db.shiftActual && appState.db.shiftActual[dateStr] && appState.db.shiftActual[dateStr][name]) || null;
+}
+
+function hasShiftActualOverride(name, dateStr) {
+  return !!getShiftActual(name, dateStr);
+}
+
+// 実績があれば実績を、なければ予定を返す（業務日誌など、実際の勤務状況が必要な場面で使用）
+function getStaffEffectiveShiftStatus(name, dateStr) {
+  const actual = getShiftActual(name, dateStr);
+  if (actual) return actual;
+  return getStaffShiftStatus(name, dateStr);
+}
+
+function setShiftActualDateToday() {
+  document.getElementById('shiftActualDateInput').value = todayStr();
+  renderShiftActualTable();
+}
+
+function toggleShiftActualCell(name, dateStr) {
+  if (!appState.db.shiftActual) appState.db.shiftActual = {};
+  if (!appState.db.shiftActual[dateStr]) appState.db.shiftActual[dateStr] = {};
+  const cur = appState.db.shiftActual[dateStr][name] || null;
+  const curIdx = SHIFT_ACTUAL_CYCLE.indexOf(cur);
+  const nextVal = SHIFT_ACTUAL_CYCLE[(curIdx === -1 ? 0 : curIdx + 1) % SHIFT_ACTUAL_CYCLE.length];
+  if (nextVal === null) {
+    delete appState.db.shiftActual[dateStr][name];
+    if (!Object.keys(appState.db.shiftActual[dateStr]).length) delete appState.db.shiftActual[dateStr];
+  } else {
+    appState.db.shiftActual[dateStr][name] = nextVal;
+  }
+  saveDb();
+  renderShiftActualTable();
+  // 業務日誌が同じ日付で開かれていれば、出勤職員欄も追随して更新する
+  const dlDateEl = document.getElementById('dl_date');
+  if (dlDateEl && dlDateEl.value === dateStr) renderDailyLogStaffChips();
+}
+
+function renderShiftActualTable() {
+  const el = document.getElementById('shiftActualTableArea');
+  if (!el) return;
+  const dateInput = document.getElementById('shiftActualDateInput');
+  if (dateInput && !dateInput.value) dateInput.value = todayStr();
+  const dateStr = dateInput ? dateInput.value : todayStr();
+
+  if (!appState.db.shiftCycleStart) {
+    el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">先に起点日を設定してください</div>';
+    return;
+  }
+  const staffList = getShiftStaffList();
+  if (!staffList.length) {
+    el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">設定 ⚙️ からスタッフを登録してください</div>';
+    return;
+  }
+
+  const wd = weekdayLabelOf(dateStr);
+  const isBiz = isBusinessDayStr(dateStr);
+  let rows = '';
+  staffList.forEach(s => {
+    const planned = getStaffShiftStatus(s.name, dateStr);
+    const actual = getShiftActual(s.name, dateStr);
+    const plannedLabel = shiftCodeLabel(planned);
+    const cellCls = actual ? shiftCodeClass(actual) : 'off';
+    const cellLabel = actual ? shiftCodeLabel(actual) : '予定通り';
+    rows += `<tr>
+      <td class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>
+      <td style="text-align:center; color:var(--muted); font-size:12px;">${escHtml(plannedLabel)}</td>
+      <td style="text-align:center;"><span class="shift-cell ${cellCls}" style="display:inline-block; width:auto; min-width:64px; padding:4px 8px;" onclick="toggleShiftActualCell('${escAttr(s.name)}','${dateStr}')">${escHtml(cellLabel)}</span></td>
+    </tr>`;
+  });
+
+  el.innerHTML = `<div style="font-size:12px; color:var(--muted); margin-bottom:6px;">${dateStr}（${wd}）${isBiz ? '' : '　※休業日'}</div>
+  <table class="shift-table" style="font-size:12px;">
+    <thead><tr><th style="text-align:left;">スタッフ</th><th>予定</th><th>実績</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 // ---- 月間プレビュー ----
@@ -3417,7 +3590,7 @@ function printShiftMonth() {
 
   const win = window.open('', '_blank');
   win.document.write(`
-    <html><head><title>出勤表 ${y}年${m + 1}月</title>
+    <html><head><title>勤務表 ${y}年${m + 1}月</title>
     <style>
       body { font-family: sans-serif; padding: 24px; font-size: 12.5px; }
       h1 { font-size: 17px; border-bottom: 2px solid #333; padding-bottom: 8px; }
@@ -3426,7 +3599,7 @@ function printShiftMonth() {
       th { background: #f3f3f3; }
       @media print { body { padding: 8mm; } }
     </style></head><body>
-    <h1>出勤表　${escHtml(facility)}　${y}年${m + 1}月</h1>
+    <h1>勤務表（予定）　${escHtml(facility)}　${y}年${m + 1}月</h1>
     <table><thead><tr><th>日</th><th>曜</th><th>出勤スタッフ</th></tr></thead><tbody>${bodyRows}</tbody></table>
     </body></html>`);
   win.document.close();
@@ -3739,18 +3912,42 @@ function printUsageTable() {
   win.print();
 }
 
+// 勤務表（予定＋実績）から、指定日に出勤しているスタッフの一覧を返す
+// 実績の上書きがあればそれを、なければ予定をそのまま使う
+function computeDailyLogStaffPresence(dateStr) {
+  const staffList = getShiftStaffList();
+  if (!staffList.length || !appState.db.shiftCycleStart) return [];
+  return staffList
+    .map(s => ({ name: s.name, code: getStaffEffectiveShiftStatus(s.name, dateStr), overridden: hasShiftActualOverride(s.name, dateStr) }))
+    .filter(s => s.code && s.code !== 'off');
+}
+function computeDailyLogStaffNames(dateStr) {
+  return computeDailyLogStaffPresence(dateStr).map(s => s.name);
+}
+
+// 業務日誌の「出勤職員」欄は勤務表（予定・実績）から自動反映する（手動選択ではない）
 function renderDailyLogStaffChips() {
   const row = document.getElementById('dlStaffChipRow');
   if (!row) return;
-  const combined = [
-    ...(appState.db.rehabStaffList || []).map(n => ({n, group:'リハビリ'})),
-    ...(appState.db.careStaffList || []).map(n => ({n, group:'介護'})),
-    ...(appState.db.otherStaffList || []).map(n => ({n, group:'その他'}))
-  ];
-  row.innerHTML = combined.length
-    ? combined.map(s => `<span class="rp-type-chip" data-v="${escAttr(s.n)}" onclick="toggleChipGeneric(this,'dlStaffChipRow','dl_staff')">${escHtml(s.n)}</span>`).join('')
-    : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</span>`;
-  syncChipRow('dlStaffChipRow', 'dl_staff');
+  const dateStr = document.getElementById('dl_date').value || todayStr();
+  const staffList = getShiftStaffList();
+
+  if (!staffList.length) {
+    row.innerHTML = `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</span>`;
+    document.getElementById('dl_staff').value = '';
+    return;
+  }
+  if (!appState.db.shiftCycleStart) {
+    row.innerHTML = `<span style="font-size:12px; color:var(--muted);">勤務表 🗓️ で起点日と予定を設定すると、この欄が自動で反映されます</span>`;
+    document.getElementById('dl_staff').value = '';
+    return;
+  }
+
+  const present = computeDailyLogStaffPresence(dateStr);
+  row.innerHTML = present.length
+    ? present.map(s => `<span class="rp-type-chip selected" style="cursor:default;">${escHtml(s.name)}${s.code === 'work' ? '' : `（${escHtml(shiftCodeLabel(s.code))}）`}${s.overridden ? '<span style="color:var(--danger); font-weight:700;"> ＊実績</span>' : ''}</span>`).join('')
+    : `<span style="font-size:12px; color:var(--muted);">出勤予定のスタッフがいません</span>`;
+  document.getElementById('dl_staff').value = present.map(s => s.name).join(',');
 }
 
 function computeDailySummaryText(dateStr) {
@@ -3816,7 +4013,7 @@ function loadDailyLog() {
 
   document.getElementById('dl_weather').value = log.weather || '';
   document.getElementById('dl_temp').value = log.temp || '';
-  document.getElementById('dl_staff').value = log.staff || '';
+  // 出勤職員は勤務表（予定・実績）から自動反映（renderDailyLogStaffChipsで設定）
   document.getElementById('dl_actualCount').value = log.actualCount ?? '';
   document.getElementById('dl_incidentFlag').value = log.incidentFlag || '';
   document.getElementById('dl_incidentNote').value = log.incidentNote || '';
@@ -3872,7 +4069,10 @@ function printDailyLog() {
   const dateStr = document.getElementById('dl_date').value || todayStr();
   const log = appState.db.dailyLog[dateStr];
   if (!log) { alert('先に保存してください'); return; }
-  const staffNames = (log.staff || '').split(',').filter(Boolean).join('、');
+  // 出勤職員は印刷時点の勤務表（予定・実績）から常に最新の内容を反映する
+  const staffNames = computeDailyLogStaffPresence(dateStr)
+    .map(s => s.name + (s.code === 'work' ? '' : `（${shiftCodeLabel(s.code)}）`))
+    .join('、');
 
   const win = window.open('', '_blank');
   win.document.write(`

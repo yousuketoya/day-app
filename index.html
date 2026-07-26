@@ -2656,6 +2656,9 @@ function exportBackupExcel() {
     ['勤務表起点日', db.shiftCycleStart || ''],
     ['勤務表予定確定', db.shiftPlanConfirmed ? 'はい' : 'いいえ'],
     ['勤務表予定確定日時', db.shiftPlanConfirmedAt || ''],
+    ['連絡帳のカスタムプロンプト', db.customPromptRenrakucho || ''],
+    ['リハビリ記録のカスタムプロンプト', db.customPromptRehabRecord || ''],
+    ['モニタリングのカスタムプロンプト', db.customPromptMonitoring || ''],
     ['出力日時', new Date().toLocaleString('ja-JP')]
   ];
   addSheet('設定情報', setRows);
@@ -2712,7 +2715,8 @@ function restoreFromWorkbook(wb) {
     dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [],
     rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {},
     transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
-    dailyLog: {}, usageLog: {}, shiftCycleStart: '', shiftPattern: {},
+    dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '',
+    customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {},
     shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}
   };
 
@@ -2881,6 +2885,9 @@ function restoreFromWorkbook(wb) {
     if (key === '勤務表起点日' || key === '出勤表起点日') newDb.shiftCycleStart = val || '';
     if (key === '勤務表予定確定') newDb.shiftPlanConfirmed = (val === 'はい');
     if (key === '勤務表予定確定日時') newDb.shiftPlanConfirmedAt = val || '';
+    if (key === '連絡帳のカスタムプロンプト') newDb.customPromptRenrakucho = val || '';
+    if (key === 'リハビリ記録のカスタムプロンプト') newDb.customPromptRehabRecord = val || '';
+    if (key === 'モニタリングのカスタムプロンプト') newDb.customPromptMonitoring = val || '';
   });
   if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
     newDb.rehabContentList = ['関節可動域訓練','筋力増強訓練','歩行訓練','立位・座位訓練','バランス訓練','ADL訓練','嚥下訓練','言語訓練','巧緻動作訓練','レクリエーション訓練'];

@@ -467,16 +467,31 @@ header {
 .shift-cell.code-1h { background: #FCE4EC; color: #AD1457; }
 .shift-cell.code-ki { background: #E0F2F1; color: #00695C; }
 .shift-cell.non-business { background: repeating-linear-gradient(45deg,#f5f5f5,#f5f5f5 4px,#eeeeee 4px,#eeeeee 8px); color: #bbb; cursor: default; }
+.shift-table td.shift-subrow-label { font-size:9px; color:var(--muted); white-space:nowrap; padding:2px 4px; font-weight:700; background:var(--card); position:sticky; left:70px; z-index:1; }
+.shift-table td.shift-subrow-label.actual { color:var(--accent); }
+.shift-table th.shift-subrow-header { position:sticky; left:70px; background:var(--bg); z-index:2; }
+.shift-cell.actual-row-cell { height:20px; font-size:9.5px; opacity:0.65; }
+.shift-cell.actual-row-cell.actual-changed { opacity:1; outline:2px solid var(--warn); font-weight:800; }
+.shift-table tr.shift-actual-tr td { border-top: none; }
 .shift-legend { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
 .shift-legend-item { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); background:var(--bg); border-radius:6px; padding:3px 8px; }
 .shift-legend-item .swatch { width:16px; height:16px; border-radius:4px; display:inline-block; }
 
-.shift-preview-day { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:7px 4px; border-bottom:1px solid var(--border); font-size:12.5px; }
+.shift-preview-day { display:flex; flex-direction:column; gap:4px; padding:9px 8px; border-bottom:1px solid var(--border); font-size:12.5px; cursor:pointer; border-radius:9px; transition:background 0.12s; }
+.shift-preview-day:hover { background: var(--green-light); }
 .shift-preview-day:last-child { border-bottom:none; }
-.shift-preview-day .spd-date { font-weight:700; width: 76px; flex-shrink:0; }
 .shift-preview-day.non-biz { color: var(--muted); }
-.shift-preview-day .spd-staff { text-align:right; flex:1; }
-.shift-preview-staff-chip { display:inline-block; background:var(--green-light); color:var(--green); border-radius:8px; padding:2px 8px; font-size:11.5px; margin:2px 0 2px 4px; }
+.spd-header { display:flex; justify-content:space-between; align-items:center; }
+.spd-date { font-weight:700; }
+.spd-edit-hint { font-size:10.5px; color:var(--green); opacity:0; transition:opacity 0.12s; font-weight:700; }
+.shift-preview-day:hover .spd-edit-hint { opacity:1; }
+.spd-row { display:flex; gap:6px; align-items:flex-start; }
+.spd-row-label { width:30px; flex-shrink:0; color:var(--muted); font-weight:700; font-size:11px; padding-top:2px; }
+.spd-row-label.actual { color:var(--accent); }
+.spd-row-content { text-align:left; flex:1; }
+.shift-preview-staff-chip { display:inline-block; background:var(--green-light); color:var(--green); border-radius:8px; padding:2px 8px; font-size:11.5px; margin:2px 4px 2px 0; }
+.shift-preview-staff-chip.actual-changed { background:var(--warn-light); color:var(--warn); border:1px solid var(--warn); font-weight:700; }
+.shift-preview-staff-chip.actual-off { background:var(--danger-light); color:var(--danger); text-decoration:line-through; }
 
 /* ===== EXCEL IMPORT ===== */
 .import-map-row {
@@ -1573,44 +1588,21 @@ header {
   </div>
 
   <div class="card">
-    <div class="card-title">🗓️ 4週間の勤務パターン（予定）</div>
-    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">セルをタップして出勤区分を切り替えてください（出→休→P→A→P有→A有→2H有→1H有→記→出…の順）。このパターンが起点日から28日周期で繰り返し適用されます。スタッフの追加・編集は設定 ⚙️ から行えます。<b>下の「予定の確定」で確定すると、このパターンは編集できなくなります。</b>変更が必要になった場合はその下の「実績」で日付ごとに記録してください。</div>
+    <div class="card-title">🗓️ 4週間の勤務パターン（予定・実績）</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">スタッフごとに<b>上段＝予定</b>・<b>下段＝実績</b>の2行で表示します。予定セルをタップすると出勤区分を切り替えられます（出→休→P→A→P有→A有→2H有→1H有→記→出…の順）。このパターンが起点日から28日周期で繰り返し適用されます。<b>下の「予定の確定」で確定すると、予定セルは編集できなくなります。</b>実績セルは確定後もいつでもタップして記録・変更できます（表示は今週を含む現在のサイクルの実日付）。スタッフの追加・編集は設定 ⚙️ から行えます。</div>
     <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
   </div>
 
   <div class="card">
     <div class="card-title">🔒 予定の確定</div>
     <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
-      勤務パターン（予定）が固まったら確定してください。確定後は上の予定パターン表を直接編集できなくなり、以後の変更は下の「実績」で日付ごとに記録する運用になります。
+      勤務パターン（予定）が固まったら確定してください。確定後は上の表の「予定」行を直接編集できなくなり、以後の変更は同じ表の「実績」行で日付ごとに記録する運用になります。
     </div>
     <div id="shiftConfirmStatus" style="margin-bottom:8px;"></div>
     <div style="display:flex; gap:8px;">
       <button class="btn btn-primary" id="shiftConfirmBtn" style="flex:1;" onclick="confirmShiftPlan()">🔒 予定を確定する</button>
       <button class="btn btn-secondary btn-sm" id="shiftUnlockBtn" style="display:none;" onclick="unlockShiftPlan()">🔓 確定を解除</button>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">✏️ 実績（予定から変更があった日のみ入力）</div>
-    <div style="font-size:11px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
-      日付を選び、変更があったスタッフのセルをタップして実績を記録してください（予定通り→出→休→P→A→P有→A有→2H有→1H有→記→予定通り…の順で切り替わります）。ここで記録した実績は業務日誌の「出勤職員」に自動反映されます。実績を入力しなければ、予定の内容がそのまま業務日誌に反映されます。
-    </div>
-    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-      <input type="date" id="shiftActualDateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderShiftActualTable()">
-      <button class="btn btn-secondary btn-sm" onclick="setShiftActualDateToday()">今日</button>
-    </div>
-    <div class="rp-assess-table-wrap" id="shiftActualTableArea"></div>
-  </div>
-
-  <div class="card">
-    <div class="cal-header">
-      <button class="icon-btn" onclick="changeShiftMonth(-1)">◀</button>
-      <div class="cal-month-label" id="shiftMonthLabel">2026年7月</div>
-      <button class="icon-btn" onclick="changeShiftMonth(1)">▶</button>
-    </div>
-    <div class="card-title" style="border:none; padding:6px 0 8px;">📋 月間プレビュー（予定）</div>
-    <div id="shiftMonthPreview"></div>
-    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printShiftMonth()">🖨️ この月を印刷</button>
   </div>
 
 </div>
@@ -3357,19 +3349,26 @@ function renderShiftPatternTable() {
   const dayLabels = dayDates.map(d => weekdayLabelOf(d));
   const dayIsBiz = dayDates.map(d => isBusinessDayStr(d));
 
+  // 「実績」行は、今日を含む現在のサイクル（28日）の実際の日付を対象に表示する
+  const todayOffset = ((daysBetweenYmd(start, todayStr()) % SHIFT_CYCLE_LEN) + SHIFT_CYCLE_LEN) % SHIFT_CYCLE_LEN;
+  const currentCycleStart = addDaysToYmd(todayStr(), -todayOffset);
+  const actualDayDates = Array.from({ length: SHIFT_CYCLE_LEN }, (_, i) => addDaysToYmd(currentCycleStart, i));
+  const monthDay = (d) => { const [, mo, da] = d.split('-'); return `${Number(mo)}/${Number(da)}`; };
+
   const legend = `<div class="shift-legend">
     ${SHIFT_CODES.map(c => `<span class="shift-legend-item"><span class="swatch shift-cell ${shiftCodeClass(c)}" style="cursor:default;"></span>${shiftCodeLabel(c)}</span>`).join('')}
     <span class="shift-legend-item"><span class="swatch shift-cell non-business" style="cursor:default;"></span>休業日（自動）</span>
-  </div>`;
+  </div>
+  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">各スタッフ2行表示：上段＝<b>予定</b>（パターン）、下段＝<b>実績</b>（今週を含む今回のサイクル ${monthDay(currentCycleStart)}〜${monthDay(actualDayDates[SHIFT_CYCLE_LEN - 1])} の実際の記録）。実績セルをタップすると記録・変更できます。</div>`;
 
   const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
-  const dayHeaderCells = dayLabels.map((wd, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${wd}</th>`).join('');
+  const dayHeaderCells = dayLabels.map((wd, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${wd}<br><span style="font-weight:400; font-size:8.5px;">${monthDay(actualDayDates[i])}</span></th>`).join('');
 
   const locked = !!appState.db.shiftPlanConfirmed;
   let bodyRows = '';
   staffList.forEach(s => {
     const pattern = appState.db.shiftPattern[s.name];
-    const cells = pattern.map((v, i) => {
+    const planCells = pattern.map((v, i) => {
       if (!dayIsBiz[i]) {
         // 営業曜日でない日はパターンに関わらず固定で「休」表示（クリック不可）
         return `<td class="shift-cell non-business">休</td>`;
@@ -3380,13 +3379,31 @@ function renderShiftPatternTable() {
       const lockedStyle = locked ? ' style="cursor:default; opacity:0.75;"' : '';
       return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle}>${label}</td>`;
     }).join('');
-    bodyRows += `<tr><td class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>${cells}</tr>`;
+
+    const actualCells = pattern.map((v, i) => {
+      const adate = actualDayDates[i];
+      if (!dayIsBiz[i]) return `<td class="shift-cell non-business actual-row-cell">休</td>`;
+      const override = getShiftActual(s.name, adate);
+      const effective = override || v;
+      const cls = shiftCodeClass(effective);
+      const label = shiftCodeLabel(effective);
+      const changed = !!override && override !== v;
+      return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${adate}')" title="${adate}">${label}</td>`;
+    }).join('');
+
+    bodyRows += `<tr>
+      <td rowspan="2" class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>
+      <td class="shift-subrow-label">予定</td>${planCells}
+    </tr>
+    <tr class="shift-actual-tr">
+      <td class="shift-subrow-label actual">実績</td>${actualCells}
+    </tr>`;
   });
 
   el.innerHTML = `${legend}<table class="shift-table">
     <thead>
-      <tr><th class="shift-staff-name-header"></th>${weekHeaderCells}</tr>
-      <tr><th class="shift-staff-name-header">スタッフ</th>${dayHeaderCells}</tr>
+      <tr><th class="shift-staff-name-header"></th><th class="shift-subrow-header"></th>${weekHeaderCells}</tr>
+      <tr><th class="shift-staff-name-header">スタッフ</th><th class="shift-subrow-header"></th>${dayHeaderCells}</tr>
     </thead>
     <tbody>${bodyRows}</tbody>
   </table>`;
@@ -3479,6 +3496,7 @@ function toggleShiftActualCell(name, dateStr) {
   }
   saveDb();
   renderShiftActualTable();
+  renderShiftPatternTable();
   // 業務日誌が同じ日付で開かれていれば、出勤職員欄も追随して更新する
   const dlDateEl = document.getElementById('dl_date');
   if (dlDateEl && dlDateEl.value === dateStr) renderDailyLogStaffChips();
@@ -3551,18 +3569,60 @@ function renderShiftMonthPreview() {
     const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const wd = weekdayLabelOf(dateStr);
     if (!isBusinessDayStr(dateStr)) {
-      rows += `<div class="shift-preview-day non-biz"><span class="spd-date">${d}日（${wd}）</span><span class="spd-staff">休業日・全員休み</span></div>`;
+      rows += `<div class="shift-preview-day non-biz" onclick="jumpToShiftActual('${dateStr}')">
+        <div class="spd-header"><span class="spd-date">${d}日（${wd}）</span></div>
+        <div class="spd-row"><span class="spd-row-label">休業</span><span class="spd-row-content">全員休み</span></div>
+      </div>`;
       continue;
     }
-    const present = staffList
+
+    // 予定行
+    const plannedList = staffList
       .map(s => ({ name: s.name, code: getStaffShiftStatus(s.name, dateStr) }))
       .filter(s => s.code && s.code !== 'off');
-    const staffHtml = present.length
-      ? present.map(s => `<span class="shift-preview-staff-chip">${escHtml(s.name)}${s.code === 'work' ? '' : `（${shiftCodeLabel(s.code)}）`}</span>`).join('')
+    const plannedHtml = plannedList.length
+      ? plannedList.map(s => `<span class="shift-preview-staff-chip">${escHtml(s.name)}${s.code === 'work' ? '' : `（${shiftCodeLabel(s.code)}）`}</span>`).join('')
       : '<span style="color:var(--muted);">出勤者なし</span>';
-    rows += `<div class="shift-preview-day"><span class="spd-date">${d}日（${wd}）</span><span class="spd-staff">${staffHtml}</span></div>`;
+
+    // 実績行（予定から変更があった日のみ、差分がわかるように表示）
+    const hasOverride = staffList.some(s => hasShiftActualOverride(s.name, dateStr));
+    let actualHtml;
+    if (!hasOverride) {
+      actualHtml = '<span style="color:var(--muted);">予定通り</span>';
+    } else {
+      const relevant = staffList.filter(s => {
+        const p = getStaffShiftStatus(s.name, dateStr);
+        const a = getStaffEffectiveShiftStatus(s.name, dateStr);
+        return (p && p !== 'off') || (a && a !== 'off');
+      });
+      actualHtml = relevant.length
+        ? relevant.map(s => {
+            const p = getStaffShiftStatus(s.name, dateStr);
+            const a = getStaffEffectiveShiftStatus(s.name, dateStr);
+            const isOff = !a || a === 'off';
+            const changed = p !== a;
+            if (isOff) return `<span class="shift-preview-staff-chip actual-off">${escHtml(s.name)}（休）</span>`;
+            const label = a === 'work' ? '' : `（${shiftCodeLabel(a)}）`;
+            return `<span class="shift-preview-staff-chip${changed ? ' actual-changed' : ''}">${escHtml(s.name)}${label}</span>`;
+          }).join('')
+        : '<span style="color:var(--muted);">出勤者なし</span>';
+    }
+
+    rows += `<div class="shift-preview-day" onclick="jumpToShiftActual('${dateStr}')">
+      <div class="spd-header"><span class="spd-date">${d}日（${wd}）</span><span class="spd-edit-hint">✏️ 実績を編集</span></div>
+      <div class="spd-row"><span class="spd-row-label">予定</span><span class="spd-row-content">${plannedHtml}</span></div>
+      <div class="spd-row"><span class="spd-row-label actual">実績</span><span class="spd-row-content">${actualHtml}</span></div>
+    </div>`;
   }
   el.innerHTML = rows;
+}
+
+// 月間プレビューの日付をクリックすると、その日の「実績」編集エリアへジャンプする
+function jumpToShiftActual(dateStr) {
+  const dateInput = document.getElementById('shiftActualDateInput');
+  if (dateInput) dateInput.value = dateStr;
+  renderShiftActualTable();
+  document.getElementById('shiftActualTableArea')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function printShiftMonth() {

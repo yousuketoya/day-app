@@ -459,6 +459,7 @@ header {
 .shift-cell { width: 26px; min-width:26px; height: 24px; cursor: pointer; font-weight: 700; border-radius: 4px; user-select: none; font-size:10.5px; }
 .shift-cell.work { background: var(--green-light); color: var(--green); }
 .shift-cell.off { background: #f0f0f0; color: #999; }
+.shift-cell.code-yu { background: #FFF9C4; color: #F57F17; }
 .shift-cell.code-p { background: #E3F2FD; color: #1565C0; }
 .shift-cell.code-a { background: #FFF3E0; color: #E65100; }
 .shift-cell.code-pyu { background: #E1F5FE; color: #0277BD; }
@@ -1589,7 +1590,7 @@ header {
 
   <div class="card">
     <div class="card-title">🗓️ 4週間の勤務パターン（予定・実績）</div>
-    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">スタッフごとに<b>上段＝予定</b>・<b>下段＝実績</b>の2行で表示します。予定セルをタップすると出勤区分を切り替えられます（出→休→P→A→P有→A有→2H有→1H有→記→出…の順）。このパターンが起点日から28日周期で繰り返し適用されます。<b>下の「予定の確定」で確定すると、予定セルは編集できなくなります。</b>実績セルは確定後もいつでもタップして記録・変更できます（表示は今週を含む現在のサイクルの実日付）。スタッフの追加・編集は設定 ⚙️ から行えます。</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">スタッフごとに<b>上段＝予定</b>・<b>下段＝実績</b>の2行で表示します。予定セルをタップすると出勤区分を切り替えられます（出→休→有→P→P有→記→2H有→1H有→A→A有→出…の順）。このパターンが起点日から28日周期で繰り返し適用されます。<b>下の「予定の確定」で確定すると、予定セルは編集できなくなります。</b>実績セルは確定後もいつでもタップして記録・変更できます（表示は今週を含む現在のサイクルの実日付）。スタッフの追加・編集は設定 ⚙️ から行えます。</div>
     <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
   </div>
 
@@ -2878,7 +2879,7 @@ function restoreFromWorkbook(wb) {
   }
 
   // ⑯ 勤務表パターン（予定）
-  const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', 'P': 'P', 'A': 'A', 'P有': 'P有', 'A有': 'A有', '2H有': '2H有', '1H有': '1H有', '記': '記' };
+  const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', '有': '有', 'P': 'P', 'A': 'A', 'P有': 'P有', 'A有': 'A有', '2H有': '2H有', '1H有': '1H有', '記': '記' };
   getSheetRows(wb, ['勤務表（予定）', '出勤表']).forEach(row => {
     const [name, , ...cells] = row;
     if (!name) return;
@@ -3250,10 +3251,10 @@ function printTransportTable() {
 // ============================================================
 const SHIFT_CYCLE_LEN = 28;
 // 出勤区分の並び：クリックするたびにこの順で切り替わる
-const SHIFT_CODES = ['work', 'off', 'P', 'A', 'P有', 'A有', '2H有', '1H有', '記'];
+const SHIFT_CODES = ['work', 'off', '有', 'P', 'P有', '記', '2H有', '1H有', 'A', 'A有'];
 function shiftCodeLabel(code) { return code === 'work' ? '出' : code === 'off' ? '休' : (code || '休'); }
 function shiftCodeClass(code) {
-  const map = { work: 'work', off: 'off', 'P': 'code-p', 'A': 'code-a', 'P有': 'code-pyu', 'A有': 'code-ayu', '2H有': 'code-2h', '1H有': 'code-1h', '記': 'code-ki' };
+  const map = { work: 'work', off: 'off', '有': 'code-yu', 'P': 'code-p', 'A': 'code-a', 'P有': 'code-pyu', 'A有': 'code-ayu', '2H有': 'code-2h', '1H有': 'code-1h', '記': 'code-ki' };
   return map[code] || 'off';
 }
 

@@ -1592,6 +1592,12 @@ header {
     <div class="card-title">🗓️ 4週間の勤務パターン（予定・実績）</div>
     <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">スタッフごとに<b>上段＝予定</b>・<b>下段＝実績</b>の2行で表示します。予定セルをタップすると出勤区分を切り替えられます（出→休→有→P→P有→記→2H有→1H有→A→A有→出…の順）。このパターンが起点日から28日周期で繰り返し適用されます。<b>下の「予定の確定」で確定すると、予定セルは編集できなくなります。</b>実績セルは確定後もいつでもタップして記録・変更できます（表示は今週を含む現在のサイクルの実日付）。スタッフの追加・編集は設定 ⚙️ から行えます。</div>
     <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <button class="icon-btn" onclick="changeShiftMonth(-1)">◀</button>
+      <div class="cal-month-label" id="shiftMonthLabel" style="flex:1; text-align:center;">2026年7月</div>
+      <button class="icon-btn" onclick="changeShiftMonth(1)">▶</button>
+    </div>
+    <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:8px;" onclick="exportShiftMonthExcel()">📊 この月をExcelで出力（印刷用）</button>
   </div>
 
   <div class="card">
@@ -2254,7 +2260,8 @@ function switchPage(page) {
   if (page === 'shift') {
     renderShiftPatternTable();
     renderShiftMonthPreview();
-    if (!document.getElementById('shiftActualDateInput').value) document.getElementById('shiftActualDateInput').value = todayStr();
+    const shiftActualDateEl = document.getElementById('shiftActualDateInput');
+    if (shiftActualDateEl && !shiftActualDateEl.value) shiftActualDateEl.value = todayStr();
     renderShiftActualTable();
   }
   if (page === 'rehabrecord') {
@@ -3482,7 +3489,8 @@ function getStaffEffectiveShiftStatus(name, dateStr) {
 }
 
 function setShiftActualDateToday() {
-  document.getElementById('shiftActualDateInput').value = todayStr();
+  const el = document.getElementById('shiftActualDateInput');
+  if (el) el.value = todayStr();
   renderShiftActualTable();
 }
 
@@ -3627,6 +3635,40 @@ function jumpToShiftActual(dateStr) {
   if (dateInput) dateInput.value = dateStr;
   renderShiftActualTable();
   document.getElementById('shiftActualTableArea')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function exportShiftMonthExcel() {
+  if (!appState.db.shiftCycleStart) { alert('起点日を設定してください'); return; }
+  const y = appState.shift.viewYear, m = appState.shift.viewMonth;
+  const facility = appState.db.facility || '';
+  const staffList = getShiftStaffList();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const dates = Array.from({ length: daysInMonth }, (_, i) => `${y}-${String(m + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`);
+
+  const aoa = [];
+  aoa.push([`勤務表　${escHtml(facility)}　${y}年${m + 1}月`]);
+  aoa.push(['凡例：出／休／有／P／P有／記／2H有／1H有／A／A有（実績は予定と異なる日のみ入ります。空欄＝予定通り）']);
+  aoa.push([]);
+  aoa.push(['スタッフ', '区分', ...dates.map(d => Number(d.split('-')[2]))]);
+  aoa.push(['', '', ...dates.map(d => weekdayLabelOf(d))]);
+
+  staffList.forEach(s => {
+    const plannedRow = dates.map(d => isBusinessDayStr(d) ? shiftCodeLabel(getStaffShiftStatus(s.name, d)) : '休');
+    const actualRow = dates.map(d => {
+      if (!isBusinessDayStr(d)) return '';
+      if (!hasShiftActualOverride(s.name, d)) return '';
+      return shiftCodeLabel(getStaffEffectiveShiftStatus(s.name, d));
+    });
+    aoa.push([s.name, '予定', ...plannedRow]);
+    aoa.push(['', '実績', ...actualRow]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 12 }, { wch: 6 }, ...dates.map(() => ({ wch: 5 }))];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: dates.length + 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: dates.length + 1 } }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `${y}年${m + 1}月`);
+  XLSX.writeFile(wb, `勤務表_${y}${String(m + 1).padStart(2, '0')}.xlsx`);
 }
 
 function printShiftMonth() {

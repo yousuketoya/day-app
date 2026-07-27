@@ -60,6 +60,7 @@ header {
 
 .header-top h1 { font-size: 16px; font-weight: 700; }
 .header-top p { font-size: 11px; opacity: 0.75; margin-top: 1px; }
+.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 .header-nav {
   display: flex;
@@ -288,6 +289,23 @@ header {
   transition: all 0.12s;
 }
 .weekday-chip.selected { background: var(--green); border-color: var(--green); color: white; }
+
+/* 送迎表 並び替えボタン */
+.tp-sort-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.tp-sort-btn {
+  padding: 6px 12px; border: 1.5px solid var(--border); border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; background: var(--card); color: var(--text);
+  transition: all 0.12s;
+}
+.tp-sort-btn.active { background: var(--green); border-color: var(--green); color: white; }
+.tp-group-header td { background: #F3F6F3; font-weight: 700; font-size: 12.5px; color: var(--green); padding: 6px 8px; border-top: 2px solid var(--border); }
+
+/* 終了ボタン：バックアップ中のオーバーレイ */
+.exit-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px; }
+.exit-overlay-box { position: relative; background: var(--card); border-radius: var(--radius); padding: 30px 28px; text-align: center; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+.exit-overlay-icon { font-size: 34px; margin-bottom: 12px; }
+.exit-overlay-text { font-size: 14px; line-height: 1.7; color: var(--text); }
+.exit-overlay-close { position: absolute; top: 8px; right: 10px; border: none; background: none; font-size: 16px; color: var(--muted); cursor: pointer; padding: 4px; }
 
 /* 連絡帳 週間マトリクス */
 .rc-matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -790,13 +808,24 @@ header {
 </head>
 <body>
 
+<div id="exitOverlay" class="exit-overlay" style="display:none;">
+  <div class="exit-overlay-box">
+    <button class="exit-overlay-close" onclick="cancelAppExit()" title="閉じる">✕</button>
+    <div class="exit-overlay-icon">💾</div>
+    <div id="exitOverlayText" class="exit-overlay-text">バックアップを書き出しています…</div>
+  </div>
+</div>
+
 <header>
   <div class="header-top">
     <div>
       <h1>🏥 通所サービス管理アシスタント</h1>
       <p id="headerFacility">施設名未設定 ・ ⚙️右上から設定</p>
     </div>
-    <button class="btn btn-secondary btn-sm" onclick="openSettings()" style="flex-shrink:0;">⚙️</button>
+    <div class="header-actions">
+      <button class="btn btn-secondary btn-sm" onclick="openSettings()" style="flex-shrink:0;">⚙️</button>
+      <button class="btn btn-secondary btn-sm" onclick="handleAppExit()" style="flex-shrink:0;" title="バックアップしてから終了します">🚪終了</button>
+    </div>
   </div>
   <nav class="header-nav">
     <button class="nav-btn" onclick="switchPage('shorui')">
@@ -1627,6 +1656,11 @@ header {
 
   <div class="card">
     <div class="card-title">🚐 送迎表</div>
+    <div class="tp-sort-row" id="tpSortRow">
+      <button type="button" class="tp-sort-btn" data-mode="order" onclick="setTpSortMode('order')">利用者名順</button>
+      <button type="button" class="tp-sort-btn" data-mode="vehicle" onclick="setTpSortMode('vehicle')">車両順</button>
+      <button type="button" class="tp-sort-btn" data-mode="driver" onclick="setTpSortMode('driver')">運転手順</button>
+    </div>
     <div id="transportTableArea"></div>
     <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="printTransportTable()">🖨️ 印刷</button>
   </div>
@@ -2841,6 +2875,54 @@ function exportBackupExcel() {
 }
 
 // ============================================================
+// 終了ボタン：自動バックアップ（Excel書き出し）してからタブを閉じる
+// ============================================================
+let _exitInProgress = false;
+
+function handleAppExit() {
+  if (_exitInProgress) return;
+  if (!confirm('データをバックアップ（Excelに書き出し）してから、このシステムを終了します。よろしいですか？')) return;
+
+  const overlay = document.getElementById('exitOverlay');
+  const textEl = document.getElementById('exitOverlayText');
+  _exitInProgress = true;
+  overlay.style.display = 'flex';
+  textEl.textContent = 'バックアップを書き出しています…';
+
+  // 実際のExcel書き出し処理は同期的に重いことがあるため、
+  // オーバーレイの表示を先に描画させてから実行する
+  setTimeout(() => {
+    try {
+      exportBackupExcel();
+    } catch (e) {
+      _exitInProgress = false;
+      overlay.style.display = 'none';
+      alert('バックアップの書き出し中にエラーが発生しました。終了を中止しました。\n' + (e && e.message ? e.message : e));
+      return;
+    }
+
+    // ダウンロードが実際に始まるまで少し待ってからタブを閉じにいく
+    setTimeout(() => {
+      textEl.innerHTML = '✅ バックアップの書き出しが完了しました。<br>タブを閉じています…';
+      setTimeout(() => {
+        window.close();
+        // ブラウザの仕様上、アドレスバー入力などで開いたタブはスクリプトから閉じられません。
+        // window.close() が効かなかった場合はここに処理が到達するため、手動で閉じるよう案内します。
+        setTimeout(() => {
+          _exitInProgress = false;
+          textEl.innerHTML = '✅ バックアップ（Excelファイル）のダウンロードが完了しました。<br><br>お使いのブラウザの設定上、このタブは自動では閉じられませんでした。<br>お手数ですが、このタブを手動で閉じてください。';
+        }, 500);
+      }, 700);
+    }, 900);
+  }, 50);
+}
+
+function cancelAppExit() {
+  _exitInProgress = false;
+  document.getElementById('exitOverlay').style.display = 'none';
+}
+
+// ============================================================
 // RESTORE（バックアップExcelからの完全復元）
 // ============================================================
 function handleRestoreFile(event) {
@@ -3366,6 +3448,45 @@ function vehicleAttendantHint(vehicleName) {
     ? `<span class="tp-vehicle-hint">⚠️添乗員検討</span>` : '';
 }
 
+// 送迎表の並び替えモード：'order'＝利用者名順（順番の数字）、'vehicle'＝車両順、'driver'＝運転手順
+// 車両順・運転手順は「迎え」の担当を基準にグループ化します（グループ内は順番の数字で整列）
+let tpSortMode = 'order';
+
+function setTpSortMode(mode) {
+  tpSortMode = mode;
+  renderTransportTable();
+}
+
+// 車両・運転手のグループ化順を決める並び基準（設定 ⚙️ の登録順）を返す
+function tpGroupSortIndex(mode, value) {
+  if (!value) return Infinity; // 未設定は最後
+  let list;
+  if (mode === 'vehicle') {
+    list = appState.db.vehicleList || [];
+  } else {
+    list = [...(appState.db.careStaffList || []), ...(appState.db.rehabStaffList || []), ...(appState.db.otherStaffList || [])];
+  }
+  const idx = list.indexOf(value);
+  return idx === -1 ? list.length : idx; // 未登録の値はリスト登録済みの後・未設定の前
+}
+
+function sortResidentsForTransport(residents, log, mode) {
+  const byOrder = (a, b) => (Number(log[a.id]?.order ?? 999)) - (Number(log[b.id]?.order ?? 999));
+  if (mode === 'order') return residents.slice().sort(byOrder);
+
+  const groupKeyOf = (r) => {
+    const t = log[r.id] || {};
+    return mode === 'vehicle' ? (t.pickupVehicle ?? t.vehicle ?? '') : (t.pickupDriver ?? t.driver ?? '');
+  };
+  return residents.slice().sort((a, b) => {
+    const ka = groupKeyOf(a), kb = groupKeyOf(b);
+    const ia = tpGroupSortIndex(mode, ka), ib = tpGroupSortIndex(mode, kb);
+    if (ia !== ib) return ia - ib;
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return byOrder(a, b);
+  });
+}
+
 function renderTransportTable() {
   const el = document.getElementById('transportTableArea');
   if (!el) return;
@@ -3373,15 +3494,15 @@ function renderTransportTable() {
   const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
   const log = appState.db.transportLog[dateStr] || {};
 
+  document.querySelectorAll('#tpSortRow .tp-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === tpSortMode));
+
   if (!residents.length) {
     el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません</div>`;
     return;
   }
 
-  const sorted = residents.slice().sort((a, b) => {
-    const oa = Number(log[a.id]?.order ?? 999), ob = Number(log[b.id]?.order ?? 999);
-    return oa - ob;
-  });
+  const sorted = sortResidentsForTransport(residents, log, tpSortMode);
+  let lastGroupKey = undefined;
 
   const rows = sorted.map((r, i) => {
     const t = log[r.id] || {};
@@ -3395,6 +3516,18 @@ function renderTransportTable() {
     const pickupDriver = t.pickupDriver ?? t.driver ?? '';
     const dropoffVehicle = t.dropoffVehicle ?? t.vehicle ?? '';
     const dropoffDriver = t.dropoffDriver ?? t.driver ?? '';
+
+    // 車両順・運転手順の時は、グループが切り替わるタイミングで見出し行を挿入する
+    let groupHeaderRow = '';
+    if (tpSortMode === 'vehicle' || tpSortMode === 'driver') {
+      const groupKey = tpSortMode === 'vehicle' ? pickupVehicle : pickupDriver;
+      if (groupKey !== lastGroupKey) {
+        lastGroupKey = groupKey;
+        const label = groupKey ? escHtml(groupKey) : '未設定（車両・運転手が未選択）';
+        const icon = tpSortMode === 'vehicle' ? '🚐' : '🧑‍✈️';
+        groupHeaderRow = `<tr class="tp-group-header"><td colspan="9">${icon} ${label}</td></tr>`;
+      }
+    }
 
     const naPickupLeg = isFamilyDefault || isFamilyDropoffToday; // 迎え：家族が担当する日は事業所側は「－」
     const naDropoffLeg = isFamilyDefault || isFamilyToday;       // 送り：家族が担当する日は事業所側は「－」
@@ -3433,7 +3566,7 @@ function renderTransportTable() {
         <input type="text" value="${escAttr(t.note || '')}" placeholder="備考" onchange="saveTransportField('${dateStr}','${r.id}','note', this.value)">
       </td>`;
 
-    return `<tr class="tp-group-start">
+    return `${groupHeaderRow}<tr class="tp-group-start">
       <td rowspan="2"><input type="number" value="${t.order ?? (i+1)}" onchange="saveTransportField('${dateStr}','${r.id}','order', this.value)"></td>
       <td rowspan="2" class="tp-name">${r.name}${badges ? `<br>${badges}` : ''}</td>
       <td class="tp-leg-label">迎え</td>
@@ -3464,7 +3597,7 @@ function renderTransportTable() {
     <tr><th>順</th><th>利用者名</th><th></th><th>時刻</th><th>到着</th><th>車両</th><th>運転手</th><th>添乗</th><th>備考</th></tr>
     ${rows}
   </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。</div>`;
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。${tpSortMode !== 'order' ? '車両順・運転手順は「迎え」の担当でグループ化しています（送りの担当が異なる場合があります）。' : ''}</div>`;
 }
 
 function saveTransportField(dateStr, residentId, field, value) {
@@ -3500,7 +3633,9 @@ function printTransportTable() {
   const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
   if (!residents.length) { alert('この日の利用予定者がいません'); return; }
   const log = appState.db.transportLog[dateStr] || {};
-  const sorted = residents.slice().sort((a, b) => (Number(log[a.id]?.order ?? 999)) - (Number(log[b.id]?.order ?? 999)));
+  const sorted = sortResidentsForTransport(residents, log, tpSortMode);
+  let lastGroupKey = undefined;
+  const sortModeLabel = tpSortMode === 'vehicle' ? '（車両順）' : tpSortMode === 'driver' ? '（運転手順）' : '';
 
   const rows = sorted.map((r, i) => {
     const t = log[r.id] || {};
@@ -3514,7 +3649,18 @@ function printTransportTable() {
     const pickupDriver = t.pickupDriver ?? t.driver ?? '';
     const dropoffVehicle = t.dropoffVehicle ?? t.vehicle ?? '';
     const dropoffDriver = t.dropoffDriver ?? t.driver ?? '';
-    return `<tr><td>${t.order ?? (i+1)}</td><td>${escHtml(r.name)}</td><td>${typeLabel}</td>
+
+    let groupHeaderRow = '';
+    if (tpSortMode === 'vehicle' || tpSortMode === 'driver') {
+      const groupKey = tpSortMode === 'vehicle' ? pickupVehicle : pickupDriver;
+      if (groupKey !== lastGroupKey) {
+        lastGroupKey = groupKey;
+        const label = groupKey ? escHtml(groupKey) : '未設定（車両・運転手が未選択）';
+        groupHeaderRow = `<tr><td colspan="14" style="background:#eee; font-weight:700;">${label}</td></tr>`;
+      }
+    }
+
+    return `${groupHeaderRow}<tr><td>${t.order ?? (i+1)}</td><td>${escHtml(r.name)}</td><td>${typeLabel}</td>
       <td>${naPickup ? '－' : (t.pickupTime||'')}</td><td>${t.facilityArrivalTime||''}</td>
       <td>${naPickup ? '－' : escHtml(pickupVehicle)}</td><td>${naPickup ? '－' : escHtml(pickupDriver)}</td><td>${naPickup ? '－' : escHtml(t.pickupAttendant||'')}</td>
       <td>${t.dropoffTime||''}</td><td>${isFamilyDefault ? '－' : (t.homeArrivalTime||'')}</td>
@@ -3532,7 +3678,7 @@ function printTransportTable() {
       th, td { border: 1px solid #999; padding: 4px 5px; text-align: left; }
       th { background: #f0f0f0; }
     </style></head><body>
-    <h1>送迎表　${escHtml(appState.db.facility||'')}　${dateStr}</h1>
+    <h1>送迎表　${escHtml(appState.db.facility||'')}　${dateStr}${sortModeLabel}</h1>
     <table><tr><th>順</th><th>利用者名</th><th>送迎区分</th><th>迎え時刻</th><th>到着(施設)</th><th>迎え車両</th><th>迎え運転手</th><th>迎え添乗</th><th>送り時刻</th><th>到着(自宅)</th><th>送り車両</th><th>送り運転手</th><th>送り添乗</th><th>備考</th></tr>${rows}</table>
     </body></html>`);
   win.document.close();

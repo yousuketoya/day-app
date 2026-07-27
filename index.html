@@ -999,7 +999,7 @@ header {
   <div class="card">
     <div class="card-title">📅 日付</div>
     <div style="display:flex; gap:8px;">
-      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">
+      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">
       <button class="btn btn-secondary btn-sm" onclick="setToday(); renderTodayRenrakuchoList();">今日</button>
     </div>
   </div>
@@ -1019,6 +1019,10 @@ header {
 
   <div class="card">
     <div class="card-title">👤 利用者</div>
+    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" id="rcShowAllResidentsCheck" onchange="toggleRenrakuchoShowAll(this.checked)">
+      本日の予定にない利用者も表示する
+    </label>
     <div class="resident-selector" id="residentSelector">
       <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
     </div>
@@ -1449,7 +1453,7 @@ header {
   <div class="card">
     <div class="card-title">📅 日付</div>
     <div style="display:flex; gap:8px;">
-      <input type="date" id="rrDateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderTodayRehabRecordList()">
+      <input type="date" id="rrDateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderRehabRecordResidentSelector(); renderTodayRehabRecordList()">
       <button class="btn btn-secondary btn-sm" onclick="setRehabRecordToday()">今日</button>
     </div>
   </div>
@@ -1468,6 +1472,10 @@ header {
 
   <div class="card">
     <div class="card-title">👤 利用者</div>
+    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" id="rrShowAllResidentsCheck" onchange="toggleRehabRecordShowAll(this.checked)">
+      本日の予定にない利用者も表示する
+    </label>
     <div class="resident-selector" id="rehabRecordResidentSelector">
       <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
     </div>
@@ -2307,11 +2315,11 @@ let appState = {
   db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
   shorui: { files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
             pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null },
-  renrakucho: { selectedResident: null, chips: {}, apiKey: '' },
+  renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false },
   schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
   shift: { cycleBlockIndex: null },
   rehab: { selectedResident: null },
-  rehabRecord: { selectedResident: null },
+  rehabRecord: { selectedResident: null, showAllResidents: false },
   assessment: { selectedResident: null },
   monitoring: { selectedResident: null },
   vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null },
@@ -6230,15 +6238,34 @@ function toggleTodayRehabRecordItem(residentId) {
 function renderRehabRecordResidentSelector() {
   const el = document.getElementById('rehabRecordResidentSelector');
   if (!el) return;
-  const residents = appState.db.residentDb;
-  if (!residents.length) {
+  if (!appState.db.residentDb.length) {
     el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
     return;
   }
+  const dateStr = document.getElementById('rrDateInput')?.value || todayStr();
+  const showAll = appState.rehabRecord.showAllResidents;
+  const scheduledIds = new Set(getResidentsForDate(dateStr).map(r => r.id));
+  const residents = showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id));
+
+  if (appState.rehabRecord.selectedResident && !residents.some(r => r.id === appState.rehabRecord.selectedResident.id)) {
+    appState.rehabRecord.selectedResident = null;
+    document.getElementById('rehabRecordResidentInfoBox').style.display = 'none';
+  }
+
+  if (!residents.length) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（「本日の予定にない利用者も表示する」にチェックするか、スケジュールで追加してください）</div>`;
+    return;
+  }
+
   el.innerHTML = residents.map(r => {
     const selected = appState.rehabRecord.selectedResident?.id === r.id;
-    return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabRecordResident('${r.id}')">${r.name}</span>`;
+    return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabRecordResident('${r.id}')">${r.name}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</span>`;
   }).join('');
+}
+
+function toggleRehabRecordShowAll(checked) {
+  appState.rehabRecord.showAllResidents = checked;
+  renderRehabRecordResidentSelector();
 }
 
 function selectRehabRecordResident(id) {
@@ -6427,10 +6454,31 @@ function renderResidentSelector() {
     el.innerHTML = '<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>';
     return;
   }
-  el.innerHTML = appState.db.residentDb.map(r =>
+  const dateStr = document.getElementById('dateInput')?.value || todayStr();
+  const showAll = appState.renrakucho.showAllResidents;
+  const scheduledIds = new Set(getResidentsForDate(dateStr).map(r => r.id));
+  const residents = showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id));
+
+  if (appState.renrakucho.selectedResident && !residents.some(r => r.id === appState.renrakucho.selectedResident.id)) {
+    appState.renrakucho.selectedResident = null;
+    document.getElementById('residentInfoBox').style.display = 'none';
+    document.getElementById('outputSection').style.display = 'none';
+  }
+
+  if (!residents.length) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（「本日の予定にない利用者も表示する」にチェックするか、スケジュールで追加してください）</div>`;
+    return;
+  }
+
+  el.innerHTML = residents.map(r =>
     `<button class="res-chip ${appState.renrakucho.selectedResident?.id === r.id ? 'selected' : ''}"
-      onclick="selectResident('${r.id}')">${r.name}</button>`
+      onclick="selectResident('${r.id}')">${r.name}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</button>`
   ).join('');
+}
+
+function toggleRenrakuchoShowAll(checked) {
+  appState.renrakucho.showAllResidents = checked;
+  renderResidentSelector();
 }
 
 function selectResident(id) {

@@ -1043,6 +1043,7 @@ header {
         <input type="file" id="vitalsFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleVitalsFile(event)">
       </label>
       <button class="btn btn-secondary btn-sm" onclick="openVitalsMappingModal()">⚙️ 列の対応設定</button>
+      <button class="btn btn-secondary btn-sm" onclick="downloadVitalsTemplate()">📄 雛形をダウンロード</button>
     </div>
     <div id="vitalsImportStatus" style="margin-top:6px;"></div>
     <div class="vital-grid" style="margin-top:8px;">
@@ -5318,6 +5319,20 @@ const VITALS_ALIASES = {
 };
 
 let vitalsImportState = { headers: [], rows: [] };
+
+function downloadVitalsTemplate() {
+  const residents = appState.db.residentDb || [];
+  const header = ['氏名', '体温', '血圧（収縮期）', '血圧（拡張期）', '脈拍', 'SpO₂', '体重'];
+  const rows = residents.length
+    ? residents.map(r => [r.name, '', '', '', '', '', ''])
+    : [['', '', '', '', '', '', '']];
+  const data = [header, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'バイタル表');
+  XLSX.writeFile(wb, `バイタル表_雛形_${todayStr()}.xlsx`);
+}
 
 function handleVitalsFile(event) {
   const file = event.target.files[0];

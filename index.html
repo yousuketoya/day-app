@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>通所サービス管理アシスタント</title>
 <style>
@@ -811,6 +813,12 @@ header {
     <button class="nav-btn" onclick="switchPage('dailylog')">
       <span class="nav-icon">📓</span>業務日誌
     </button>
+    <button class="nav-btn" onclick="switchPage('vitalstrend')">
+      <span class="nav-icon">📈</span>バイタル推移
+    </button>
+    <button class="nav-btn" onclick="switchPage('mealintake')">
+      <span class="nav-icon">🍚</span>食事摂取量
+    </button>
   </nav>
 </header>
 
@@ -991,7 +999,7 @@ header {
   <div class="card">
     <div class="card-title">📅 日付</div>
     <div style="display:flex; gap:8px;">
-      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderTodayRenrakuchoList(); applyVitalsIfAvailable(); loadRcStaffSelection();">
+      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">
       <button class="btn btn-secondary btn-sm" onclick="setToday(); renderTodayRenrakuchoList();">今日</button>
     </div>
   </div>
@@ -1072,14 +1080,38 @@ header {
     <div class="card-title">🍱 食事・水分</div>
     <div class="check-grid">
       <div class="check-item">
-        <div class="check-label">昼食摂取量</div>
-        <div class="chip-row">
-          <span class="chip" data-group="lunch" data-value="完食" onclick="selectChip(this)">全量</span>
-          <span class="chip" data-group="lunch" data-value="8割" onclick="selectChip(this)">8割</span>
-          <span class="chip" data-group="lunch" data-value="5割" onclick="selectChip(this)">5割</span>
-          <span class="chip warn" data-group="lunch" data-value="3割以下" onclick="selectChip(this)">3割以下</span>
-          <span class="chip bad" data-group="lunch" data-value="摂取困難" onclick="selectChip(this)">摂取困難</span>
-        </div>
+        <div class="check-label">昼食摂取量（主食）</div>
+        <select id="lunchMainSelect" class="meal-intake-select" onchange="onMealIntakeChange('lunchMain', this)" style="width:100%; padding:9px 10px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
+          <option value="">選択してください</option>
+          <option value="全量">全量</option>
+          <option value="9割">9割</option>
+          <option value="8割">8割</option>
+          <option value="7割">7割</option>
+          <option value="6割">6割</option>
+          <option value="5割">5割</option>
+          <option value="4割">4割</option>
+          <option value="3割">3割</option>
+          <option value="2割">2割</option>
+          <option value="1割">1割</option>
+          <option value="摂取困難">摂取困難</option>
+        </select>
+      </div>
+      <div class="check-item">
+        <div class="check-label">昼食摂取量（副食）</div>
+        <select id="lunchSideSelect" class="meal-intake-select" onchange="onMealIntakeChange('lunchSide', this)" style="width:100%; padding:9px 10px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
+          <option value="">選択してください</option>
+          <option value="全量">全量</option>
+          <option value="9割">9割</option>
+          <option value="8割">8割</option>
+          <option value="7割">7割</option>
+          <option value="6割">6割</option>
+          <option value="5割">5割</option>
+          <option value="4割">4割</option>
+          <option value="3割">3割</option>
+          <option value="2割">2割</option>
+          <option value="1割">1割</option>
+          <option value="摂取困難">摂取困難</option>
+        </select>
       </div>
       <div class="check-item">
         <div class="check-label">水分補給</div>
@@ -1755,6 +1787,93 @@ header {
 
 </div>
 
+<!-- ==================== VITALS TREND PAGE ==================== -->
+<div class="page" id="page-vitalstrend">
+
+  <div class="card">
+    <div class="card-title">👤 利用者</div>
+    <div class="resident-selector" id="vitalsTrendResidentSelector">
+      <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
+    </div>
+  </div>
+
+  <div id="vitalsTrendFormArea" style="display:none;">
+
+    <div class="card">
+      <div class="card-title">📅 期間</div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="date" id="vtStartDate" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit;" onchange="renderVitalsTrend()">
+        <span style="color:var(--muted); font-size:13px;">〜</span>
+        <input type="date" id="vtEndDate" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit;" onchange="renderVitalsTrend()">
+      </div>
+      <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="setVitalsTrendRange(7)">直近7日</button>
+        <button class="btn btn-secondary btn-sm" onclick="setVitalsTrendRange(30)">直近30日</button>
+        <button class="btn btn-secondary btn-sm" onclick="setVitalsTrendThisMonth()">今月</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 バイタル推移</div>
+      <div class="chip-row" id="vtMetricChipRow" style="margin-bottom:12px;"></div>
+      <div style="position:relative; height:250px;">
+        <canvas id="vitalsTrendCanvas"></canvas>
+      </div>
+      <div id="vtScaleNote" style="display:none; font-size:11px; color:var(--muted); margin-top:6px;">※複数項目を表示中は、項目ごとに目盛りを自動調整しています（線の上下動＝その項目の変化）。正確な数値は下の一覧表または凡例のツールチップでご確認ください。</div>
+      <div id="vitalsTrendEmptyNote" style="display:none; color:var(--muted); font-size:13px; text-align:center; padding:24px 0;">この期間の記録がありません</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 記録一覧</div>
+      <div style="overflow-x:auto;">
+        <table id="vitalsTrendTable" style="width:100%; border-collapse:collapse; font-size:12.5px; white-space:nowrap;"></table>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="exportVitalsTrendExcel(event)">📥🖨️ 印刷用Excel（数値表＋グラフ）を書き出す</button>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ==================== MEAL INTAKE PAGE ==================== -->
+<div class="page" id="page-mealintake">
+
+  <div class="card">
+    <div class="card-title">👤 利用者</div>
+    <div class="resident-selector" id="mealIntakeResidentSelector">
+      <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
+    </div>
+  </div>
+
+  <div id="mealIntakeFormArea" style="display:none;">
+
+    <div class="card">
+      <div class="card-title">📅 期間</div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="date" id="miStartDate" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit;" onchange="renderMealIntakeTable()">
+        <span style="color:var(--muted); font-size:13px;">〜</span>
+        <input type="date" id="miEndDate" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit;" onchange="renderMealIntakeTable()">
+      </div>
+      <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="setMealIntakeRange(7)">直近7日</button>
+        <button class="btn btn-secondary btn-sm" onclick="setMealIntakeRange(30)">直近30日</button>
+        <button class="btn btn-secondary btn-sm" onclick="setMealIntakeThisMonth()">今月</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🍚 食事摂取量（主食・副食）一覧</div>
+      <div style="overflow-x:auto;">
+        <table id="mealIntakeTable" style="width:100%; border-collapse:collapse; font-size:13px;"></table>
+      </div>
+      <div id="mealIntakeEmptyNote" style="display:none; color:var(--muted); font-size:13px; text-align:center; padding:20px;">この期間の記録がありません</div>
+      <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="exportMealIntakeExcel()">📥 この期間をExcelで書き出す</button>
+    </div>
+
+  </div>
+
+</div>
+
 </div><!-- /container -->
 
 <!-- ===== 設定モーダル ===== -->
@@ -2185,7 +2304,7 @@ header {
 const DB_KEY = 'deiservice_db';
 
 let appState = {
-  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
+  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
   shorui: { files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
             pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null },
   renrakucho: { selectedResident: null, chips: {}, apiKey: '' },
@@ -2194,7 +2313,9 @@ let appState = {
   rehab: { selectedResident: null },
   rehabRecord: { selectedResident: null },
   assessment: { selectedResident: null },
-  monitoring: { selectedResident: null }
+  monitoring: { selectedResident: null },
+  vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null },
+  mealIntake: { selectedResident: null }
 };
 
 const WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
@@ -2221,7 +2342,7 @@ function init() {
 
 function loadDb() {
   const saved = localStorage.getItem(DB_KEY);
-  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, shiftPlanConfirmed:false, shiftPlanConfirmedAt:'', shiftActual:{}, ...JSON.parse(saved) };
+  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, mealIntakeLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, shiftPlanConfirmed:false, shiftPlanConfirmedAt:'', shiftActual:{}, ...JSON.parse(saved) };
   // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
   if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
     appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -2250,6 +2371,8 @@ function switchPage(page) {
   if (page === 'rehab') { renderRehabResidentSelector(); renderReviewDueList(); }
   if (page === 'assessment') { renderAssessmentResidentSelector(); }
   if (page === 'monitoring') { renderMonitoringResidentSelector(); }
+  if (page === 'vitalstrend') { renderVitalsTrendResidentSelector(); }
+  if (page === 'mealintake') { renderMealIntakeResidentSelector(); }
   if (page === 'dailylog') {
     if (!document.getElementById('dl_date').value) setDailyLogToday();
     else loadDailyLog();
@@ -2619,6 +2742,15 @@ function exportBackupExcel() {
   });
   addSheet('利用時間・入浴状況', usRows);
 
+  // ⑭b 食事摂取量（主食・副食）
+  const miRows = [['日付','利用者名','主食','副食']];
+  Object.keys(db.mealIntakeLog || {}).sort().forEach(date => {
+    Object.entries(db.mealIntakeLog[date]).forEach(([rid, m]) => {
+      miRows.push([date, residentNameOf(rid), m.main || '', m.side || '']);
+    });
+  });
+  addSheet('食事摂取量', miRows);
+
   // ⑮ 勤務表（予定：4週28日パターン）
   const shiftStaffForExport = [
     ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
@@ -2715,7 +2847,7 @@ function restoreFromWorkbook(wb) {
     dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [],
     rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {},
     transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
-    dailyLog: {}, usageLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '',
+    dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '',
     customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {},
     shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}
   };
@@ -2869,6 +3001,13 @@ function restoreFromWorkbook(wb) {
     const id = findId(name); if (!id || !date) return;
     if (!newDb.usageLog[date]) newDb.usageLog[date] = {};
     newDb.usageLog[date][id] = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
+  });
+
+  // ⑭b 食事摂取量（主食・副食）
+  getSheetRows(wb, '食事摂取量').forEach(([date, name, main, side]) => {
+    const id = findId(name); if (!id || !date) return;
+    if (!newDb.mealIntakeLog[date]) newDb.mealIntakeLog[date] = {};
+    newDb.mealIntakeLog[date][id] = { main: main || '', side: side || '' };
   });
 
   // ⑮ 設定情報
@@ -5331,6 +5470,20 @@ function executeVitalsImport(mapping, dateStr) {
 const VITAL_DEFAULTS = { temp: 36.5, bpSys: 120, bpDia: 80, pulse: 80 };
 const VITAL_FIELDS = ['temp', 'bpSys', 'bpDia', 'pulse', 'spo2', 'weight'];
 
+function applyMealIntakeIfAvailable() {
+  const r = appState.renrakucho.selectedResident;
+  const dateStr = document.getElementById('dateInput')?.value;
+  const mainSelect = document.getElementById('lunchMainSelect');
+  const sideSelect = document.getElementById('lunchSideSelect');
+  if (!mainSelect || !sideSelect) return;
+  const entry = (r && dateStr && appState.db.mealIntakeLog[dateStr] && appState.db.mealIntakeLog[dateStr][r.id]) || null;
+
+  mainSelect.value = entry?.main || '';
+  sideSelect.value = entry?.side || '';
+  if (entry?.main) appState.renrakucho.chips.lunchMain = entry.main; else delete appState.renrakucho.chips.lunchMain;
+  if (entry?.side) appState.renrakucho.chips.lunchSide = entry.side; else delete appState.renrakucho.chips.lunchSide;
+}
+
 function applyVitalsIfAvailable() {
   const r = appState.renrakucho.selectedResident;
   const dateStr = document.getElementById('dateInput')?.value;
@@ -5827,6 +5980,7 @@ function openLogEntry(dateStr, residentId) {
   showResidentInfo(r);
   renderTodayRenrakuchoList();
   applyVitalsIfAvailable();
+  applyMealIntakeIfAvailable();
   renderCareStaffChips();
   loadRcStaffSelection();
 
@@ -6286,6 +6440,7 @@ function selectResident(id) {
   renderResidentSelector();
   showResidentInfo(r);
   applyVitalsIfAvailable();
+  applyMealIntakeIfAvailable();
   loadRcStaffSelection();
 }
 
@@ -6328,6 +6483,26 @@ function selectChip(el) {
   }
 }
 
+function onMealIntakeChange(group, el) {
+  if (el.value) {
+    appState.renrakucho.chips[group] = el.value;
+  } else {
+    delete appState.renrakucho.chips[group];
+  }
+}
+
+function saveMealIntake(date, residentId) {
+  const main = appState.renrakucho.chips.lunchMain;
+  const side = appState.renrakucho.chips.lunchSide;
+  if (main === undefined && side === undefined) return;
+  if (!appState.db.mealIntakeLog[date]) appState.db.mealIntakeLog[date] = {};
+  const existing = appState.db.mealIntakeLog[date][residentId] || {};
+  appState.db.mealIntakeLog[date][residentId] = {
+    main: main !== undefined ? main : (existing.main || ''),
+    side: side !== undefined ? side : (existing.side || '')
+  };
+}
+
 async function generateText() {
   const r = appState.renrakucho.selectedResident;
   if (!r) { showStatus('generateStatus', '⚠️ 利用者を選択してください', 'info'); return; }
@@ -6351,7 +6526,8 @@ async function generateText() {
 
   const styleDesc = { warm:'温かく親しみやすい文体', formal:'丁寧な敬語体', brief:'簡潔スタイル' }[appState.db.style] || '温かく親しみやすい文体';
   const vitals = [temp?`体温${temp}℃`:'', (bpSys&&bpDia)?`血圧${bpSys}/${bpDia}mmHg`:'', pulse?`脈拍${pulse}回/分`:'', spo2?`SpO₂ ${spo2}%`:'', weight?`体重${weight}kg`:''].filter(Boolean).join('、');
-  const checkItems = Object.entries(appState.renrakucho.chips).map(([k,v]) => `${k}: ${v}`).join('\n');
+  const CHECK_GROUP_LABELS = { condition:'体調', mood:'気分・表情', lunchMain:'昼食摂取量（主食）', lunchSide:'昼食摂取量（副食）', water:'水分補給', bath:'入浴', toilet:'排泄', rec:'レク参加', training:'訓練', safety:'安全', medicine:'服薬' };
+  const checkItems = Object.entries(appState.renrakucho.chips).map(([k,v]) => `${CHECK_GROUP_LABELS[k] || k}: ${v}`).join('\n');
   const dbInfo = [r.careLevel?`要介護度: ${r.careLevel}`:'', r.meal?`食事形態: ${r.meal}`:'', r.bath?`入浴方法: ${r.bath}`:'', r.allergy?`アレルギー: ${r.allergy}`:'', r.medicine?`服薬: ${r.medicine}`:'', r.notes?`注意事項: ${r.notes}`:''].filter(Boolean).join('\n');
 
   const prompt = `あなたは通所サービスのスタッフです。以下の本日の記録内容をもとに、①ご家族向けの「連絡帳」と、②施設内スタッフ向けの「経過記録」の、2種類の文章をそれぞれ作成してください。
@@ -6417,6 +6593,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       if (!appState.db.renrakuchoStaffLog[date]) appState.db.renrakuchoStaffLog[date] = {};
       appState.db.renrakuchoStaffLog[date][r.id] = rcStaff;
     }
+    saveMealIntake(date, r.id);
     saveDb();
     renderRenrakuchoWeekMatrix();
     renderTodayRenrakuchoList();
@@ -6497,6 +6674,7 @@ function applyEdit() {
       if (!appState.db.renrakuchoStaffLog[date]) appState.db.renrakuchoStaffLog[date] = {};
       appState.db.renrakuchoStaffLog[date][r.id] = rcStaff;
     }
+    saveMealIntake(date, r.id);
     saveDb();
     renderRenrakuchoWeekMatrix();
     renderTodayRenrakuchoList();
@@ -6879,6 +7057,357 @@ function printRehabPlan() {
     </body></html>`);
   win.document.close();
   win.print();
+}
+
+// ============================================================
+// VITALS TREND（バイタル推移グラフ）
+// ============================================================
+const VT_METRIC_GROUPS = {
+  temp:   { label: '🌡️ 体温',   datasets: [{ key: 'temp',   label: '体温(℃)',    color: '#e67e22' }] },
+  bp:     { label: '💓 血圧',   datasets: [{ key: 'bpSys',  label: '収縮期(上)', color: '#c0392b' }, { key: 'bpDia', label: '拡張期(下)', color: '#e8927e' }] },
+  pulse:  { label: '❤️ 脈拍',   datasets: [{ key: 'pulse',  label: '脈拍(/分)',  color: '#2d7d5a' }] },
+  spo2:   { label: '🫁 SpO₂',   datasets: [{ key: 'spo2',   label: 'SpO₂(%)',    color: '#2980b9' }] },
+  weight: { label: '⚖️ 体重',   datasets: [{ key: 'weight', label: '体重(kg)',   color: '#8e44ad' }] }
+};
+const VT_ALL_KEYS = [
+  { key: 'temp', label: '体温' }, { key: 'bpSys', label: '血圧(上)' }, { key: 'bpDia', label: '血圧(下)' },
+  { key: 'pulse', label: '脈拍' }, { key: 'spo2', label: 'SpO₂' }, { key: 'weight', label: '体重' }
+];
+
+function renderVitalsTrendResidentSelector() {
+  const el = document.getElementById('vitalsTrendResidentSelector');
+  if (!el) return;
+  const residents = appState.db.residentDb || [];
+  if (!residents.length) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
+    document.getElementById('vitalsTrendFormArea').style.display = 'none';
+    return;
+  }
+  el.innerHTML = residents.map(r => {
+    const selected = appState.vitalsTrend.selectedResident?.id === r.id;
+    return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectVitalsTrendResident('${r.id}')">${escHtml(r.name)}</span>`;
+  }).join('');
+}
+
+function selectVitalsTrendResident(id) {
+  const r = appState.db.residentDb.find(x => x.id === id);
+  if (!r) return;
+  appState.vitalsTrend.selectedResident = r;
+  renderVitalsTrendResidentSelector();
+  document.getElementById('vitalsTrendFormArea').style.display = 'block';
+  if (!document.getElementById('vtStartDate').value || !document.getElementById('vtEndDate').value) {
+    setVitalsTrendRange(30);
+  } else {
+    renderVitalsTrend();
+  }
+}
+
+function setVitalsTrendRange(days) {
+  const end = todayStr();
+  const start = addDaysToYmd(end, -(days - 1));
+  document.getElementById('vtStartDate').value = start;
+  document.getElementById('vtEndDate').value = end;
+  renderVitalsTrend();
+}
+
+function setVitalsTrendThisMonth() {
+  const n = new Date();
+  const start = ymd(n.getFullYear(), n.getMonth(), 1);
+  const end = todayStr();
+  document.getElementById('vtStartDate').value = start;
+  document.getElementById('vtEndDate').value = end;
+  renderVitalsTrend();
+}
+
+function toggleVtMetric(metricKey) {
+  const active = appState.vitalsTrend.activeMetrics;
+  const idx = active.indexOf(metricKey);
+  if (idx >= 0) {
+    if (active.length === 1) return; // 最低1つは選択したままにする
+    active.splice(idx, 1);
+  } else {
+    active.push(metricKey);
+  }
+  renderVitalsTrend();
+}
+
+function getVitalsTrendData() {
+  const r = appState.vitalsTrend.selectedResident;
+  const start = document.getElementById('vtStartDate')?.value;
+  const end = document.getElementById('vtEndDate')?.value;
+  if (!r || !start || !end || start > end) return { dates: [], rows: [] };
+  const dates = [];
+  let d = start;
+  let guard = 0;
+  while (d <= end && guard < 400) { dates.push(d); d = addDaysToYmd(d, 1); guard++; }
+  const rows = dates.map(date => {
+    const entry = (appState.db.vitalsLog[date] && appState.db.vitalsLog[date][r.id]) || null;
+    return { date, entry };
+  });
+  return { dates, rows };
+}
+
+function renderVitalsTrend() {
+  const chipRow = document.getElementById('vtMetricChipRow');
+  if (chipRow) {
+    chipRow.innerHTML = Object.entries(VT_METRIC_GROUPS).map(([key, g]) => {
+      const active = appState.vitalsTrend.activeMetrics.includes(key);
+      return `<span class="chip ${active ? 'selected' : ''}" style="${active ? 'background:var(--green); border-color:var(--green); color:#fff;' : ''}" onclick="toggleVtMetric('${key}')">${g.label}</span>`;
+    }).join('');
+  }
+
+  const { dates, rows } = getVitalsTrendData();
+  const hasAny = rows.some(r => r.entry);
+  const canvas = document.getElementById('vitalsTrendCanvas');
+  const emptyNote = document.getElementById('vitalsTrendEmptyNote');
+
+  if (!hasAny) {
+    if (appState.vitalsTrend.chart) { appState.vitalsTrend.chart.destroy(); appState.vitalsTrend.chart = null; }
+    if (canvas) canvas.style.display = 'none';
+    if (emptyNote) emptyNote.style.display = 'block';
+  } else {
+    if (canvas) canvas.style.display = 'block';
+    if (emptyNote) emptyNote.style.display = 'none';
+
+    const selectedGroups = appState.vitalsTrend.activeMetrics.map(k => VT_METRIC_GROUPS[k]).filter(Boolean);
+    const labels = dates.map(d => { const [, m, dd] = d.split('-'); return `${Number(m)}/${Number(dd)}`; });
+    const datasets = [];
+    const scales = { x: {} };
+    selectedGroups.forEach(group => {
+      group.datasets.forEach(ds => {
+        const axisId = 'y_' + ds.key;
+        datasets.push({
+          label: ds.label,
+          data: rows.map(r => (r.entry && r.entry[ds.key] !== undefined && r.entry[ds.key] !== '') ? r.entry[ds.key] : null),
+          borderColor: ds.color,
+          backgroundColor: ds.color,
+          spanGaps: true,
+          tension: 0.25,
+          pointRadius: 3,
+          yAxisID: axisId
+        });
+        if (!scales[axisId]) scales[axisId] = { display: false, beginAtZero: false };
+      });
+    });
+
+    if (appState.vitalsTrend.chart) appState.vitalsTrend.chart.destroy();
+    appState.vitalsTrend.chart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true, position: 'top' } },
+        scales
+      }
+    });
+  }
+
+  const noteEl = document.getElementById('vtScaleNote');
+  if (noteEl) noteEl.style.display = appState.vitalsTrend.activeMetrics.length > 1 ? 'block' : 'none';
+
+  renderVitalsTrendTable(dates, rows);
+}
+
+function renderVitalsTrendTable(dates, rows) {
+  const table = document.getElementById('vitalsTrendTable');
+  if (!table) return;
+  if (!dates.length) { table.innerHTML = ''; return; }
+  const head = `<tr><th style="text-align:left; padding:6px 8px; border-bottom:2px solid var(--border);">日付</th>${VT_ALL_KEYS.map(k => `<th style="padding:6px 8px; border-bottom:2px solid var(--border);">${k.label}</th>`).join('')}</tr>`;
+  const body = rows.map(r => {
+    const e = r.entry || {};
+    const cells = VT_ALL_KEYS.map(k => `<td style="padding:6px 8px; text-align:center; border-bottom:1px solid var(--border);">${e[k.key] !== undefined && e[k.key] !== '' ? e[k.key] : '−'}</td>`).join('');
+    return `<tr><td style="padding:6px 8px; border-bottom:1px solid var(--border);">${r.date}</td>${cells}</tr>`;
+  }).join('');
+  table.innerHTML = head + body;
+}
+
+async function exportVitalsTrendExcel(evt) {
+  const r = appState.vitalsTrend.selectedResident;
+  const { dates, rows } = getVitalsTrendData();
+  if (!r || !dates.length) { alert('利用者と期間を選択してください'); return; }
+  const start = document.getElementById('vtStartDate').value;
+  const end = document.getElementById('vtEndDate').value;
+
+  const btn = evt?.target;
+  const originalLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '作成中…'; }
+
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '通所サービス管理アシスタント';
+    const ws = wb.addWorksheet('バイタル推移', {
+      pageSetup: {
+        orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+        margins: { left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 }
+      }
+    });
+
+    ws.mergeCells('A1:G1');
+    const titleCell = ws.getCell('A1');
+    titleCell.value = `バイタル推移　${r.name} 様（${start} 〜 ${end}）`;
+    titleCell.font = { size: 14, bold: true, color: { argb: 'FF1E5C40' } };
+    ws.getRow(1).height = 24;
+    ws.addRow([]);
+
+    const header = ['日付', ...VT_ALL_KEYS.map(k => k.label)];
+    const headerRow = ws.addRow(header);
+    headerRow.eachCell(c => {
+      c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2D7D5A' } };
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    headerRow.height = 20;
+
+    rows.forEach(row => {
+      const e = row.entry || {};
+      const dataRow = ws.addRow([row.date, ...VT_ALL_KEYS.map(k => (e[k.key] !== undefined && e[k.key] !== '') ? e[k.key] : '')]);
+      dataRow.eachCell(c => {
+        c.alignment = { horizontal: 'center' };
+        c.border = { bottom: { style: 'hair', color: { argb: 'FFD4E6DC' } } };
+      });
+    });
+
+    ws.getColumn(1).width = 13;
+    for (let i = 2; i <= 7; i++) ws.getColumn(i).width = 12;
+    ws.views = [{ state: 'frozen', ySplit: 3 }];
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: 7 } };
+
+    // グラフ（現在表示中のグラフ画像）を数値表の下に画像として埋め込む
+    const canvas = document.getElementById('vitalsTrendCanvas');
+    if (canvas && canvas.style.display !== 'none' && appState.vitalsTrend.chart) {
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const imgId = wb.addImage({ base64: imgData, extension: 'png' });
+      const chartStartRow = rows.length + 5;
+      ws.addRow([]);
+      ws.getCell(`A${chartStartRow}`).value = '📈 グラフ（選択中の項目）';
+      ws.getCell(`A${chartStartRow}`).font = { bold: true };
+      ws.addImage(imgId, {
+        tl: { col: 0, row: chartStartRow },
+        ext: { width: 760, height: 340 }
+      });
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `バイタル推移_${r.name}_${start}_${end}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+    alert('Excelの作成中にエラーが発生しました。時間をおいて再度お試しください。');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+  }
+}
+
+// ============================================================
+// MEAL INTAKE LIST（食事摂取量一覧：主食・副食）
+// ============================================================
+function renderMealIntakeResidentSelector() {
+  const el = document.getElementById('mealIntakeResidentSelector');
+  if (!el) return;
+  const residents = appState.db.residentDb || [];
+  if (!residents.length) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
+    document.getElementById('mealIntakeFormArea').style.display = 'none';
+    return;
+  }
+  el.innerHTML = residents.map(r => {
+    const selected = appState.mealIntake.selectedResident?.id === r.id;
+    return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMealIntakeResident('${r.id}')">${escHtml(r.name)}</span>`;
+  }).join('');
+}
+
+function selectMealIntakeResident(id) {
+  const r = appState.db.residentDb.find(x => x.id === id);
+  if (!r) return;
+  appState.mealIntake.selectedResident = r;
+  renderMealIntakeResidentSelector();
+  document.getElementById('mealIntakeFormArea').style.display = 'block';
+  if (!document.getElementById('miStartDate').value || !document.getElementById('miEndDate').value) {
+    setMealIntakeThisMonth();
+  } else {
+    renderMealIntakeTable();
+  }
+}
+
+function setMealIntakeRange(days) {
+  const end = todayStr();
+  const start = addDaysToYmd(end, -(days - 1));
+  document.getElementById('miStartDate').value = start;
+  document.getElementById('miEndDate').value = end;
+  renderMealIntakeTable();
+}
+
+function setMealIntakeThisMonth() {
+  const n = new Date();
+  const start = ymd(n.getFullYear(), n.getMonth(), 1);
+  const end = todayStr();
+  document.getElementById('miStartDate').value = start;
+  document.getElementById('miEndDate').value = end;
+  renderMealIntakeTable();
+}
+
+function getMealIntakeData() {
+  const r = appState.mealIntake.selectedResident;
+  const start = document.getElementById('miStartDate')?.value;
+  const end = document.getElementById('miEndDate')?.value;
+  if (!r || !start || !end || start > end) return [];
+  const dates = [];
+  let d = start;
+  let guard = 0;
+  while (d <= end && guard < 400) { dates.push(d); d = addDaysToYmd(d, 1); guard++; }
+  return dates.map(date => {
+    const entry = (appState.db.mealIntakeLog[date] && appState.db.mealIntakeLog[date][r.id]) || null;
+    return { date, main: entry?.main || '', side: entry?.side || '' };
+  });
+}
+
+function renderMealIntakeTable() {
+  const rows = getMealIntakeData();
+  const table = document.getElementById('mealIntakeTable');
+  const emptyNote = document.getElementById('mealIntakeEmptyNote');
+  const hasAny = rows.some(r => r.main || r.side);
+
+  if (!hasAny) {
+    if (table) table.innerHTML = '';
+    if (emptyNote) emptyNote.style.display = 'block';
+    return;
+  }
+  if (emptyNote) emptyNote.style.display = 'none';
+
+  const head = `<tr><th style="text-align:left; padding:6px 8px; border-bottom:2px solid var(--border);">日付</th><th style="padding:6px 8px; border-bottom:2px solid var(--border);">主食</th><th style="padding:6px 8px; border-bottom:2px solid var(--border);">副食</th></tr>`;
+  const body = rows.map(row => {
+    const lowMain = row.main === '摂取困難' || row.main === '1割' || row.main === '2割' || row.main === '3割';
+    const lowSide = row.side === '摂取困難' || row.side === '1割' || row.side === '2割' || row.side === '3割';
+    return `<tr>
+      <td style="padding:6px 8px; border-bottom:1px solid var(--border);">${row.date}</td>
+      <td style="padding:6px 8px; text-align:center; border-bottom:1px solid var(--border); ${lowMain ? 'color:var(--danger); font-weight:600;' : ''}">${row.main || '−'}</td>
+      <td style="padding:6px 8px; text-align:center; border-bottom:1px solid var(--border); ${lowSide ? 'color:var(--danger); font-weight:600;' : ''}">${row.side || '−'}</td>
+    </tr>`;
+  }).join('');
+  table.innerHTML = head + body;
+}
+
+function exportMealIntakeExcel() {
+  const r = appState.mealIntake.selectedResident;
+  const rows = getMealIntakeData();
+  if (!r || !rows.length) { alert('利用者と期間を選択してください'); return; }
+  const start = document.getElementById('miStartDate').value;
+  const end = document.getElementById('miEndDate').value;
+  const data = [['日付', '主食', '副食'], ...rows.map(row => [row.date, row.main, row.side])];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{ wch: 13 }, { wch: 10 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '食事摂取量');
+  XLSX.writeFile(wb, `食事摂取量_${r.name}_${start}_${end}.xlsx`);
 }
 
 init();

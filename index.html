@@ -477,6 +477,13 @@ header {
 .shift-cell.actual-row-cell { height:20px; font-size:9.5px; opacity:0.65; }
 .shift-cell.actual-row-cell.actual-changed { opacity:1; outline:2px solid var(--warn); font-weight:800; }
 .shift-table tr.shift-actual-tr td { border-top: none; }
+.shift-table tbody tr.shift-group-start td { border-top: 3px solid var(--border); }
+.shift-table tbody tr.shift-group-start:first-child td { border-top: 1px solid var(--border); }
+.shift-table tr.shift-zebra-b td.shift-staff-name,
+.shift-table tr.shift-zebra-b td.shift-subrow-label { background: #eef5f0; }
+.shift-table tr.shift-zebra-a td.shift-staff-name,
+.shift-table tr.shift-zebra-a td.shift-subrow-label { background: var(--card); }
+#shiftActualTableArea .shift-table tbody tr:nth-child(even) td.shift-staff-name { background: #eef5f0; }
 .shift-legend { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
 .shift-legend-item { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); background:var(--bg); border-radius:6px; padding:3px 8px; }
 .shift-legend-item .swatch { width:16px; height:16px; border-radius:4px; display:inline-block; }
@@ -3553,7 +3560,7 @@ function renderShiftPatternTable() {
   const locked = !!appState.db.shiftPlanConfirmed;
   const beforeStart = dayDates.map(d => daysBetweenYmd(start, d) < 0);
   let bodyRows = '';
-  staffList.forEach(s => {
+  staffList.forEach((s, sIndex) => {
     const pattern = appState.db.shiftPattern[s.name];
     const planCells = dayDates.map((d, i) => {
       if (beforeStart[i]) return `<td class="shift-cell before-start" title="起点日（${start}）より前のため対象外">－</td>`;
@@ -3583,11 +3590,12 @@ function renderShiftPatternTable() {
       return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}')" title="${d}">${label}</td>`;
     }).join('');
 
-    bodyRows += `<tr>
+    const zebra = sIndex % 2 === 0 ? 'shift-zebra-a' : 'shift-zebra-b';
+    bodyRows += `<tr class="shift-group-start ${zebra}">
       <td rowspan="2" class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>
       <td class="shift-subrow-label">予定</td>${planCells}
     </tr>
-    <tr class="shift-actual-tr">
+    <tr class="shift-actual-tr ${zebra}">
       <td class="shift-subrow-label actual">実績</td>${actualCells}
     </tr>`;
   });

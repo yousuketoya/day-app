@@ -425,17 +425,29 @@ header {
 .tp-table-transport { table-layout: fixed; font-size: 10.5px; }
 .tp-table-transport th, .tp-table-transport td { padding: 3px 2px; }
 .tp-table-transport th { font-size: 9.5px; line-height: 1.3; padding: 4px 2px; }
-.tp-table-transport col.tp-col-order { width: 24px; }
-.tp-table-transport col.tp-col-name { width: 58px; }
-.tp-table-transport col.tp-col-time { width: 44px; }
-.tp-table-transport col.tp-col-select { width: 50px; }
+.tp-table-transport col.tp-col-order { width: 22px; }
+.tp-table-transport col.tp-col-name { width: 52px; }
+.tp-table-transport col.tp-col-leg { width: 26px; }
+.tp-table-transport col.tp-col-time { width: 42px; }
+.tp-table-transport col.tp-col-select { width: 46px; }
 .tp-table-transport col.tp-col-note { width: 40px; }
 .tp-table-transport td.tp-name { font-size: 10.5px; white-space: normal; word-break: break-word; }
+.tp-table-transport td.tp-leg-label { font-size: 9px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.tp-table-transport tr.tp-leg-dropoff td { border-top: none; }
+.tp-table-transport tr.tp-group-start td { border-top: 2.5px solid var(--border); }
+.tp-table-transport tr.tp-group-start:first-child td { border-top: 1px solid var(--border); }
+.tp-vehicle-hint { display:block; font-size:8px; color:#E65100; font-weight:700; margin-top:1px; white-space:nowrap; }
 .tp-table-transport input, .tp-table-transport select {
   width: 100%; padding: 2px 1px; font-size: 9.5px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit;
 }
 .tp-table-transport input[type="number"] { padding: 2px 0; text-align: center; }
 .tp-table-transport input[type="time"] { padding: 1px 0; }
+.tp-badge { display:inline-block; font-size:8.5px; font-weight:700; padding:1px 4px; border-radius:6px; margin-top:2px; white-space:nowrap; }
+.tp-badge-family { background: var(--green-light); color: var(--green); }
+.tp-badge-familyToday { background: #FFF3E0; color: #E65100; }
+.tp-badge-familyDropoff { background: #E3F2FD; color: #1565C0; }
+.tp-table-transport td.tp-na { text-align:center; color:#ccc; background:#fafafa; font-size:11px; }
+.tp-family-check { display:flex; align-items:center; gap:2px; font-size:8px; color:var(--muted); margin-bottom:2px; white-space:nowrap; cursor:pointer; }
 
 /* 担当者フィルタ・書類ステータスバッジ */
 .doc-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 8px; cursor: pointer; margin: 2px 4px 2px 0; }
@@ -1751,6 +1763,7 @@ header {
         <label>出勤職員（勤務表の予定・実績から自動反映）</label>
         <div class="weekday-chip-row" id="dlStaffChipRow" style="flex-wrap:wrap;"></div>
         <input type="hidden" id="dl_staff">
+        <div id="dlStaffOffRow" style="font-size:12px; color:var(--muted); margin-top:6px;"></div>
       </div>
     </div>
 
@@ -2076,6 +2089,15 @@ header {
           <span class="weekday-chip" data-wd="日" onclick="toggleWeekdayChip(this)">日</span>
         </div>
         <input type="hidden" id="rf_attendanceDays">
+      </div>
+    </div>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label>送迎方法</label>
+        <select id="rf_transportType">
+          <option value="">事業所送迎（通常）</option>
+          <option value="家族送迎">家族送迎（送迎表では到着時刻・送り時刻のみ入力）</option>
+        </select>
       </div>
     </div>
     <div class="form-grid single">
@@ -2722,10 +2744,13 @@ function exportBackupExcel() {
   addSheet('アセスメント', asRows);
 
   // ⑪ 送迎表
-  const tpRows = [['日付','順','利用者名','迎え時刻','到着時刻（施設）','送り時刻','到着時刻（自宅）','車両','運転手','備考']];
+  const tpRows = [['日付','順','利用者名','迎え時刻','到着時刻（施設）','送り時刻','到着時刻（自宅）','車両','運転手','備考','送迎区分','本日家族迎え','本日家族送り','迎え車両','迎え運転手','迎え添乗員','送り車両','送り運転手','送り添乗員']];
   Object.keys(db.transportLog).sort().forEach(date => {
     Object.entries(db.transportLog[date]).forEach(([rid, t]) => {
-      tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '']);
+      const r = db.residentDb.find(x => x.id === rid);
+      const typeLabel = r?.transportType === '家族送迎' ? '家族送迎' : '事業所';
+      tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '', typeLabel, t.familyPickupToday ? 'はい' : '', t.familyDropoffToday ? 'はい' : '',
+        t.pickupVehicle ?? t.vehicle ?? '', t.pickupDriver ?? t.driver ?? '', t.pickupAttendant || '', t.dropoffVehicle ?? t.vehicle ?? '', t.dropoffDriver ?? t.driver ?? '', t.dropoffAttendant || '']);
     });
   });
   addSheet('送迎表', tpRows);
@@ -2987,10 +3012,11 @@ function restoreFromWorkbook(wb) {
   });
 
   // ⑪ 送迎表
-  getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note]) => {
+  getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note, typeLabel, familyToday, familyDropoffToday, pickupVehicle, pickupDriver, pickupAttendant, dropoffVehicle, dropoffDriver, dropoffAttendant]) => {
     const id = findId(name); if (!id || !date) return;
     if (!newDb.transportLog[date]) newDb.transportLog[date] = {};
-    newDb.transportLog[date][id] = { order: order || '', pickupTime: pickupTime || '', facilityArrivalTime: facilityArrivalTime || '', dropoffTime: dropoffTime || '', homeArrivalTime: homeArrivalTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '' };
+    newDb.transportLog[date][id] = { order: order || '', pickupTime: pickupTime || '', facilityArrivalTime: facilityArrivalTime || '', dropoffTime: dropoffTime || '', homeArrivalTime: homeArrivalTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '', familyPickupToday: familyToday === 'はい', familyDropoffToday: familyDropoffToday === 'はい',
+      pickupVehicle: pickupVehicle || '', pickupDriver: pickupDriver || '', pickupAttendant: pickupAttendant || '', dropoffVehicle: dropoffVehicle || '', dropoffDriver: dropoffDriver || '', dropoffAttendant: dropoffAttendant || '' };
   });
 
   // ⑫ モニタリング
@@ -3335,6 +3361,11 @@ function buildVehicleOptions(currentVal) {
   return opts;
 }
 
+function vehicleAttendantHint(vehicleName) {
+  return (vehicleName || '').includes('ハイエース')
+    ? `<span class="tp-vehicle-hint">⚠️添乗員検討</span>` : '';
+}
+
 function renderTransportTable() {
   const el = document.getElementById('transportTableArea');
   if (!el) return;
@@ -3354,26 +3385,83 @@ function renderTransportTable() {
 
   const rows = sorted.map((r, i) => {
     const t = log[r.id] || {};
-    return `<tr>
-      <td><input type="number" value="${t.order ?? (i+1)}" onchange="saveTransportField('${dateStr}','${r.id}','order', this.value)"></td>
-      <td class="tp-name">${r.name}</td>
-      <td><input type="time" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"></td>
-      <td><input type="time" value="${t.facilityArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','facilityArrivalTime', this.value)"></td>
-      <td><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"></td>
-      <td><input type="time" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"></td>
-      <td><select onchange="saveTransportField('${dateStr}','${r.id}','vehicle', this.value)">${buildVehicleOptions(t.vehicle)}</select></td>
-      <td><select onchange="saveTransportField('${dateStr}','${r.id}','driver', this.value)">${buildDriverOptions(t.driver)}</select></td>
-      <td><input type="text" value="${escAttr(t.note || '')}" placeholder="備考" onchange="saveTransportField('${dateStr}','${r.id}','note', this.value)"></td>
+    const isFamilyDefault = r.transportType === '家族送迎';
+    const isFamilyToday = !!t.familyPickupToday;       // 本日だけ、迎えを家族が担当（送りのみ発生）
+    const isFamilyDropoffToday = !!t.familyDropoffToday; // 本日だけ、送りを家族が担当（迎えのみ発生）
+    const badges = `${isFamilyDefault ? '<span class="tp-badge tp-badge-family">🚗家族送迎</span>' : ''}${isFamilyToday ? '<span class="tp-badge tp-badge-familyToday">🏥本日家族迎え</span>' : ''}${isFamilyDropoffToday ? '<span class="tp-badge tp-badge-familyDropoff">🏥本日家族送り</span>' : ''}`;
+
+    // 旧データ（車両・運転手が迎え/送り共通で1つだけだった頃）からの移行：新項目が無ければ旧項目を両方の初期値に使う
+    const pickupVehicle = t.pickupVehicle ?? t.vehicle ?? '';
+    const pickupDriver = t.pickupDriver ?? t.driver ?? '';
+    const dropoffVehicle = t.dropoffVehicle ?? t.vehicle ?? '';
+    const dropoffDriver = t.dropoffDriver ?? t.driver ?? '';
+
+    const naPickupLeg = isFamilyDefault || isFamilyDropoffToday; // 迎え：家族が担当する日は事業所側は「－」
+    const naDropoffLeg = isFamilyDefault || isFamilyToday;       // 送り：家族が担当する日は事業所側は「－」
+
+    const pickupTimeCell = naPickupLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><input type="time" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"></td>`;
+    const facilityArrivalCell = `<td><input type="time" value="${t.facilityArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','facilityArrivalTime', this.value)"></td>`;
+    const pickupVehicleCell = naPickupLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupVehicle', this.value)">${buildVehicleOptions(pickupVehicle)}</select>${vehicleAttendantHint(pickupVehicle)}</td>`;
+    const pickupDriverCell = naPickupLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupDriver', this.value)">${buildDriverOptions(pickupDriver)}</select></td>`;
+    const pickupAttendantCell = naPickupLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupAttendant', this.value)">${buildDriverOptions(t.pickupAttendant)}</select></td>`;
+
+    const dropoffTimeCell = `<td><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"></td>`;
+    const homeArrivalCell = isFamilyDefault
+      ? `<td class="tp-na">－</td>`
+      : `<td><input type="time" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"></td>`;
+    const dropoffVehicleCell = naDropoffLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','dropoffVehicle', this.value)">${buildVehicleOptions(dropoffVehicle)}</select>${vehicleAttendantHint(dropoffVehicle)}</td>`;
+    const dropoffDriverCell = naDropoffLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','dropoffDriver', this.value)">${buildDriverOptions(dropoffDriver)}</select></td>`;
+    const dropoffAttendantCell = naDropoffLeg
+      ? `<td class="tp-na">－</td>`
+      : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','dropoffAttendant', this.value)">${buildDriverOptions(t.dropoffAttendant)}</select></td>`;
+
+    const noteCell = `<td rowspan="2">
+        <label class="tp-family-check"><input type="checkbox" ${isFamilyToday ? 'checked' : ''} onchange="toggleFamilyPickupToday('${dateStr}','${r.id}', this.checked)">本日家族迎え</label>
+        <label class="tp-family-check"><input type="checkbox" ${isFamilyDropoffToday ? 'checked' : ''} onchange="toggleFamilyDropoffToday('${dateStr}','${r.id}', this.checked)">本日家族送り</label>
+        <input type="text" value="${escAttr(t.note || '')}" placeholder="備考" onchange="saveTransportField('${dateStr}','${r.id}','note', this.value)">
+      </td>`;
+
+    return `<tr class="tp-group-start">
+      <td rowspan="2"><input type="number" value="${t.order ?? (i+1)}" onchange="saveTransportField('${dateStr}','${r.id}','order', this.value)"></td>
+      <td rowspan="2" class="tp-name">${r.name}${badges ? `<br>${badges}` : ''}</td>
+      <td class="tp-leg-label">迎え</td>
+      ${pickupTimeCell}
+      ${facilityArrivalCell}
+      ${pickupVehicleCell}
+      ${pickupDriverCell}
+      ${pickupAttendantCell}
+      ${noteCell}
+    </tr>
+    <tr class="tp-leg-dropoff">
+      <td class="tp-leg-label">送り</td>
+      ${dropoffTimeCell}
+      ${homeArrivalCell}
+      ${dropoffVehicleCell}
+      ${dropoffDriverCell}
+      ${dropoffAttendantCell}
     </tr>`;
   }).join('');
 
   el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table tp-table-transport">
     <colgroup>
-      <col class="tp-col-order"><col class="tp-col-name">
-      <col class="tp-col-time"><col class="tp-col-time"><col class="tp-col-time"><col class="tp-col-time">
-      <col class="tp-col-select"><col class="tp-col-select"><col class="tp-col-note">
+      <col class="tp-col-order"><col class="tp-col-name"><col class="tp-col-leg">
+      <col class="tp-col-time"><col class="tp-col-time">
+      <col class="tp-col-select"><col class="tp-col-select"><col class="tp-col-select">
+      <col class="tp-col-note">
     </colgroup>
-    <tr><th>順</th><th>利用者名</th><th>迎え<br>時刻</th><th>到着<br>(施設)</th><th>送り<br>時刻</th><th>到着<br>(自宅)</th><th>車両</th><th>運転手</th><th>備考</th></tr>
+    <tr><th>順</th><th>利用者名</th><th></th><th>時刻</th><th>到着</th><th>車両</th><th>運転手</th><th>添乗</th><th>備考</th></tr>
     ${rows}
   </table></div>
   <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。</div>`;
@@ -3387,6 +3475,26 @@ function saveTransportField(dateStr, residentId, field, value) {
   if (field === 'order') renderTransportTable();
 }
 
+// 本日だけ、受診等の理由で家族が迎えに来る場合の一時的な設定（利用者DBの「家族送迎」設定とは別）
+function toggleFamilyPickupToday(dateStr, residentId, checked) {
+  if (!appState.db.transportLog[dateStr]) appState.db.transportLog[dateStr] = {};
+  if (!appState.db.transportLog[dateStr][residentId]) appState.db.transportLog[dateStr][residentId] = {};
+  const entry = appState.db.transportLog[dateStr][residentId];
+  entry.familyPickupToday = checked;
+  saveDb();
+  renderTransportTable();
+}
+
+// 本日だけ、受診後に家族が施設まで送ってくる（＝通常の迎えがなく、家族が届けてくれる）場合の一時的な設定
+function toggleFamilyDropoffToday(dateStr, residentId, checked) {
+  if (!appState.db.transportLog[dateStr]) appState.db.transportLog[dateStr] = {};
+  if (!appState.db.transportLog[dateStr][residentId]) appState.db.transportLog[dateStr][residentId] = {};
+  const entry = appState.db.transportLog[dateStr][residentId];
+  entry.familyDropoffToday = checked;
+  saveDb();
+  renderTransportTable();
+}
+
 function printTransportTable() {
   const dateStr = document.getElementById('tpDateInput').value || todayStr();
   const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
@@ -3396,21 +3504,36 @@ function printTransportTable() {
 
   const rows = sorted.map((r, i) => {
     const t = log[r.id] || {};
-    return `<tr><td>${t.order ?? (i+1)}</td><td>${escHtml(r.name)}</td><td>${t.pickupTime||''}</td><td>${t.facilityArrivalTime||''}</td><td>${t.dropoffTime||''}</td><td>${t.homeArrivalTime||''}</td><td>${escHtml(t.vehicle||'')}</td><td>${escHtml(t.driver||'')}</td><td>${escHtml(t.note||'')}</td></tr>`;
+    const isFamilyDefault = r.transportType === '家族送迎';
+    const isFamilyToday = !!t.familyPickupToday;
+    const isFamilyDropoffToday = !!t.familyDropoffToday;
+    const typeLabel = isFamilyDefault ? '家族送迎' : (isFamilyToday ? '家族迎え(本日)' : isFamilyDropoffToday ? '家族送り(本日)' : '事業所');
+    const naPickup = isFamilyDefault || isFamilyDropoffToday;
+    const naDropoff = isFamilyDefault || isFamilyToday;
+    const pickupVehicle = t.pickupVehicle ?? t.vehicle ?? '';
+    const pickupDriver = t.pickupDriver ?? t.driver ?? '';
+    const dropoffVehicle = t.dropoffVehicle ?? t.vehicle ?? '';
+    const dropoffDriver = t.dropoffDriver ?? t.driver ?? '';
+    return `<tr><td>${t.order ?? (i+1)}</td><td>${escHtml(r.name)}</td><td>${typeLabel}</td>
+      <td>${naPickup ? '－' : (t.pickupTime||'')}</td><td>${t.facilityArrivalTime||''}</td>
+      <td>${naPickup ? '－' : escHtml(pickupVehicle)}</td><td>${naPickup ? '－' : escHtml(pickupDriver)}</td><td>${naPickup ? '－' : escHtml(t.pickupAttendant||'')}</td>
+      <td>${t.dropoffTime||''}</td><td>${isFamilyDefault ? '－' : (t.homeArrivalTime||'')}</td>
+      <td>${naDropoff ? '－' : escHtml(dropoffVehicle)}</td><td>${naDropoff ? '－' : escHtml(dropoffDriver)}</td><td>${naDropoff ? '－' : escHtml(t.dropoffAttendant||'')}</td>
+      <td>${escHtml(t.note||'')}</td></tr>`;
   }).join('');
 
   const win = window.open('', '_blank');
   win.document.write(`
     <html><head><title>送迎表 ${dateStr}</title>
     <style>
-      body { font-family: sans-serif; padding: 20px; font-size: 12.5px; }
+      body { font-family: sans-serif; padding: 20px; font-size: 11.5px; }
       h1 { font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 8px; }
       table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th, td { border: 1px solid #999; padding: 5px 7px; text-align: left; }
+      th, td { border: 1px solid #999; padding: 4px 5px; text-align: left; }
       th { background: #f0f0f0; }
     </style></head><body>
     <h1>送迎表　${escHtml(appState.db.facility||'')}　${dateStr}</h1>
-    <table><tr><th>順</th><th>利用者名</th><th>迎え時刻</th><th>到着時刻（施設）</th><th>送り時刻</th><th>到着時刻（自宅）</th><th>車両</th><th>運転手</th><th>備考</th></tr>${rows}</table>
+    <table><tr><th>順</th><th>利用者名</th><th>送迎区分</th><th>迎え時刻</th><th>到着(施設)</th><th>迎え車両</th><th>迎え運転手</th><th>迎え添乗</th><th>送り時刻</th><th>到着(自宅)</th><th>送り車両</th><th>送り運転手</th><th>送り添乗</th><th>備考</th></tr>${rows}</table>
     </body></html>`);
   win.document.close();
   win.print();
@@ -4114,15 +4237,26 @@ function printUsageTable() {
 
 // 勤務表（予定＋実績）から、指定日に出勤しているスタッフの一覧を返す
 // 実績の上書きがあればそれを、なければ予定をそのまま使う
+// 「休」「有」「記」（丸1日休み）は出勤扱いから除外する
+const SHIFT_FULL_DAY_OFF_CODES = ['off', '有', '記'];
 function computeDailyLogStaffPresence(dateStr) {
   const staffList = getShiftStaffList();
   if (!staffList.length || !appState.db.shiftCycleStart) return [];
   return staffList
     .map(s => ({ name: s.name, code: getStaffEffectiveShiftStatus(s.name, dateStr), overridden: hasShiftActualOverride(s.name, dateStr) }))
-    .filter(s => s.code && s.code !== 'off');
+    .filter(s => s.code && !SHIFT_FULL_DAY_OFF_CODES.includes(s.code));
 }
 function computeDailyLogStaffNames(dateStr) {
   return computeDailyLogStaffPresence(dateStr).map(s => s.name);
+}
+
+// 本日「有」「記」で丸1日休みのスタッフ一覧（業務日誌の参考表示用）
+function computeDailyLogStaffFullDayOff(dateStr) {
+  const staffList = getShiftStaffList();
+  if (!staffList.length || !appState.db.shiftCycleStart) return [];
+  return staffList
+    .map(s => ({ name: s.name, code: getStaffEffectiveShiftStatus(s.name, dateStr) }))
+    .filter(s => s.code === '有' || s.code === '記');
 }
 
 // 業務日誌の「出勤職員」欄は勤務表（予定・実績）から自動反映する（手動選択ではない）
@@ -4148,6 +4282,14 @@ function renderDailyLogStaffChips() {
     ? present.map(s => `<span class="rp-type-chip selected" style="cursor:default;">${escHtml(s.name)}${s.code === 'work' ? '' : `（${escHtml(shiftCodeLabel(s.code))}）`}${s.overridden ? '<span style="color:var(--danger); font-weight:700;"> ＊実績</span>' : ''}</span>`).join('')
     : `<span style="font-size:12px; color:var(--muted);">出勤予定のスタッフがいません</span>`;
   document.getElementById('dl_staff').value = present.map(s => s.name).join(',');
+
+  const offRow = document.getElementById('dlStaffOffRow');
+  if (offRow) {
+    const fullDayOff = computeDailyLogStaffFullDayOff(dateStr);
+    offRow.textContent = fullDayOff.length
+      ? `本日休み：${fullDayOff.map(s => `${s.name}（${shiftCodeLabel(s.code)}）`).join('、')}`
+      : '';
+  }
 }
 
 function computeDailySummaryText(dateStr) {
@@ -4273,6 +4415,9 @@ function printDailyLog() {
   const staffNames = computeDailyLogStaffPresence(dateStr)
     .map(s => s.name + (s.code === 'work' ? '' : `（${shiftCodeLabel(s.code)}）`))
     .join('、');
+  const offStaffNames = computeDailyLogStaffFullDayOff(dateStr)
+    .map(s => s.name + `（${shiftCodeLabel(s.code)}）`)
+    .join('、');
 
   const win = window.open('', '_blank');
   win.document.write(`
@@ -4287,6 +4432,7 @@ function printDailyLog() {
     <h1>業務日誌　${escHtml(appState.db.facility||'')}　${dateStr}（${weekdayLabelOf(dateStr)}）</h1>
     <div class="row"><span class="label">天候：</span>${escHtml(log.weather||'')}　<span class="label">気温：</span>${escHtml(log.temp||'')}℃</div>
     <div class="row"><span class="label">出勤職員：</span>${escHtml(staffNames)}</div>
+    ${offStaffNames ? `<div class="row"><span class="label">本日休み：</span>${escHtml(offStaffNames)}</div>` : ''}
     <div class="row"><span class="label">利用予定人数：</span>${log.plannedCount}人　<span class="label">利用実績人数：</span>${escHtml(String(log.actualCount||''))}人</div>
     <div class="row"><span class="label">実施状況サマリー：</span><br>${escHtml(log.summaryNote||'').replace(/\n/g,'<br>')}</div>
     <div class="row"><span class="label">本日の予定・行事：</span><br>${escHtml(log.eventsNote||'').replace(/\n/g,'<br>')}</div>
@@ -4332,7 +4478,7 @@ const FIELD_LABELS = { name:'氏名', kana:'フリガナ', careLevel:'要介護�
   mealRestriction:'食事制限', fluidRestriction:'水分制限', medicineTiming:'服薬タイミング',
   history:'既往歴', currentDisease:'現在の疾患', adl:'ADL状況',
   dementia:'認知症の有無', communication:'コミュニケーション', extraInfo:'その他の抽出情報',
-  rehabStaffInCharge:'担当リハビリスタッフ', careStaffInCharge:'担当介護スタッフ' };
+  rehabStaffInCharge:'担当リハビリスタッフ', careStaffInCharge:'担当介護スタッフ', transportType:'送迎方法' };
 
 function calcCompletion(r) {
   const filled = REQUIRED_FIELDS.filter(f => r[f] && r[f].trim() !== '').length;
@@ -4468,7 +4614,7 @@ function jumpToDoc(page, residentId) {
 const RF_FIELDS = ['name','kana','careLevel','dob','attendanceDays','bathDays','meal','bath','allergy','medicine','notes','cm','family',
   'age','gender','address','phone','cmOffice','doctor','hospital','emergencyRelation','emergencyPhone',
   'mealRestriction','fluidRestriction','medicineTiming','history','currentDisease','adl','dementia','communication','extraInfo',
-  'rehabStaffInCharge','careStaffInCharge'];
+  'rehabStaffInCharge','careStaffInCharge','transportType'];
 
 function buildDbAssessTables() {
   const bm = document.getElementById('dbBasicMotionTable');

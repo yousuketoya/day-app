@@ -4321,12 +4321,72 @@ function setDailyLogToday() {
 // ============================================================
 // USAGE（利用者別 利用時間・入浴状況）
 // ============================================================
+// 連絡帳「入浴」チップのうち、実際に入浴したとみなす選択肢
+const RC_BATHED_VALUES = ['一般浴（問題なし）', '機械浴', 'シャワー浴'];
+
+// 業務日誌の「入浴」欄の値を優先順位に従って算出する
+// 優先順位：①保存済みの手入力 → ②連絡帳の入浴チップ（一般浴・機械浴・シャワーなら「あり」、それ以外なら「なし」） → ③入浴曜日の設定（目安）
+function computeEffectiveBathing(dateStr, r, usageEntry, checkLog) {
+  if (usageEntry && usageEntry.bathing !== undefined) return usageEntry.bathing;
+  const rcBath = checkLog?.[r.id]?.chips?.bath;
+  if (rcBath !== undefined) return RC_BATHED_VALUES.includes(rcBath) ? 'あり' : 'なし';
+  const wd = weekdayLabelOf(dateStr);
+  const bathDaysArr = (r.bathDays || '').split(',').map(s => s.trim()).filter(Boolean);
+  return bathDaysArr.includes(wd) ? 'あり' : '';
+}
+
+// 業務日誌の「利用開始」「利用終了」を優先順位に従って算出する
+// 優先順位：①保存済みの手入力 → ②送迎表の「迎え：到着」「送り：時刻」
+function computeEffectiveUsageTimes(usageEntry, transportEntry) {
+  const u = usageEntry || {};
+  const t = transportEntry || {};
+  const startTime = u.startTime !== undefined ? u.startTime : (t.facilityArrivalTime || '');
+  const endTime = u.endTime !== undefined ? u.endTime : (t.dropoffTime || '');
+  return { startTime, endTime };
+}
+
+function timeStrToMinutes(hm) {
+  if (!hm) return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hm);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+// 利用時間の長さで人数を区分するための区分（分単位）
+const USAGE_DURATION_BUCKETS = [
+  { label: '2時間以上3時間未満', min: 120, max: 180 },
+  { label: '3時間以上4時間未満', min: 180, max: 240 },
+  { label: '4時間以上5時間未満', min: 240, max: 300 },
+  { label: '5時間以上6時間未満', min: 300, max: 360 },
+  { label: '6時間以上7時間未満', min: 360, max: 420 },
+];
+
+// 利用者リストから、利用時間の長さ別の人数集計を行う（区分外・時間未登録は「その他」に集計）
+function computeUsageDurationBreakdown(dateStr, residents) {
+  const usage = appState.db.usageLog[dateStr] || {};
+  const transport = appState.db.transportLog[dateStr] || {};
+  const buckets = USAGE_DURATION_BUCKETS.map(b => ({ ...b, count: 0 }));
+  let otherCount = 0;
+  residents.forEach(r => {
+    const { startTime, endTime } = computeEffectiveUsageTimes(usage[r.id], transport[r.id]);
+    const sMin = timeStrToMinutes(startTime);
+    const eMin = timeStrToMinutes(endTime);
+    if (sMin === null || eMin === null || eMin <= sMin) { otherCount++; return; }
+    const duration = eMin - sMin;
+    const bucket = buckets.find(b => duration >= b.min && duration < b.max);
+    if (bucket) bucket.count++;
+    else otherCount++;
+  });
+  return { buckets, otherCount };
+}
+
 function renderUsageTable() {
   const el = document.getElementById('usageTableArea');
   if (!el) return;
   const dateStr = document.getElementById('dl_date').value || todayStr();
   const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
   const log = appState.db.usageLog[dateStr] || {};
+  const transportLog = appState.db.transportLog[dateStr] || {};
 
   if (!residents.length) {
     el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません</div>`;
@@ -4335,27 +4395,38 @@ function renderUsageTable() {
 
   const bathOptions = ['', 'あり', 'シャワーのみ', 'なし', '清拭'];
   const wd = weekdayLabelOf(dateStr);
+  const checkLog = appState.db.checkItemsLog[dateStr] || {};
   const rows = residents.map(r => {
     const u = log[r.id] || {};
+    const t = transportLog[r.id] || {};
     const bathDaysArr = (r.bathDays || '').split(',').map(s => s.trim()).filter(Boolean);
     const isBathScheduled = bathDaysArr.includes(wd);
-    // 保存済みの記録が無い場合のみ、入浴曜日の設定から予定を自動表示（あくまで目安。その場で変更・保存可能）
-    const defaultBathing = u.bathing !== undefined ? u.bathing : (isBathScheduled ? 'あり' : '');
+    const defaultBathing = computeEffectiveBathing(dateStr, r, u, checkLog);
     const bathSel = bathOptions.map(o => `<option value="${o}" ${defaultBathing === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
+    // 保存済みの記録が無い場合のみ、送迎表の「迎え：到着」「送り：時刻」を自動表示（あくまで目安。その場で変更・保存可能）
+    const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t);
     return `<tr>
       <td class="tp-name">${r.name}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
-      <td><input type="time" value="${u.startTime || ''}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
-      <td><input type="time" value="${u.endTime || ''}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
+      <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
+      <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
       <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
   }).join('');
 
+  const { buckets, otherCount } = computeUsageDurationBreakdown(dateStr, residents);
+  const breakdownHtml = buckets.map(b => `<span class="tag" style="display:inline-block; margin:2px 6px 2px 0; padding:3px 8px; border:1px solid var(--border); border-radius:12px; font-size:11.5px;">${b.label}：<b>${b.count}名</b></span>`).join('')
+    + (otherCount ? `<span class="tag" style="display:inline-block; margin:2px 6px 2px 0; padding:3px 8px; border:1px solid var(--border); border-radius:12px; font-size:11.5px; color:var(--muted);">上記区分外・時間未登録：<b>${otherCount}名</b></span>` : '');
+
   el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table">
     <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>入浴</th><th>備考</th></tr>
     ${rows}
   </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">入力内容は自動保存されます。</div>`;
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は送迎表の「迎え：到着」「送り：時刻」を、入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します（未記録の場合のみ）。その場で変更・保存も可能です。</div>
+  <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border);">
+    <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:4px;">⏱ 利用時間帯別 人数</div>
+    ${breakdownHtml}
+  </div>`;
 }
 
 function saveUsageField(dateStr, residentId, field, value) {
@@ -4363,6 +4434,7 @@ function saveUsageField(dateStr, residentId, field, value) {
   if (!appState.db.usageLog[dateStr][residentId]) appState.db.usageLog[dateStr][residentId] = {};
   appState.db.usageLog[dateStr][residentId][field] = value;
   saveDb();
+  renderUsageTable();
 }
 
 function printUsageTable() {
@@ -4370,10 +4442,15 @@ function printUsageTable() {
   const residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
   if (!residents.length) { alert('この日の利用予定者がいません'); return; }
   const log = appState.db.usageLog[dateStr] || {};
+  const transportLog = appState.db.transportLog[dateStr] || {};
+  const checkLog = appState.db.checkItemsLog[dateStr] || {};
 
   const rows = residents.map(r => {
     const u = log[r.id] || {};
-    return `<tr><td>${escHtml(r.name)}</td><td>${u.startTime||''}</td><td>${u.endTime||''}</td><td>${escHtml(u.bathing||'')}</td><td>${escHtml(u.note||'')}</td></tr>`;
+    const t = transportLog[r.id] || {};
+    const { startTime, endTime } = computeEffectiveUsageTimes(u, t);
+    const bathing = computeEffectiveBathing(dateStr, r, u, checkLog);
+    return `<tr><td>${escHtml(r.name)}</td><td>${startTime}</td><td>${endTime}</td><td>${escHtml(bathing)}</td><td>${escHtml(u.note||'')}</td></tr>`;
   }).join('');
 
   const win = window.open('', '_blank');
@@ -4462,11 +4539,12 @@ function computeDailySummaryText(dateStr) {
 
   const transport = appState.db.transportLog[dateStr] || {};
   const usage = appState.db.usageLog[dateStr] || {};
+  const checkLog = appState.db.checkItemsLog[dateStr] || {};
 
   const pickupCount = attending.filter(r => transport[r.id]?.pickupTime).length;
   const dropoffCount = attending.filter(r => transport[r.id]?.dropoffTime).length;
   const roundTripCount = attending.filter(r => transport[r.id]?.pickupTime && transport[r.id]?.dropoffTime).length;
-  const bathCount = attending.filter(r => usage[r.id]?.bathing && usage[r.id].bathing !== 'なし').length;
+  const bathCount = attending.filter(r => computeEffectiveBathing(dateStr, r, usage[r.id], checkLog) === 'あり').length;
 
   const lines = [];
   const genderPart = [maleCount ? `男性${maleCount}名` : '', femaleCount ? `女性${femaleCount}名` : ''].filter(Boolean).join('・');
@@ -4497,6 +4575,14 @@ function computeDailySummaryText(dateStr) {
       const timeStr = (t && t.pickupTime && t.dropoffTime) ? `${t.pickupTime}〜${t.dropoffTime}` : '（送迎時間未登録）';
       lines.push(`・${r.name}様　${timeStr}`);
     });
+    lines.push('');
+  }
+
+  if (attending.length) {
+    const { buckets, otherCount } = computeUsageDurationBreakdown(dateStr, attending);
+    lines.push('【利用時間帯別 人数】');
+    buckets.forEach(b => lines.push(`・${b.label}：${b.count}名`));
+    if (otherCount) lines.push(`・上記区分外・時間未登録：${otherCount}名`);
   }
 
   return lines.join('\n');

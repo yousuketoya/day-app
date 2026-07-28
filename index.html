@@ -1047,8 +1047,8 @@ header {
   <div class="card">
     <div class="card-title">📅 日付</div>
     <div style="display:flex; gap:8px;">
-      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">
-      <button class="btn btn-secondary btn-sm" onclick="setToday(); resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">今日</button>
+      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); applyCheckItemsIfAvailable(); loadRcStaffSelection();">
+      <button class="btn btn-secondary btn-sm" onclick="setToday(); resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); applyCheckItemsIfAvailable(); loadRcStaffSelection();">今日</button>
     </div>
   </div>
 
@@ -2388,7 +2388,7 @@ header {
 const DB_KEY = 'deiservice_db';
 
 let appState = {
-  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
+  db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
   shorui: { files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
             pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null },
   renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false },
@@ -2426,7 +2426,7 @@ function init() {
 
 function loadDb() {
   const saved = localStorage.getItem(DB_KEY);
-  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, mealIntakeLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, shiftPlanConfirmed:false, shiftPlanConfirmedAt:'', shiftActual:{}, ...JSON.parse(saved) };
+  if (saved) appState.db = { facility:'', style:'warm', residentDb:[], scheduleEvents:{}, attendanceOverrides:{}, renrakuchoLog:{}, rehabPlans:{}, vitalsLog:{}, checkItemsLog:{}, businessDays:'月,火,水,木,金,土', dayStatusOverrides:{}, rehabRecordLog:{}, rehabStaffList:[], careStaffList:[], rehabContentList:null, renrakuchoStaffLog:{}, keirokaLog:{}, assessments:{}, transportLog:{}, otherStaffList:[], vehicleList:[], rehabMonitoring:{}, careMonitoring:{}, dailyLog:{}, usageLog:{}, mealIntakeLog:{}, customPromptRenrakucho:'', customPromptRehabRecord:'', customPromptMonitoring:'', shiftCycleStart:'', shiftPattern:{}, shiftPlanConfirmed:false, shiftPlanConfirmedAt:'', shiftActual:{}, ...JSON.parse(saved) };
   // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
   if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
     appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -2978,7 +2978,7 @@ function getSheetRows(wb, name) {
 function restoreFromWorkbook(wb) {
   const newDb = {
     facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {},
-    renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, businessDays: '月,火,水,木,金,土',
+    renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土',
     dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [],
     rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {},
     transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
@@ -6815,6 +6815,26 @@ function resetRenrakuchoChips() {
   if (notesEl) notesEl.value = '';
 }
 
+const RC_CHECKLOG_GROUPS = ['condition','mood','water','bath','toilet','rec','training','safety','medicine'];
+
+function applyCheckItemsIfAvailable() {
+  const r = appState.renrakucho.selectedResident;
+  const dateStr = document.getElementById('dateInput')?.value;
+  if (!r || !dateStr) return;
+  const entry = appState.db.checkItemsLog[dateStr] && appState.db.checkItemsLog[dateStr][r.id];
+  if (!entry) return;
+
+  Object.entries(entry.chips || {}).forEach(([group, value]) => {
+    appState.renrakucho.chips[group] = value;
+    document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
+      el.classList.toggle('selected', el.dataset.value === value);
+    });
+  });
+
+  const notesEl = document.getElementById('notes');
+  if (notesEl && entry.notes) notesEl.value = entry.notes;
+}
+
 function selectResident(id) {
   const r = appState.db.residentDb.find(x => x.id === id);
   if (!r) return;
@@ -6824,6 +6844,7 @@ function selectResident(id) {
   showResidentInfo(r);
   applyVitalsIfAvailable();
   applyMealIntakeIfAvailable();
+  applyCheckItemsIfAvailable();
   loadRcStaffSelection();
 }
 
@@ -6953,6 +6974,13 @@ async function runGenerateText() {
     temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia),
     pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight)
   };
+
+  // 選択したチェック項目（体調・気分など）と特記事項も、あとで見返せるよう保存する
+  if (!appState.db.checkItemsLog[date]) appState.db.checkItemsLog[date] = {};
+  const chipsToSave = {};
+  RC_CHECKLOG_GROUPS.forEach(g => { if (appState.renrakucho.chips[g] !== undefined) chipsToSave[g] = appState.renrakucho.chips[g]; });
+  appState.db.checkItemsLog[date][r.id] = { chips: chipsToSave, notes };
+
   saveDb();
 
   const styleDesc = { warm:'温かく親しみやすい文体', formal:'丁寧な敬語体', brief:'簡潔スタイル' }[appState.db.style] || '温かく親しみやすい文体';

@@ -2125,6 +2125,26 @@ header {
         <input type="hidden" id="rf_attendanceDays">
       </div>
     </div>
+    <div class="form-grid">
+      <div class="form-group"><label>標準利用開始時刻</label><input type="time" id="rf_standardStartTime"></div>
+      <div class="form-group"><label>標準利用終了時刻</label><input type="time" id="rf_standardEndTime"></div>
+    </div>
+    <div class="form-grid single">
+      <div style="font-size:11px; color:var(--muted); margin-top:-6px;">提供票の時間区分の基準になります（業務日誌の利用時間に自動反映されます）</div>
+    </div>
+    <div class="form-grid single">
+      <div class="form-group"><label>所要時間区分（提供票に記載の区分）</label>
+        <select id="rf_usageDurationCategory">
+          <option value="">未設定</option>
+          <option value="2時間以上3時間未満">2時間以上3時間未満</option>
+          <option value="3時間以上4時間未満">3時間以上4時間未満</option>
+          <option value="4時間以上5時間未満">4時間以上5時間未満</option>
+          <option value="5時間以上6時間未満">5時間以上6時間未満</option>
+          <option value="6時間以上7時間未満">6時間以上7時間未満</option>
+        </select>
+        <div style="font-size:11px; color:var(--muted);">標準利用時間ちょうど（遅刻・早退なし）の場合は、この区分がそのまま業務日誌の集計に使われます。遅刻・早退があった場合は実績時間から自動で区分を計算します。</div>
+      </div>
+    </div>
     <div class="form-grid single">
       <div class="form-group">
         <label>送迎方法</label>
@@ -4335,21 +4355,50 @@ function computeEffectiveBathing(dateStr, r, usageEntry, checkLog) {
   return bathDaysArr.includes(wd) ? 'あり' : '';
 }
 
-// 業務日誌の「利用開始」「利用終了」を優先順位に従って算出する
-// 優先順位：①保存済みの手入力 → ②送迎表の「迎え：到着」「送り：時刻」
-function computeEffectiveUsageTimes(usageEntry, transportEntry) {
-  const u = usageEntry || {};
-  const t = transportEntry || {};
-  const startTime = u.startTime !== undefined ? u.startTime : (t.facilityArrivalTime || '');
-  const endTime = u.endTime !== undefined ? u.endTime : (t.dropoffTime || '');
-  return { startTime, endTime };
-}
-
 function timeStrToMinutes(hm) {
   if (!hm) return null;
   const m = /^(\d{1,2}):(\d{2})$/.exec(hm);
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);
+}
+
+// 業務日誌の「利用開始」「利用終了」を優先順位に従って算出する
+// 優先順位：
+//  ①保存済みの手入力（業務日誌でその場で編集・保存したもの）
+//  ②利用者DBの「標準利用時間（提供票の時間区分の基準）」を軸に、送迎表の実績で遅れ・早退分だけ調整
+//     ・開始：迎えの到着が標準開始より遅ければ遅れた実績時刻を使う（早着分は反映しない）
+//     ・終了：送りの時刻が標準終了より早ければ早い実績時刻を使う（早退分は短縮／遅れても標準終了を超えない）
+//  ③標準利用時間が未設定の場合は、従来通り送迎表の「迎え：到着」「送り：時刻」をそのまま使う
+function computeEffectiveUsageTimes(usageEntry, transportEntry, resident) {
+  const u = usageEntry || {};
+  const t = transportEntry || {};
+  const r = resident || {};
+  const standardStart = r.standardStartTime || '';
+  const standardEnd = r.standardEndTime || '';
+
+  let startTime;
+  if (u.startTime !== undefined) {
+    startTime = u.startTime;
+  } else if (standardStart) {
+    const stdMin = timeStrToMinutes(standardStart);
+    const arrMin = timeStrToMinutes(t.facilityArrivalTime);
+    startTime = (arrMin !== null && arrMin > stdMin) ? t.facilityArrivalTime : standardStart;
+  } else {
+    startTime = t.facilityArrivalTime || '';
+  }
+
+  let endTime;
+  if (u.endTime !== undefined) {
+    endTime = u.endTime;
+  } else if (standardEnd) {
+    const stdMin = timeStrToMinutes(standardEnd);
+    const depMin = timeStrToMinutes(t.dropoffTime);
+    endTime = (depMin !== null && depMin < stdMin) ? t.dropoffTime : standardEnd;
+  } else {
+    endTime = t.dropoffTime || '';
+  }
+
+  return { startTime, endTime };
 }
 
 // 利用時間の長さで人数を区分するための区分（分単位）
@@ -4361,6 +4410,42 @@ const USAGE_DURATION_BUCKETS = [
   { label: '6時間以上7時間未満', min: 360, max: 420 },
 ];
 
+// 実績の開始・終了時刻から、区分（分単位の境界）に基づいてラベルを算出する
+function bucketLabelFromTimes(startTime, endTime) {
+  const sMin = timeStrToMinutes(startTime);
+  const eMin = timeStrToMinutes(endTime);
+  if (sMin === null || eMin === null || eMin <= sMin) return null; // 未登録
+  const duration = eMin - sMin;
+  const bucket = USAGE_DURATION_BUCKETS.find(b => duration >= b.min && duration < b.max);
+  return bucket ? bucket.label : '区分外';
+}
+
+// 業務日誌の「利用時間区分」を算出する
+// 考え方：
+//  ・標準利用時間ちょうど（＝送迎の遅刻・早退や手入力による調整が無い、予定通りの日）は、
+//    分単位の引き算ではなく、利用者DBに直接指定した「所要時間区分（提供票の区分）」をそのまま使う
+//    （例：9:30〜15:30ちょうど＝6時間0分でも、提供票上「5時間以上6時間未満」ならその区分を優先する）
+//  ・実際に遅刻・早退・手入力による調整があった日だけ、実績時間から区分を計算し直す
+//  ・所要時間区分が未設定の場合は、常に実績時間から計算する
+function computeEffectiveUsageBucket(dateStr, r, usageEntry, transportEntry) {
+  const u = usageEntry || {};
+  const { startTime, endTime } = computeEffectiveUsageTimes(usageEntry, transportEntry, r);
+
+  const hasManualOverride = u.startTime !== undefined || u.endTime !== undefined;
+  let hasIncident = hasManualOverride;
+  if (!hasIncident && r.standardStartTime && r.standardEndTime) {
+    hasIncident = (startTime !== r.standardStartTime) || (endTime !== r.standardEndTime);
+  } else if (!hasIncident) {
+    // 標準時間が未設定の場合は、常に実績ベースで判定する（区分の直接指定があっても比較基準が無いため）
+    hasIncident = true;
+  }
+
+  if (!hasIncident && r.usageDurationCategory) {
+    return r.usageDurationCategory;
+  }
+  return bucketLabelFromTimes(startTime, endTime);
+}
+
 // 利用者リストから、利用時間の長さ別の人数集計を行う（区分外・時間未登録は「その他」に集計）
 function computeUsageDurationBreakdown(dateStr, residents) {
   const usage = appState.db.usageLog[dateStr] || {};
@@ -4368,12 +4453,8 @@ function computeUsageDurationBreakdown(dateStr, residents) {
   const buckets = USAGE_DURATION_BUCKETS.map(b => ({ ...b, count: 0 }));
   let otherCount = 0;
   residents.forEach(r => {
-    const { startTime, endTime } = computeEffectiveUsageTimes(usage[r.id], transport[r.id]);
-    const sMin = timeStrToMinutes(startTime);
-    const eMin = timeStrToMinutes(endTime);
-    if (sMin === null || eMin === null || eMin <= sMin) { otherCount++; return; }
-    const duration = eMin - sMin;
-    const bucket = buckets.find(b => duration >= b.min && duration < b.max);
+    const label = computeEffectiveUsageBucket(dateStr, r, usage[r.id], transport[r.id]);
+    const bucket = label ? buckets.find(b => b.label === label) : null;
     if (bucket) bucket.count++;
     else otherCount++;
   });
@@ -4404,7 +4485,7 @@ function renderUsageTable() {
     const defaultBathing = computeEffectiveBathing(dateStr, r, u, checkLog);
     const bathSel = bathOptions.map(o => `<option value="${o}" ${defaultBathing === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
     // 保存済みの記録が無い場合のみ、送迎表の「迎え：到着」「送り：時刻」を自動表示（あくまで目安。その場で変更・保存可能）
-    const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t);
+    const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t, r);
     return `<tr>
       <td class="tp-name">${r.name}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
@@ -4422,7 +4503,7 @@ function renderUsageTable() {
     <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>入浴</th><th>備考</th></tr>
     ${rows}
   </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は送迎表の「迎え：到着」「送り：時刻」を、入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します（未記録の場合のみ）。その場で変更・保存も可能です。</div>
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は、利用者DBの「標準利用時間」を基準に、送迎表の実績（迎えの遅れ・送りの早退分）で自動調整して表示します（標準利用時間が未設定の場合は送迎表の「迎え：到着」「送り：時刻」をそのまま使用）。入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します。いずれも未記録の場合のみの自動表示で、その場で変更・保存も可能です。</div>
   <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border);">
     <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:4px;">⏱ 利用時間帯別 人数</div>
     ${breakdownHtml}
@@ -4448,7 +4529,7 @@ function printUsageTable() {
   const rows = residents.map(r => {
     const u = log[r.id] || {};
     const t = transportLog[r.id] || {};
-    const { startTime, endTime } = computeEffectiveUsageTimes(u, t);
+    const { startTime, endTime } = computeEffectiveUsageTimes(u, t, r);
     const bathing = computeEffectiveBathing(dateStr, r, u, checkLog);
     return `<tr><td>${escHtml(r.name)}</td><td>${startTime}</td><td>${endTime}</td><td>${escHtml(bathing)}</td><td>${escHtml(u.note||'')}</td></tr>`;
   }).join('');
@@ -4549,7 +4630,9 @@ function computeDailySummaryText(dateStr) {
   const lines = [];
   const genderPart = [maleCount ? `男性${maleCount}名` : '', femaleCount ? `女性${femaleCount}名` : ''].filter(Boolean).join('・');
   lines.push(`本日の利用者：${genderPart ? genderPart + ' ' : ''}計${attending.length}名`);
-  lines.push(`送迎（迎え・送り・往復）：${pickupCount}名・${dropoffCount}名・${roundTripCount}名／食事：${attending.length}名／入浴：${bathCount}名`);
+  lines.push(`送迎（迎え・送り・往復）：${pickupCount}名・${dropoffCount}名・${roundTripCount}名`);
+  lines.push(`食事：${attending.length}名`);
+  lines.push(`入浴：${bathCount}名`);
   lines.push('');
 
   if (excused.length) {
@@ -4569,20 +4652,20 @@ function computeDailySummaryText(dateStr) {
   }
 
   if (attending.length) {
+    const { buckets, otherCount } = computeUsageDurationBreakdown(dateStr, attending);
+    lines.push('【利用時間帯別 人数】');
+    buckets.forEach(b => lines.push(`・${b.label}：${b.count}名`));
+    if (otherCount) lines.push(`・上記区分外・時間未登録：${otherCount}名`);
+    lines.push('');
+  }
+
+  if (attending.length) {
     lines.push('【本日の利用者・時間】');
     attending.forEach(r => {
       const t = transport[r.id];
       const timeStr = (t && t.pickupTime && t.dropoffTime) ? `${t.pickupTime}〜${t.dropoffTime}` : '（送迎時間未登録）';
       lines.push(`・${r.name}様　${timeStr}`);
     });
-    lines.push('');
-  }
-
-  if (attending.length) {
-    const { buckets, otherCount } = computeUsageDurationBreakdown(dateStr, attending);
-    lines.push('【利用時間帯別 人数】');
-    buckets.forEach(b => lines.push(`・${b.label}：${b.count}名`));
-    if (otherCount) lines.push(`・上記区分外・時間未登録：${otherCount}名`);
   }
 
   return lines.join('\n');
@@ -4722,7 +4805,8 @@ const FIELD_LABELS = { name:'氏名', kana:'フリガナ', careLevel:'要介護�
   mealRestriction:'食事制限', fluidRestriction:'水分制限', medicineTiming:'服薬タイミング',
   history:'既往歴', currentDisease:'現在の疾患', adl:'ADL状況',
   dementia:'認知症の有無', communication:'コミュニケーション', extraInfo:'その他の抽出情報',
-  rehabStaffInCharge:'担当リハビリスタッフ', careStaffInCharge:'担当介護スタッフ', transportType:'送迎方法' };
+  rehabStaffInCharge:'担当リハビリスタッフ', careStaffInCharge:'担当介護スタッフ', transportType:'送迎方法',
+  standardStartTime:'標準利用開始時刻', standardEndTime:'標準利用終了時刻', usageDurationCategory:'所要時間区分' };
 
 function calcCompletion(r) {
   const filled = REQUIRED_FIELDS.filter(f => r[f] && r[f].trim() !== '').length;
@@ -4858,7 +4942,7 @@ function jumpToDoc(page, residentId) {
 const RF_FIELDS = ['name','kana','careLevel','dob','attendanceDays','bathDays','meal','bath','allergy','medicine','notes','cm','family',
   'age','gender','address','phone','cmOffice','doctor','hospital','emergencyRelation','emergencyPhone',
   'mealRestriction','fluidRestriction','medicineTiming','history','currentDisease','adl','dementia','communication','extraInfo',
-  'rehabStaffInCharge','careStaffInCharge','transportType'];
+  'rehabStaffInCharge','careStaffInCharge','transportType','standardStartTime','standardEndTime','usageDurationCategory'];
 
 function buildDbAssessTables() {
   const bm = document.getElementById('dbBasicMotionTable');

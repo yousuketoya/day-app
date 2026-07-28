@@ -6311,11 +6311,13 @@ function openLogEntry(dateStr, residentId) {
   if (!r) return;
   appState.renrakucho.selectedResident = r;
   document.getElementById('dateInput').value = dateStr;
+  resetRenrakuchoChips();
   renderResidentSelector();
   showResidentInfo(r);
   renderTodayRenrakuchoList();
   applyVitalsIfAvailable();
   applyMealIntakeIfAvailable();
+  applyCheckItemsIfAvailable();
   renderCareStaffChips();
   loadRcStaffSelection();
 

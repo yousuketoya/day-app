@@ -2267,6 +2267,18 @@ header {
 </div>
 
 <!-- ===== 予定追加モーダル ===== -->
+<div class="modal-overlay" id="missingFieldsModal">
+  <div class="modal">
+    <h2>⚠️ 未入力の項目があります <button class="modal-x" onclick="closeMissingFieldsModal()">✕</button></h2>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">以下の項目が未入力・未選択です。内容を確認してください（SpO₂・体重・特記事項は未入力でも作成できます）。</div>
+    <div id="missingFieldsList" style="margin-bottom:14px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeMissingFieldsModal()">戻って入力する</button>
+      <button class="btn btn-primary" style="flex:2;" onclick="forceGenerateText()">このまま作成する</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="eventModal">
   <div class="modal">
     <h2><span id="eventModalTitle">📅 予定を追加</span> <button class="modal-x" onclick="closeEventModal()">✕</button></h2>
@@ -6866,11 +6878,51 @@ function saveMealIntake(date, residentId) {
   };
 }
 
-async function generateText() {
+const RC_CHECK_GROUP_LABELS = { condition:'体調', mood:'気分・表情', lunchMain:'昼食摂取量（主食）', lunchSide:'昼食摂取量（副食）', water:'水分補給', bath:'入浴', toilet:'排泄', rec:'レク参加', training:'訓練', safety:'安全', medicine:'服薬' };
+const RC_REQUIRED_VITAL_FIELDS = [ { field:'temp', label:'体温' }, { field:'bpSys', label:'血圧（収縮期）' }, { field:'bpDia', label:'血圧（拡張期）' }, { field:'pulse', label:'脈拍' } ];
+
+function getMissingRenrakuchoFields() {
+  const missing = [];
+  RC_REQUIRED_VITAL_FIELDS.forEach(v => {
+    const val = document.getElementById(v.field)?.value;
+    if (val === undefined || val === null || val === '') missing.push(v.label);
+  });
+  Object.keys(RC_CHECK_GROUP_LABELS).forEach(g => {
+    const val = appState.renrakucho.chips[g];
+    if (val === undefined || val === '') missing.push(RC_CHECK_GROUP_LABELS[g]);
+  });
+  return missing;
+}
+
+function openMissingFieldsModal(missing) {
+  document.getElementById('missingFieldsList').innerHTML = missing.map(m => `<span class="tag warn" style="margin:3px 6px 3px 0;">⚠️ ${escHtml(m)}</span>`).join('');
+  document.getElementById('missingFieldsModal').classList.add('open');
+}
+
+function closeMissingFieldsModal() {
+  document.getElementById('missingFieldsModal').classList.remove('open');
+}
+
+function forceGenerateText() {
+  closeMissingFieldsModal();
+  runGenerateText();
+}
+
+function generateText() {
   const r = appState.renrakucho.selectedResident;
   if (!r) { showStatus('generateStatus', '⚠️ 利用者を選択してください', 'info'); return; }
   const key = appState.renrakucho.apiKey;
   if (!key) { showStatus('generateStatus', '⚠️ APIキーを設定してください（設定 ⚙️ から）', 'info'); return; }
+
+  const missing = getMissingRenrakuchoFields();
+  if (missing.length) { openMissingFieldsModal(missing); return; }
+
+  runGenerateText();
+}
+
+async function runGenerateText() {
+  const r = appState.renrakucho.selectedResident;
+  const key = appState.renrakucho.apiKey;
 
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
@@ -6887,10 +6939,17 @@ async function generateText() {
   const weight = document.getElementById('weight').value;
   const notes = document.getElementById('notes').value;
 
+  // 入力されたバイタルをバイタル推移用に保存（連絡帳の生成可否に関わらず保存する）
+  if (!appState.db.vitalsLog[date]) appState.db.vitalsLog[date] = {};
+  appState.db.vitalsLog[date][r.id] = {
+    temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia),
+    pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight)
+  };
+  saveDb();
+
   const styleDesc = { warm:'温かく親しみやすい文体', formal:'丁寧な敬語体', brief:'簡潔スタイル' }[appState.db.style] || '温かく親しみやすい文体';
   const vitals = [temp?`体温${temp}℃`:'', (bpSys&&bpDia)?`血圧${bpSys}/${bpDia}mmHg`:'', pulse?`脈拍${pulse}回/分`:'', spo2?`SpO₂ ${spo2}%`:'', weight?`体重${weight}kg`:''].filter(Boolean).join('、');
-  const CHECK_GROUP_LABELS = { condition:'体調', mood:'気分・表情', lunchMain:'昼食摂取量（主食）', lunchSide:'昼食摂取量（副食）', water:'水分補給', bath:'入浴', toilet:'排泄', rec:'レク参加', training:'訓練', safety:'安全', medicine:'服薬' };
-  const checkItems = Object.entries(appState.renrakucho.chips).map(([k,v]) => `${CHECK_GROUP_LABELS[k] || k}: ${v}`).join('\n');
+  const checkItems = Object.entries(appState.renrakucho.chips).map(([k,v]) => `${RC_CHECK_GROUP_LABELS[k] || k}: ${v}`).join('\n');
   const dbInfo = [r.careLevel?`要介護度: ${r.careLevel}`:'', r.meal?`食事形態: ${r.meal}`:'', r.bath?`入浴方法: ${r.bath}`:'', r.allergy?`アレルギー: ${r.allergy}`:'', r.medicine?`服薬: ${r.medicine}`:'', r.notes?`注意事項: ${r.notes}`:''].filter(Boolean).join('\n');
 
   const prompt = `あなたは通所サービスのスタッフです。以下の本日の記録内容をもとに、①ご家族向けの「連絡帳」と、②施設内スタッフ向けの「経過記録」の、2種類の文章をそれぞれ作成してください。

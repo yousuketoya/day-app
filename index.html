@@ -1257,6 +1257,7 @@ header {
   <div id="generateStatus"></div>
 
   <div id="outputSection" style="display:none; margin-top:14px;">
+    <div style="font-size:13px; font-weight:700; color:var(--green); margin-bottom:8px; display:flex; align-items:center; gap:6px;">🗓️ <span id="outputDateLabel"></span> の記録</div>
     <div class="card" style="border:2px solid var(--green);">
       <div class="card-title">📋 生成された連絡帳（ご家族向け）</div>
       <div class="output-box" id="outputText"></div>
@@ -5198,6 +5199,14 @@ function weekdayLabelOf(dateStr) {
   return WEEKDAYS_JP[new Date(y, m-1, d).getDay()];
 }
 
+// 'YYYY-MM-DD' → '西暦2026年7月29日（水）'
+function formatDateJp(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  return `西暦${y}年${m}月${d}日（${weekdayLabelOf(dateStr)}）`;
+}
+
 const DAY_STATUS_OPTIONS = ['休み','欠席','ショートステイ利用','入院中'];
 
 function getResidentsForDate(dateStr) {
@@ -6498,6 +6507,7 @@ function openLogEntry(dateStr, residentId) {
     document.getElementById('outputEdit').value = saved;
     document.getElementById('keirokaText').textContent = savedKr || '（経過記録は未生成です）';
     document.getElementById('keirokaEdit').value = savedKr || '';
+    document.getElementById('outputDateLabel').textContent = formatDateJp(dateStr);
     document.getElementById('outputSection').style.display = 'block';
     document.getElementById('outputSection').scrollIntoView({ behavior:'smooth', block:'start' });
   } else {
@@ -7219,6 +7229,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     document.getElementById('keirokaText').textContent = krText || '（経過記録の生成に失敗しました。お手数ですが手動で編集して入力してください）';
     document.getElementById('keirokaEdit').value = krText;
 
+    document.getElementById('outputDateLabel').textContent = formatDateJp(date);
     document.getElementById('outputSection').style.display = 'block';
     showStatus('generateStatus', krText ? '✅ 連絡帳・経過記録ともに生成完了！' : '⚠️ 連絡帳は生成できましたが、経過記録の抽出に失敗しました', krText ? 'success' : 'info');
 

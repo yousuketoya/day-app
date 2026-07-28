@@ -1095,12 +1095,12 @@ header {
     </div>
     <div id="vitalsImportStatus" style="margin-top:6px;"></div>
     <div class="vital-grid" style="margin-top:8px;">
-      <div class="vital-item"><label>体温 ℃</label><input type="number" id="temp" placeholder="36.5" step="0.1"></div>
-      <div class="vital-item"><label>血圧 収縮期</label><input type="number" id="bpSys" placeholder="120" step="1"></div>
-      <div class="vital-item"><label>血圧 拡張期</label><input type="number" id="bpDia" placeholder="80" step="1"></div>
-      <div class="vital-item"><label>脈拍 /分</label><input type="number" id="pulse" placeholder="80" step="1"></div>
-      <div class="vital-item"><label>SpO₂ %</label><input type="number" id="spo2" placeholder="98" step="1"></div>
-      <div class="vital-item"><label>体重 kg</label><input type="number" id="weight" placeholder="50" step="0.1"></div>
+      <div class="vital-item"><label>体温 ℃</label><input type="number" id="temp" placeholder="36.5" step="0.1" onchange="saveVitalFieldNow()"></div>
+      <div class="vital-item"><label>血圧 収縮期</label><input type="number" id="bpSys" placeholder="120" step="1" onchange="saveVitalFieldNow()"></div>
+      <div class="vital-item"><label>血圧 拡張期</label><input type="number" id="bpDia" placeholder="80" step="1" onchange="saveVitalFieldNow()"></div>
+      <div class="vital-item"><label>脈拍 /分</label><input type="number" id="pulse" placeholder="80" step="1" onchange="saveVitalFieldNow()"></div>
+      <div class="vital-item"><label>SpO₂ %</label><input type="number" id="spo2" placeholder="98" step="1" onchange="saveVitalFieldNow()"></div>
+      <div class="vital-item"><label>体重 kg</label><input type="number" id="weight" placeholder="50" step="0.1" onchange="saveVitalFieldNow()"></div>
     </div>
     <div id="vitalsAutoFilledNote" style="font-size:11px; color:var(--green); margin-top:6px; display:none;">✅ 取り込んだバイタル表から自動入力されました</div>
   </div>
@@ -5983,6 +5983,25 @@ function executeVitalsImport(mapping, dateStr) {
 
 const VITAL_DEFAULTS = { temp: 36.5, bpSys: 120, bpDia: 80, pulse: 80 };
 const VITAL_FIELDS = ['temp', 'bpSys', 'bpDia', 'pulse', 'spo2', 'weight'];
+
+// バイタル入力欄が変更されたら、生成ボタンを押さなくてもその場でバイタル推移用に保存する
+function saveVitalFieldNow() {
+  const r = appState.renrakucho.selectedResident;
+  const dateStr = document.getElementById('dateInput')?.value;
+  if (!r || !dateStr) return;
+  const temp = document.getElementById('temp').value;
+  const bpSys = document.getElementById('bpSys').value;
+  const bpDia = document.getElementById('bpDia').value;
+  const pulse = document.getElementById('pulse').value;
+  const spo2 = document.getElementById('spo2').value;
+  const weight = document.getElementById('weight').value;
+  if (!appState.db.vitalsLog[dateStr]) appState.db.vitalsLog[dateStr] = {};
+  appState.db.vitalsLog[dateStr][r.id] = {
+    temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia),
+    pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight)
+  };
+  saveDb();
+}
 
 function applyMealIntakeIfAvailable() {
   const r = appState.renrakucho.selectedResident;

@@ -1047,8 +1047,8 @@ header {
   <div class="card">
     <div class="card-title">📅 日付</div>
     <div style="display:flex; gap:8px;">
-      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">
-      <button class="btn btn-secondary btn-sm" onclick="setToday(); renderTodayRenrakuchoList();">今日</button>
+      <input type="date" id="dateInput" style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;" onchange="resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">
+      <button class="btn btn-secondary btn-sm" onclick="setToday(); resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); loadRcStaffSelection();">今日</button>
     </div>
   </div>
 
@@ -6808,10 +6808,18 @@ function toggleRenrakuchoShowAll(checked) {
   renderResidentSelector();
 }
 
+function resetRenrakuchoChips() {
+  appState.renrakucho.chips = {};
+  document.querySelectorAll('[data-group]').forEach(c => c.classList.remove('selected'));
+  const notesEl = document.getElementById('notes');
+  if (notesEl) notesEl.value = '';
+}
+
 function selectResident(id) {
   const r = appState.db.residentDb.find(x => x.id === id);
   if (!r) return;
   appState.renrakucho.selectedResident = r;
+  resetRenrakuchoChips();
   renderResidentSelector();
   showResidentInfo(r);
   applyVitalsIfAvailable();

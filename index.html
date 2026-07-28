@@ -7000,8 +7000,8 @@ async function runGenerateText() {
 【①連絡帳のルール】
 ・文体：${styleDesc}
 ・ご家族が読んで安心できる、温かみのある内容
-・200〜400文字
-・「本日も〜」で始める（利用者名は含めない）
+・150〜350文字
+・「本日の${r.name || 'ご利用者'}様の様子は、」に続く一文から書き始めること（このリード文自体・「いつもお世話になっています。」・結びの挨拶は書かず、本文のみを出力する。書き出しは「〜されました。」のように、リード文から自然につながる形にする）
 ・必ず文章を最後まで完結させる。署名・日付は不要。
 
 【②経過記録のルール】
@@ -7029,7 +7029,14 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     const rcRaw = rcMatch ? rcMatch[1].trim() : rawText.trim();
     const krRaw = krMatch ? krMatch[1].trim() : '';
 
-    const text = (r.name ? r.name+'様は' : '') + rcRaw.replace(/^本日も/, '本日も');
+    const rcGreeting = 'いつもお世話になっています。\n';
+    const rcLead = `本日の${r.name || 'ご利用者'}様の様子は、`;
+    const rcClosing = '\n次回来所されるのをお待ちしてます。';
+    let rcBody = rcRaw;
+    if (rcBody.startsWith('いつもお世話になっています。')) rcBody = rcBody.slice('いつもお世話になっています。'.length).replace(/^\n+/, '');
+    if (rcBody.startsWith(rcLead)) rcBody = rcBody.slice(rcLead.length);
+    rcBody = rcBody.replace(/次回来所されるのをお待ちしてます。\s*$/, '').trim();
+    const text = rcGreeting + rcLead + rcBody + rcClosing;
     document.getElementById('outputText').textContent = text;
     document.getElementById('outputEdit').value = text;
 

@@ -6783,8 +6783,11 @@ function renderResidentSelector() {
   }
   const dateStr = document.getElementById('dateInput')?.value || todayStr();
   const showAll = appState.renrakucho.showAllResidents;
-  const scheduledIds = new Set(getResidentsForDate(dateStr).map(r => r.id));
-  const residents = showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id));
+  const dayResidents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用）
+  const scheduledIds = new Set(dayResidents.filter(r => !r._dayStatus).map(r => r.id));
+  const offIds = new Set(dayResidents.filter(r => r._dayStatus).map(r => r.id));
+  const residents = (showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id)))
+    .filter(r => !offIds.has(r.id)); // 休み・欠席等の人は連絡帳の対象にしない
 
   if (appState.renrakucho.selectedResident && !residents.some(r => r.id === appState.renrakucho.selectedResident.id)) {
     appState.renrakucho.selectedResident = null;
@@ -6793,7 +6796,7 @@ function renderResidentSelector() {
   }
 
   if (!residents.length) {
-    el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（「本日の予定にない利用者も表示する」にチェックするか、スケジュールで追加してください）</div>`;
+    el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（休み・欠席等を除く。「本日の予定にない利用者も表示する」にチェックするか、スケジュールで追加してください）</div>`;
     return;
   }
 

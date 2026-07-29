@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>通所サービス管理アシスタント</title>
@@ -1881,7 +1880,7 @@ header {
       <div class="card-title">📈 バイタル推移</div>
       <div class="chip-row" id="vtMetricChipRow" style="margin-bottom:12px;"></div>
       <div style="position:relative; height:250px;">
-        <canvas id="vitalsTrendCanvas"></canvas>
+        <canvas id="vitalsTrendCanvas" style="width:100%; height:100%; display:block;"></canvas>
       </div>
       <div id="vtScaleNote" style="display:none; font-size:11px; color:var(--muted); margin-top:6px;">※複数項目を表示中は、項目ごとに目盛りを自動調整しています（線の上下動＝その項目の変化）。正確な数値は下の一覧表または凡例のツールチップでご確認ください。</div>
       <div id="vitalsTrendEmptyNote" style="display:none; color:var(--muted); font-size:13px; text-align:center; padding:24px 0;">この期間の記録がありません</div>
@@ -7744,6 +7743,116 @@ const VT_ALL_KEYS = [
   { key: 'pulse', label: '脈拍' }, { key: 'spo2', label: 'SpO₂' }, { key: 'weight', label: '体重' }
 ];
 
+// 外部ライブラリを使わない、シンプルな折れ線グラフ描画（Canvas 2D APIのみ使用）
+// datasets: [{ label, data: [値またはnull, ...], borderColor }]
+function drawVitalsChart(canvas, labels, datasets) {
+  const dpr = window.devicePixelRatio || 1;
+  const parent = canvas.parentElement;
+  const cssW = (parent && parent.clientWidth) || canvas.clientWidth || 600;
+  const cssH = (parent && parent.clientHeight) || canvas.clientHeight || 250;
+
+  canvas.width = Math.max(1, Math.round(cssW * dpr));
+  canvas.height = Math.max(1, Math.round(cssH * dpr));
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const n = labels.length;
+  if (!n) return;
+
+  // --- 凡例（上部）---
+  ctx.font = '11px sans-serif';
+  ctx.textBaseline = 'middle';
+  let lx = 4, ly = 12, legendLines = 1;
+  datasets.forEach(ds => {
+    const label = ds.label;
+    const textW = ctx.measureText(label).width;
+    const itemW = 16 + textW + 14;
+    if (lx + itemW > cssW - 4) { lx = 4; ly += 16; legendLines++; }
+    ctx.fillStyle = ds.borderColor;
+    ctx.fillRect(lx, ly - 5, 10, 10);
+    ctx.fillStyle = '#333';
+    ctx.fillText(label, lx + 14, ly);
+    lx += itemW;
+  });
+
+  const topPad = legendLines * 16 + 8;
+  const bottomPad = 20;
+  const leftPad = 6;
+  const rightPad = 10;
+  const plotH = Math.max(10, cssH - topPad - bottomPad);
+  const plotW = Math.max(10, cssW - leftPad - rightPad);
+
+  // --- 目盛り線（背景の目安線。項目ごとにスケールが違うため数値軸は表示しない）---
+  ctx.strokeStyle = '#ececec';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = topPad + (plotH * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(leftPad, y);
+    ctx.lineTo(leftPad + plotW, y);
+    ctx.stroke();
+  }
+
+  // --- 各系列ごとに独立した最小・最大値でスケーリング（Chart.jsの複数y軸と同じ考え方）---
+  datasets.forEach(ds => {
+    const vals = ds.data.filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (!vals.length) { ds._min = 0; ds._max = 1; return; }
+    let min = Math.min(...vals), max = Math.max(...vals);
+    if (min === max) { min -= 1; max += 1; }
+    const pad = (max - min) * 0.15;
+    ds._min = min - pad;
+    ds._max = max + pad;
+  });
+
+  const stepX = n > 1 ? plotW / (n - 1) : 0;
+
+  datasets.forEach(ds => {
+    const vals = ds.data.filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (!vals.length) return;
+    ctx.strokeStyle = ds.borderColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    ds.data.forEach((v, i) => {
+      if (v === null || v === undefined || isNaN(v)) { started = false; return; }
+      const x = leftPad + stepX * i;
+      const t = (v - ds._min) / (ds._max - ds._min);
+      const y = topPad + plotH * (1 - t);
+      if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = ds.borderColor;
+    ds.data.forEach((v, i) => {
+      if (v === null || v === undefined || isNaN(v)) return;
+      const x = leftPad + stepX * i;
+      const t = (v - ds._min) / (ds._max - ds._min);
+      const y = topPad + plotH * (1 - t);
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+
+  // --- x軸ラベル（日付）。混み合う場合は間引く ---
+  ctx.fillStyle = '#666';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const maxLabels = Math.max(1, Math.floor(plotW / 42));
+  const skip = Math.max(1, Math.ceil(n / maxLabels));
+  labels.forEach((lab, i) => {
+    if (i % skip !== 0 && i !== n - 1) return;
+    const x = leftPad + stepX * i;
+    ctx.fillText(lab, x, cssH - 4);
+  });
+  ctx.textAlign = 'left';
+}
+
 function renderVitalsTrendResidentSelector() {
   const el = document.getElementById('vitalsTrendResidentSelector');
   if (!el) return;
@@ -7832,8 +7941,12 @@ function renderVitalsTrend() {
   const emptyNote = document.getElementById('vitalsTrendEmptyNote');
 
   if (!hasAny) {
-    if (appState.vitalsTrend.chart) { appState.vitalsTrend.chart.destroy(); appState.vitalsTrend.chart = null; }
-    if (canvas) canvas.style.display = 'none';
+    if (canvas) {
+      const cctx = canvas.getContext('2d');
+      cctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.style.display = 'none';
+    }
+    appState.vitalsTrend.chart = null;
     if (emptyNote) emptyNote.style.display = 'block';
   } else {
     if (canvas) canvas.style.display = 'block';
@@ -7842,36 +7955,18 @@ function renderVitalsTrend() {
     const selectedGroups = appState.vitalsTrend.activeMetrics.map(k => VT_METRIC_GROUPS[k]).filter(Boolean);
     const labels = dates.map(d => { const [, m, dd] = d.split('-'); return `${Number(m)}/${Number(dd)}`; });
     const datasets = [];
-    const scales = { x: {} };
     selectedGroups.forEach(group => {
       group.datasets.forEach(ds => {
-        const axisId = 'y_' + ds.key;
         datasets.push({
           label: ds.label,
           data: rows.map(r => (r.entry && r.entry[ds.key] !== undefined && r.entry[ds.key] !== '') ? r.entry[ds.key] : null),
-          borderColor: ds.color,
-          backgroundColor: ds.color,
-          spanGaps: true,
-          tension: 0.25,
-          pointRadius: 3,
-          yAxisID: axisId
+          borderColor: ds.color
         });
-        if (!scales[axisId]) scales[axisId] = { display: false, beginAtZero: false };
       });
     });
 
-    if (appState.vitalsTrend.chart) appState.vitalsTrend.chart.destroy();
-    appState.vitalsTrend.chart = new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: { legend: { display: true, position: 'top' } },
-        scales
-      }
-    });
+    drawVitalsChart(canvas, labels, datasets);
+    appState.vitalsTrend.chart = true; // グラフが描画済みであることを示すフラグ（Excel書き出し時の判定に使用）
   }
 
   const noteEl = document.getElementById('vtScaleNote');

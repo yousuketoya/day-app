@@ -1903,7 +1903,7 @@ body {
       <div class="cal-month-label" id="shiftMonthLabel" style="flex:1; text-align:center; font-weight:700;">2026年7月</div>
       <button class="icon-btn" onclick="changeShiftMonth(1)">▶</button>
     </div>
-    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">スタッフごとに<b>上段＝予定</b>・<b>下段＝実績</b>の2行で表示します。予定セルをタップすると出勤区分を切り替えられます（出→休→有→P→P有→記→2H有→1H有→A→A有→出…の順）。<b>予定は起点日から28日周期で繰り返すパターンなので、変更すると同じ曜日位置が毎サイクル全て変わります。</b>特定の1日だけ変更したい時は下段の「実績」をタップしてください。<b>「予定の確定」で確定すると、予定セルは編集できなくなります（実績はいつでも編集可）。</b>スタッフの追加・編集は設定 ⚙️ から行えます。</div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">スタッフごとに<b>上段＝予定</b>・<b>下段＝実績</b>の2行で表示します。予定セルをタップすると出勤区分を切り替えられます（出→休→有→記→2H有→1H有→出…の順）。<b>予定は起点日から28日周期で繰り返すパターンなので、変更すると同じ曜日位置が毎サイクル全て変わります。</b>特定の1日だけ変更したい時は下段の「実績」をタップしてください。<b>「予定の確定」で確定すると、予定セルは編集できなくなります（実績はいつでも編集可）。</b>スタッフの追加・編集は設定 ⚙️ から行えます。</div>
     <button class="btn btn-secondary btn-sm" style="width:100%; margin-bottom:8px;" onclick="resetShiftPatternToDefault()">🔄 予定を初期化（日曜だけ休み・それ以外は全員「出」にする）</button>
     <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
     <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="exportShiftMonthExcel()">📊 上で選択中の月をExcelで出力（印刷用）</button>

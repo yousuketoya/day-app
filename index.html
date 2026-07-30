@@ -48,58 +48,176 @@ header {
   top: 0;
   z-index: 100;
   box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-}
-
-.header-top {
-  padding: 12px 20px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 12px 16px;
+  min-height: 60px;
 }
 
-.header-top h1 { font-size: 16px; font-weight: 700; }
-.header-top p { font-size: 11px; opacity: 0.75; margin-top: 1px; }
-.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
-.header-nav {
+.header-logo {
   display: flex;
-  margin-top: 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
 }
-.header-nav::-webkit-scrollbar { display: none; }
 
-.nav-btn {
-  flex: 1 0 auto;
-  min-width: 68px;
-  padding: 10px 4px 9px;
-  background: none;
+.header-logo h1 { font-size: 14px; font-weight: 700; }
+.header-logo p { font-size: 10px; opacity: 0.75; }
+
+.header-tabs {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  margin: 0 20px;
+  align-items: center;
+}
+
+.category-tab {
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.15);
   border: none;
-  color: rgba(255,255,255,0.55);
-  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  border-bottom: 3px solid transparent;
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px;
   transition: all 0.15s;
-  text-align: center;
-  position: relative;
   white-space: nowrap;
 }
 
-.nav-btn .nav-icon { font-size: 18px; display: block; margin-bottom: 2px; transition: transform 0.15s; }
-.nav-btn.active {
+.category-tab:hover {
+  background: rgba(255,255,255,0.25);
   color: white;
-  font-weight: 800;
-  background: rgba(255,255,255,0.16);
-  border-bottom-color: var(--accent);
 }
-.nav-btn.active .nav-icon { transform: scale(1.12); }
-.nav-btn:hover:not(.active) { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.08); }
+
+.category-tab.active {
+  background: var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hamburger-btn {
+  display: none;
+  padding: 8px;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.hamburger-btn:hover {
+  background: rgba(255,255,255,0.25);
+}
 
 /* ===== LAYOUT ===== */
-.container { max-width: min(94vw, 1000px); margin: 0 auto; padding: 16px; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-wrapper {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 200px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  position: fixed;
+  left: 0;
+  top: 60px;
+  height: calc(100vh - 60px);
+  z-index: 50;
+}
+
+.sidebar.hidden {
+  display: none;
+}
+
+.sidebar-group {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-group-title {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.sidebar-group-title:hover {
+  background: var(--green-light);
+}
+
+.sidebar-group.collapsed .sidebar-items {
+  display: none;
+}
+
+.sidebar-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sidebar-item {
+  padding: 10px 12px;
+  font-size: 12px;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-item:hover {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.sidebar-item.active {
+  background: var(--green-light);
+  color: var(--green);
+  font-weight: 700;
+  border-left: 3px solid var(--green);
+  padding-left: 9px;
+}
+
+.container {
+  flex: 1;
+  overflow-y: auto;
+  max-width: 100%;
+  padding: 16px;
+  margin-left: 200px;
+}
+
 .page { display: none; }
 .page.active { display: block; animation: pageFadeIn 0.25s ease; }
 
@@ -796,12 +914,94 @@ header {
 .info-tag { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px; font-size: 12px; }
 .info-tag.alert { background: var(--warn-light); border-color: var(--accent); color: #7a5200; }
 
+@media (max-width: 767px) {
+  header {
+    flex-wrap: wrap;
+  }
+  
+  .header-logo {
+    order: 1;
+    flex: 0 0 auto;
+  }
+  
+  .header-tabs {
+    order: 3;
+    flex: 1 0 100%;
+    margin: 8px 0 0 0;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  
+  .category-tab {
+    font-size: 11px;
+    padding: 6px 10px;
+    flex: 1;
+    min-width: 80px;
+  }
+  
+  .header-actions {
+    order: 2;
+  }
+  
+  .hamburger-btn {
+    display: block !important;
+  }
+  
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 60px;
+    width: 200px;
+    height: calc(100vh - 60px);
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    z-index: 51;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  
+  .sidebar.hidden {
+    display: none;
+  }
+  
+  .main-wrapper {
+    flex-direction: column;
+  }
+  
+  .container {
+    width: 100%;
+    padding: 12px;
+    margin-left: 0;
+  }
+}
+
 @media (max-width: 480px) {
   .db-summary { grid-template-columns: repeat(3,1fr); }
   .extracted-grid { grid-template-columns: 1fr; }
   .vital-grid { grid-template-columns: repeat(2,1fr); }
   .check-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
+  
+  .header-logo h1 {
+    font-size: 13px;
+  }
+  
+  .header-logo p {
+    font-size: 9px;
+  }
+  
+  .category-tab {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+  
+  .btn-sm {
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+  
+  .container {
+    margin-left: 0;
+  }
 }
 </style>
 </head>
@@ -816,60 +1016,72 @@ header {
 </div>
 
 <header>
-  <div class="header-top">
-    <div>
-      <h1>🏥 通所サービス管理アシスタント</h1>
-      <p id="headerFacility">施設名未設定 ・ ⚙️右上から設定</p>
-    </div>
-    <div class="header-actions">
-      <button class="btn btn-secondary btn-sm" onclick="openSettings()" style="flex-shrink:0;">⚙️</button>
-      <button class="btn btn-secondary btn-sm" onclick="handleAppExit()" style="flex-shrink:0;" title="バックアップしてから終了します">🚪終了</button>
-    </div>
+  <div class="header-logo">
+    <h1>🏥 通所管理</h1>
+    <p id="headerFacility">施設名未設定</p>
   </div>
-  <nav class="header-nav">
-    <button class="nav-btn" onclick="switchPage('shorui')">
-      <span class="nav-icon">📄</span>書類読取
-    </button>
-    <button class="nav-btn active" onclick="switchPage('db')">
-      <span class="nav-icon">👥</span>利用者DB
-    </button>
-    <button class="nav-btn" onclick="switchPage('schedule')">
-      <span class="nav-icon">📅</span>スケジュール
-    </button>
-    <button class="nav-btn" onclick="switchPage('transport')">
-      <span class="nav-icon">🚐</span>送迎表
-    </button>
-    <button class="nav-btn" onclick="switchPage('shift')">
-      <span class="nav-icon">🗓️</span>勤務表
-    </button>
-    <button class="nav-btn" onclick="switchPage('renrakucho')">
-      <span class="nav-icon">📋</span>連絡帳
-    </button>
-    <button class="nav-btn" onclick="switchPage('rehabrecord')">
-      <span class="nav-icon">📝</span>リハビリ記録
-    </button>
-    <button class="nav-btn" onclick="switchPage('rehab')">
-      <span class="nav-icon">📘</span>リハビリ計画書
-    </button>
-    <button class="nav-btn" onclick="switchPage('assessment')">
-      <span class="nav-icon">✅</span>アセスメント
-    </button>
-    <button class="nav-btn" onclick="switchPage('monitoring')">
-      <span class="nav-icon">📈</span>モニタリング
-    </button>
-    <button class="nav-btn" onclick="switchPage('dailylog')">
-      <span class="nav-icon">📓</span>業務日誌
-    </button>
-    <button class="nav-btn" onclick="switchPage('vitalstrend')">
-      <span class="nav-icon">📈</span>バイタル推移
-    </button>
-    <button class="nav-btn" onclick="switchPage('mealintake')">
-      <span class="nav-icon">🍚</span>食事摂取量
-    </button>
-  </nav>
+  
+  <div class="header-tabs">
+    <button class="category-tab active" data-category="user-mgmt" onclick="switchCategory('user-mgmt')">利用者管理</button>
+    <button class="category-tab" data-category="daily-ops" onclick="switchCategory('daily-ops')">日次業務</button>
+    <button class="category-tab" data-category="eval" onclick="switchCategory('eval')">評価</button>
+    <button class="category-tab" data-category="analysis" onclick="switchCategory('analysis')">分析</button>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn btn-secondary btn-sm" onclick="openSettings()" style="flex-shrink:0;">⚙️</button>
+    <button class="btn btn-secondary btn-sm" onclick="handleAppExit()" style="flex-shrink:0;" title="バックアップしてから終了します">🚪終了</button>
+    <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+  </div>
 </header>
 
-<div class="container">
+<div class="main-wrapper">
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <!-- User Management -->
+    <div class="sidebar-group" data-category="user-mgmt">
+      <div class="sidebar-group-title" onclick="toggleSidebarGroup(this)">利用者管理 ▼</div>
+      <div class="sidebar-items">
+        <button class="sidebar-item" onclick="switchPageSidebar('shorui')">📋 書類読取</button>
+        <button class="sidebar-item active" onclick="switchPageSidebar('db')">👤 利用者DB</button>
+      </div>
+    </div>
+
+    <!-- Daily Operations -->
+    <div class="sidebar-group" data-category="daily-ops" style="display:none;">
+      <div class="sidebar-group-title" onclick="toggleSidebarGroup(this)">日次業務 ▼</div>
+      <div class="sidebar-items">
+        <button class="sidebar-item" onclick="switchPageSidebar('shift')">👥 勤務表</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('schedule')">📅 スケジュール</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('transport')">🚗 送迎表</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('renrakucho')">📝 連絡帳</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('rehabrecord')">🔄 リハビリ記録</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('dailylog')">📋 業務日誌</button>
+      </div>
+    </div>
+
+    <!-- Evaluation -->
+    <div class="sidebar-group" data-category="eval" style="display:none;">
+      <div class="sidebar-group-title" onclick="toggleSidebarGroup(this)">評価 ▼</div>
+      <div class="sidebar-items">
+        <button class="sidebar-item" onclick="switchPageSidebar('rehab')">📄 リハビリ計画書</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('assessment')">✅ アセスメント</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('monitoring')">📊 モニタリング</button>
+      </div>
+    </div>
+
+    <!-- Analysis -->
+    <div class="sidebar-group" data-category="analysis" style="display:none;">
+      <div class="sidebar-group-title" onclick="toggleSidebarGroup(this)">分析 ▼</div>
+      <div class="sidebar-items">
+        <button class="sidebar-item" onclick="switchPageSidebar('vitalstrend')">❤️ バイタル推移</button>
+        <button class="sidebar-item" onclick="switchPageSidebar('mealintake')">🍽️ 食事摂取量</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTAINER -->
+  <div class="container">
 
 <!-- ==================== DB PAGE ==================== -->
 <div class="page active" id="page-db">
@@ -1877,21 +2089,21 @@ header {
     </div>
 
     <div class="card">
-      <div class="card-title">📈 バイタル推移</div>
-      <div class="chip-row" id="vtMetricChipRow" style="margin-bottom:12px;"></div>
-      <div style="position:relative; height:250px;">
-        <canvas id="vitalsTrendCanvas" style="width:100%; height:100%; display:block;"></canvas>
-      </div>
-      <div id="vtScaleNote" style="display:none; font-size:11px; color:var(--muted); margin-top:6px;">※複数項目を表示中は、項目ごとに目盛りを自動調整しています（線の上下動＝その項目の変化）。正確な数値は下の一覧表または凡例のツールチップでご確認ください。</div>
-      <div id="vitalsTrendEmptyNote" style="display:none; color:var(--muted); font-size:13px; text-align:center; padding:24px 0;">この期間の記録がありません</div>
-    </div>
-
-    <div class="card">
       <div class="card-title">📋 記録一覧</div>
       <div style="overflow-x:auto;">
         <table id="vitalsTrendTable" style="width:100%; border-collapse:collapse; font-size:12.5px; white-space:nowrap;"></table>
       </div>
       <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="exportVitalsTrendExcel(event)">📥🖨️ 印刷用Excel（数値表＋グラフ）を書き出す</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 バイタル推移</div>
+      <div class="chip-row" id="vtMetricChipRow" style="margin-bottom:12px;"></div>
+      <div style="position:relative; height:250px;">
+        <canvas id="vitalsTrendCanvas" style="width:100%; height:100%; display:block;"></canvas>
+      </div>
+      <div id="vtScaleNote" style="display:none; font-size:11px; color:var(--muted); margin-top:6px;">※複数項目を表示中は、項目ごとに目盛りを自動調整しています（線の上下動＝その項目の変化）。正確な数値は上の一覧表または凡例のツールチップでご確認ください。</div>
+      <div id="vitalsTrendEmptyNote" style="display:none; color:var(--muted); font-size:13px; text-align:center; padding:24px 0;">この期間の記録がありません</div>
     </div>
 
   </div>
@@ -1937,7 +2149,8 @@ header {
 
 </div>
 
-</div><!-- /container -->
+  </div><!-- /container -->
+</div><!-- /main-wrapper -->
 
 <!-- ===== 設定モーダル ===== -->
 <div class="modal-overlay" id="settingsModal">
@@ -2466,10 +2679,27 @@ function saveDb() {
 // NAVIGATION
 // ============================================================
 function switchPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // 古いナビボタンクラス削除（互換性）
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  // ページアクティベーション
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  document.querySelector(`[onclick="switchPage('${page}')"]`)?.classList.add('active');
+  // サイドバー項目のアクティベーション
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.querySelector(`[onclick="switchPageSidebar('${page}')"]`)?.classList.add('active');
+  
+  _loadPageContent(page);
+}
+
+function switchPageSidebar(page) {
+  switchPage(page);
+  // モバイル時、サイドバーを閉じる
+  if (window.innerWidth < 768) {
+    document.getElementById('sidebar').classList.add('hidden');
+  }
+}
+
+function _loadPageContent(page) {
   if (page === 'db') renderDbList();
   if (page === 'renrakucho') { renderResidentSelector(); renderRenrakuchoWeekMatrix(); renderTodayRenrakuchoList(); renderCareStaffChips(); }
   if (page === 'rehab') { renderRehabResidentSelector(); renderReviewDueList(); }
@@ -2512,6 +2742,53 @@ function switchPage(page) {
     renderWeeklyScheduleTable();
   }
 }
+
+// ===== CATEGORY TAB FUNCTIONS =====
+function switchCategory(category) {
+  // Update tab styling
+  document.querySelectorAll('.category-tab').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  document.querySelector(`[data-category="${category}"]`).classList.add('active');
+  
+  // Show/hide sidebar groups
+  document.querySelectorAll('.sidebar-group').forEach(group => {
+    group.style.display = 'none';
+  });
+  document.querySelectorAll(`.sidebar-group[data-category="${category}"]`).forEach(group => {
+    group.style.display = 'block';
+  });
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('hidden');
+}
+
+function toggleSidebarGroup(element) {
+  const group = element.parentElement;
+  group.classList.toggle('collapsed');
+}
+
+// Mobile responsive
+window.addEventListener('resize', () => {
+  const sidebar = document.getElementById('sidebar');
+  if (window.innerWidth >= 768) {
+    sidebar.classList.remove('hidden');
+  } else {
+    sidebar.classList.add('hidden');
+  }
+});
+
+// Initial mobile setup
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.innerWidth < 768) {
+    document.getElementById('sidebar').classList.add('hidden');
+    document.querySelector('.hamburger-btn').style.display = 'block';
+  } else {
+    document.querySelector('.hamburger-btn').style.display = 'none';
+  }
+});
 
 // ============================================================
 // SETTINGS

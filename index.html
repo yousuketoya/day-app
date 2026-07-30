@@ -598,7 +598,7 @@ body {
 .rp-assess-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* 勤務表 */
-.shift-table { width: max-content; border-collapse: separate; border-spacing: 0; font-size: 11px; table-layout: fixed; }
+.shift-table { width: max-content; margin: 0 auto; border-collapse: separate; border-spacing: 0; font-size: 11px; table-layout: fixed; }
 .shift-table th, .shift-table td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 3px 2px; text-align: center; }
 .shift-table thead th { border-top: 1px solid var(--border); }
 .shift-table th:first-child, .shift-table td:first-child { border-left: 1px solid var(--border); }
@@ -4053,7 +4053,7 @@ const SHIFT_CYCLE_LEN = 28;
 const SHIFT_CODES = ['work', 'off', '有', '記', '2H有', '1H有'];
 function shiftCodeLabel(code) { return code === 'work' ? '出' : code === 'off' ? '休' : (code || '休'); }
 function shiftCodeClass(code) {
-  const map = { work: 'work', off: 'off', '有': 'code-yu', '記': 'code-ki', '2H有': 'code-2h', '1H有': 'code-1h' };
+  const map = { work: 'work', off: 'off', '有': 'off', '記': 'off', '2H有': 'code-2h', '1H有': 'code-1h' };
   return map[code] || 'off';
 }
 

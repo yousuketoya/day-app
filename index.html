@@ -3135,25 +3135,37 @@ function exportBackupExcel() {
   });
   addSheet('食事摂取量', miRows);
 
-  // ⑮ 勤務表（予定：4週28日パターン）
+  // ⑮ 勤務表（予定：4週28日パターン、午前・午後）
   const shiftStaffForExport = [
     ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
     ...(db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
     ...(db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
   ];
-  const shiftRows = [['スタッフ名', '職種', ...Array.from({length: 28}, (_, i) => `Day${i+1}`)]];
+  const shiftRows = [['スタッフ名', '職種', '時間帯', ...Array.from({length: 28}, (_, i) => `Day${i+1}`)]];
   shiftStaffForExport.forEach(s => {
-    const pattern = (db.shiftPattern && db.shiftPattern[s.name]) || [];
-    const cells = Array.from({length: 28}, (_, i) => shiftCodeLabel(pattern[i] || 'work'));
-    shiftRows.push([s.name, s.group, ...cells]);
+    const rawPattern = (db.shiftPattern && db.shiftPattern[s.name]) || {};
+    // 旧形式（配列）と新形式（{am,pm}オブジェクト）の両方に対応
+    const pattern = Array.isArray(rawPattern) 
+      ? { am: Array(28).fill('work'), pm: rawPattern }
+      : { am: rawPattern.am || Array(28).fill('work'), pm: rawPattern.pm || Array(28).fill('work') };
+    const amCells = Array.from({length: 28}, (_, i) => shiftCodeLabel(pattern.am[i] || 'work'));
+    const pmCells = Array.from({length: 28}, (_, i) => shiftCodeLabel(pattern.pm[i] || 'work'));
+    shiftRows.push([s.name, s.group, '午前', ...amCells]);
+    shiftRows.push(['', '', '午後', ...pmCells]);
   });
   addSheet('勤務表（予定）', shiftRows);
 
-  // ⑮b 勤務表（実績：予定から変更があった日のみ）
-  const shiftActualRows = [['日付', 'スタッフ名', '実績']];
+  // ⑮b 勤務表（実績：予定から変更があった日のみ、午前・午後）
+  const shiftActualRows = [['日付', 'スタッフ名', '時間帯', '実績']];
   Object.keys(db.shiftActual || {}).sort().forEach(date => {
-    Object.entries(db.shiftActual[date]).forEach(([name, code]) => {
-      shiftActualRows.push([date, name, shiftCodeLabel(code)]);
+    Object.entries(db.shiftActual[date]).forEach(([name, data]) => {
+      // 旧形式（文字列）と新形式（{am,pm}オブジェクト）の両方に対応
+      if (typeof data === 'string') {
+        shiftActualRows.push([date, name, '午後', shiftCodeLabel(data)]);
+      } else {
+        if (data.am) shiftActualRows.push([date, name, '午前', shiftCodeLabel(data.am)]);
+        if (data.pm) shiftActualRows.push([date, name, '午後', shiftCodeLabel(data.pm)]);
+      }
     });
   });
   addSheet('勤務表（実績）', shiftActualRows);
@@ -3465,24 +3477,61 @@ function restoreFromWorkbook(wb) {
     newDb.rehabContentList = ['関節可動域訓練','筋力増強訓練','歩行訓練','立位・座位訓練','バランス訓練','ADL訓練','嚥下訓練','言語訓練','巧緻動作訓練','レクリエーション訓練'];
   }
 
-  // ⑯ 勤務表パターン（予定）
-  const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', '有': '有', 'P': 'P', 'A': 'A', 'P有': 'P有', 'A有': 'A有', '2H有': '2H有', '1H有': '1H有', '記': '記' };
-  getSheetRows(wb, ['勤務表（予定）', '出勤表']).forEach(row => {
-    const [name, , ...cells] = row;
-    if (!name) return;
-    const pattern = cells.slice(0, 28).map(v => SHIFT_LABEL_TO_CODE[v] || 'work');
-    while (pattern.length < 28) pattern.push('work');
-    newDb.shiftPattern[name] = pattern;
-  });
+  // ⑯ 勤務表パターン（予定：午前・午後対応、旧形式もサポート）
+  const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', '有': '有', '記': '記', '2H有': '2H有', '1H有': '1H有', 'P': 'work', 'A': 'work', 'P有': '有', 'A有': '有' };
+  const shiftPlanRows = getSheetRows(wb, ['勤務表（予定）', '出勤表']);
+  // 新形式判定：3列目に「午前」「午後」があるかチェック
+  const hasNewFormat = shiftPlanRows.some(row => row[2] === '午前' || row[2] === '午後');
+  
+  if (hasNewFormat) {
+    // 新形式：[名前, 職種, 時間帯, Day1...Day28]
+    let currentName = '';
+    shiftPlanRows.forEach(row => {
+      const [name, , period, ...cells] = row;
+      if (name) currentName = name;
+      if (!currentName || (period !== '午前' && period !== '午後')) return;
+      const pattern = cells.slice(0, 28).map(v => SHIFT_LABEL_TO_CODE[v] || 'work');
+      while (pattern.length < 28) pattern.push('work');
+      if (!newDb.shiftPattern[currentName]) newDb.shiftPattern[currentName] = { am: Array(28).fill('work'), pm: Array(28).fill('work') };
+      if (period === '午前') newDb.shiftPattern[currentName].am = pattern;
+      if (period === '午後') newDb.shiftPattern[currentName].pm = pattern;
+    });
+  } else {
+    // 旧形式：[名前, 職種, Day1...Day28] → 午前は「出」、午後は既存データとして移行
+    shiftPlanRows.forEach(row => {
+      const [name, , ...cells] = row;
+      if (!name) return;
+      const pattern = cells.slice(0, 28).map(v => SHIFT_LABEL_TO_CODE[v] || 'work');
+      while (pattern.length < 28) pattern.push('work');
+      newDb.shiftPattern[name] = { am: Array(28).fill('work'), pm: pattern };
+    });
+  }
 
-  // ⑯b 勤務表（実績）
-  getSheetRows(wb, '勤務表（実績）').forEach(([date, name, codeLabel]) => {
-    if (!date || !name) return;
-    const code = SHIFT_LABEL_TO_CODE[codeLabel];
-    if (!code) return;
-    if (!newDb.shiftActual[date]) newDb.shiftActual[date] = {};
-    newDb.shiftActual[date][name] = code;
-  });
+  // ⑯b 勤務表（実績：午前・午後対応、旧形式もサポート）
+  const shiftActualRows = getSheetRows(wb, '勤務表（実績）');
+  const hasNewActualFormat = shiftActualRows.some(row => row[2] === '午前' || row[2] === '午後');
+  
+  if (hasNewActualFormat) {
+    // 新形式：[日付, 名前, 時間帯, 実績]
+    shiftActualRows.forEach(([date, name, period, codeLabel]) => {
+      if (!date || !name) return;
+      const code = SHIFT_LABEL_TO_CODE[codeLabel];
+      if (!code) return;
+      if (!newDb.shiftActual[date]) newDb.shiftActual[date] = {};
+      if (!newDb.shiftActual[date][name]) newDb.shiftActual[date][name] = { am: null, pm: null };
+      if (period === '午前') newDb.shiftActual[date][name].am = code;
+      if (period === '午後') newDb.shiftActual[date][name].pm = code;
+    });
+  } else {
+    // 旧形式：[日付, 名前, 実績] → 午後として移行
+    shiftActualRows.forEach(([date, name, codeLabel]) => {
+      if (!date || !name) return;
+      const code = SHIFT_LABEL_TO_CODE[codeLabel];
+      if (!code) return;
+      if (!newDb.shiftActual[date]) newDb.shiftActual[date] = {};
+      newDb.shiftActual[date][name] = { am: null, pm: code };
+    });
+  }
 
   appState.db = newDb;
   return newDb.residentDb.length;
@@ -3999,10 +4048,10 @@ function printTransportTable() {
 // ============================================================
 const SHIFT_CYCLE_LEN = 28;
 // 出勤区分の並び：クリックするたびにこの順で切り替わる
-const SHIFT_CODES = ['work', 'off', '有', 'P', 'P有', '記', '2H有', '1H有', 'A', 'A有'];
+const SHIFT_CODES = ['work', 'off', '有', '記', '2H有', '1H有'];
 function shiftCodeLabel(code) { return code === 'work' ? '出' : code === 'off' ? '休' : (code || '休'); }
 function shiftCodeClass(code) {
-  const map = { work: 'work', off: 'off', '有': 'code-yu', 'P': 'code-p', 'A': 'code-a', 'P有': 'code-pyu', 'A有': 'code-ayu', '2H有': 'code-2h', '1H有': 'code-1h', '記': 'code-ki' };
+  const map = { work: 'work', off: 'off', '有': 'code-yu', '記': 'code-ki', '2H有': 'code-2h', '1H有': 'code-1h' };
   return map[code] || 'off';
 }
 
@@ -4032,9 +4081,19 @@ function getShiftStaffList() {
 
 function ensureShiftPattern(name) {
   if (!appState.db.shiftPattern) appState.db.shiftPattern = {};
-  if (!appState.db.shiftPattern[name] || appState.db.shiftPattern[name].length !== SHIFT_CYCLE_LEN) {
-    // 新規スタッフはデフォルト「出勤」。休みの日だけ後から個別にオフへ切り替える運用を想定。
-    appState.db.shiftPattern[name] = Array(SHIFT_CYCLE_LEN).fill('work');
+  if (!appState.db.shiftPattern[name]) {
+    // 新規スタッフは午前・午後両方「出勤」
+    appState.db.shiftPattern[name] = {
+      am: Array(SHIFT_CYCLE_LEN).fill('work'),
+      pm: Array(SHIFT_CYCLE_LEN).fill('work')
+    };
+  } else if (Array.isArray(appState.db.shiftPattern[name])) {
+    // 旧データ形式（1次元配列）を新形式に自動移行：午前は「出」、午後は既存データ
+    const oldData = appState.db.shiftPattern[name];
+    appState.db.shiftPattern[name] = {
+      am: Array(SHIFT_CYCLE_LEN).fill('work'),
+      pm: oldData.slice(0, SHIFT_CYCLE_LEN)
+    };
   }
 }
 
@@ -4050,12 +4109,22 @@ function isBusinessDayStr(dateStr) {
 }
 
 // 営業曜日でない日は問答無用で全員「休み」。営業日はパターンの該当セルを見る。
-function getStaffShiftStatus(name, dateStr) {
-  if (!isBusinessDayStr(dateStr)) return 'off';
+// period: 'am' または 'pm' を指定。指定しない場合は {am, pm} オブジェクトを返す
+function getStaffShiftStatus(name, dateStr, period) {
+  if (!isBusinessDayStr(dateStr)) {
+    return period ? 'off' : { am: 'off', pm: 'off' };
+  }
   const idx = shiftCycleDayIndex(dateStr);
-  if (idx === null) return null;
+  if (idx === null) return period ? null : { am: null, pm: null };
   ensureShiftPattern(name);
-  return appState.db.shiftPattern[name][idx];
+  const pattern = appState.db.shiftPattern[name];
+  if (period) {
+    return pattern[period] && pattern[period][idx] ? pattern[period][idx] : 'work';
+  }
+  return {
+    am: pattern.am && pattern.am[idx] ? pattern.am[idx] : 'work',
+    pm: pattern.pm && pattern.pm[idx] ? pattern.pm[idx] : 'work'
+  };
 }
 
 // ---- 起点日の設定 ----
@@ -4081,15 +4150,19 @@ function resetShiftPatternToDefault() {
   }
   const start = appState.db.shiftCycleStart;
   if (!start) { alert('先に起点日を設定してください'); return; }
-  if (!confirm('現在の勤務パターンをすべて初期化し、全スタッフを「日曜だけ休み、それ以外は出勤（出）」にリセットします。すでに入力した実績には影響しません。よろしいですか？')) return;
+  if (!confirm('現在の勤務パターンをすべて初期化し、全スタッフの午前・午後を「日曜だけ休み、それ以外は出勤（出）」にリセットします。すでに入力した実績には影響しません。よろしいですか？')) return;
 
   const staffList = getShiftStaffList();
+  const defaultArray = Array.from({ length: SHIFT_CYCLE_LEN }, (_, i) => {
+    const d = addDaysToYmd(start, i);
+    return weekdayLabelOf(d) === '日' ? 'off' : 'work';
+  });
+
   staffList.forEach(s => {
-    ensureShiftPattern(s.name);
-    appState.db.shiftPattern[s.name] = Array.from({ length: SHIFT_CYCLE_LEN }, (_, i) => {
-      const d = addDaysToYmd(start, i);
-      return weekdayLabelOf(d) === '日' ? 'off' : 'work';
-    });
+    appState.db.shiftPattern[s.name] = {
+      am: defaultArray.slice(),
+      pm: defaultArray.slice()
+    };
   });
   saveDb();
   renderShiftPatternTable();
@@ -4130,7 +4203,7 @@ function renderShiftPatternTable() {
     ${SHIFT_CODES.map(c => `<span class="shift-legend-item"><span class="swatch shift-cell ${shiftCodeClass(c)}" style="cursor:default;"></span>${shiftCodeLabel(c)}</span>`).join('')}
     <span class="shift-legend-item"><span class="swatch shift-cell non-business" style="cursor:default;"></span>休業日（自動）</span>
   </div>
-  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;"><b>${monthDay(dayDates[0])}〜${monthDay(dayDates[dayDates.length - 1])}</b>（起点日を第1列として4週間）を表示中（上の◀▶で前後の4週間に切り替え）。各スタッフ2行表示：上段＝<b>予定</b>（起点日からの28日周期パターン。<u>ここを変更すると同じ曜日位置が毎サイクル全て変わります</u>）、下段＝<b>実績</b>（その日だけのピンポイントな記録）。特定の1日だけ勤務者を変えたい時は必ず「実績」で記録してください。</div>`;
+  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;"><b>${monthDay(dayDates[0])}〜${monthDay(dayDates[dayDates.length - 1])}</b>（起点日を第1列として4週間）を表示中（上の◀▶で前後の4週間に切り替え）。各スタッフ4行表示：<b>午前予定・午前実績・午後予定・午後実績</b>。午前・午後で異なる休み形態に対応します。予定セルはパターン編集用（確定後は実績で記録）、実績セルは日付ごとのピンポイント記録です。</div>`;
 
   const dayHeaderCells = dayDates.map((d, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${dayLabels[i]}<br><span style="font-weight:400; font-size:8.5px;">${monthDay(d)}</span></th>`).join('');
   const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
@@ -4140,41 +4213,74 @@ function renderShiftPatternTable() {
   let bodyRows = '';
   staffList.forEach((s, sIndex) => {
     const pattern = appState.db.shiftPattern[s.name];
-    const planCells = dayDates.map((d, i) => {
+    
+    // ---- 午前予定行 ----
+    const amPlanCells = dayDates.map((d, i) => {
       if (beforeStart[i]) return `<td class="shift-cell before-start" title="起点日（${start}）より前のため対象外">－</td>`;
-      if (!dayIsBiz[i]) {
-        // 営業曜日でない日はパターンに関わらず固定で「休」表示（クリック不可）
-        return `<td class="shift-cell non-business">休</td>`;
-      }
+      if (!dayIsBiz[i]) return `<td class="shift-cell non-business">休</td>`;
       const idx = shiftCycleDayIndex(d);
-      const v = pattern[idx];
+      const v = pattern.am[idx];
       const cls = shiftCodeClass(v);
       const label = shiftCodeLabel(v);
-      const clickAttr = locked ? '' : ` onclick="toggleShiftCell('${escAttr(s.name)}', ${idx})"`;
+      const clickAttr = locked ? '' : ` onclick="toggleShiftCell('${escAttr(s.name)}', ${idx}, 'am')"`;
       const lockedStyle = locked ? ' style="cursor:default; opacity:0.75;"' : '';
       return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle} title="${d}">${label}</td>`;
     }).join('');
 
-    const actualCells = dayDates.map((d, i) => {
+    // ---- 午前実績行 ----
+    const amActualCells = dayDates.map((d, i) => {
       if (beforeStart[i]) return `<td class="shift-cell before-start actual-row-cell">－</td>`;
       if (!dayIsBiz[i]) return `<td class="shift-cell non-business actual-row-cell">休</td>`;
       const idx = shiftCycleDayIndex(d);
-      const planned = pattern[idx];
-      const override = getShiftActual(s.name, d);
+      const planned = pattern.am[idx];
+      const override = getShiftActual(s.name, d, 'am');
       const effective = override || planned;
       const cls = shiftCodeClass(effective);
       const label = shiftCodeLabel(effective);
       const changed = !!override && override !== planned;
-      return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}')" title="${d}">${label}</td>`;
+      return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','am')" title="${d}">${label}</td>`;
+    }).join('');
+
+    // ---- 午後予定行 ----
+    const pmPlanCells = dayDates.map((d, i) => {
+      if (beforeStart[i]) return `<td class="shift-cell before-start" title="起点日（${start}）より前のため対象外">－</td>`;
+      if (!dayIsBiz[i]) return `<td class="shift-cell non-business">休</td>`;
+      const idx = shiftCycleDayIndex(d);
+      const v = pattern.pm[idx];
+      const cls = shiftCodeClass(v);
+      const label = shiftCodeLabel(v);
+      const clickAttr = locked ? '' : ` onclick="toggleShiftCell('${escAttr(s.name)}', ${idx}, 'pm')"`;
+      const lockedStyle = locked ? ' style="cursor:default; opacity:0.75;"' : '';
+      return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle} title="${d}">${label}</td>`;
+    }).join('');
+
+    // ---- 午後実績行 ----
+    const pmActualCells = dayDates.map((d, i) => {
+      if (beforeStart[i]) return `<td class="shift-cell before-start actual-row-cell">－</td>`;
+      if (!dayIsBiz[i]) return `<td class="shift-cell non-business actual-row-cell">休</td>`;
+      const idx = shiftCycleDayIndex(d);
+      const planned = pattern.pm[idx];
+      const override = getShiftActual(s.name, d, 'pm');
+      const effective = override || planned;
+      const cls = shiftCodeClass(effective);
+      const label = shiftCodeLabel(effective);
+      const changed = !!override && override !== planned;
+      return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','pm')" title="${d}">${label}</td>`;
     }).join('');
 
     const zebra = sIndex % 2 === 0 ? 'shift-zebra-a' : 'shift-zebra-b';
     bodyRows += `<tr class="shift-group-start ${zebra}">
-      <td rowspan="2" class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>
-      <td class="shift-subrow-label">予定</td>${planCells}
+      <td rowspan="4" class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>
+      <td class="shift-subrow-label" style="background:#f0f0f0;">午前<br>予定</td>${amPlanCells}
     </tr>
     <tr class="shift-actual-tr ${zebra}">
-      <td class="shift-subrow-label actual">実績</td>${actualCells}
+      <td class="shift-subrow-label actual" style="background:#f0f0f0;">午前<br>実績</td>${amActualCells}
+    </tr>
+    <tr class="${zebra}">
+      <td class="shift-subrow-label" style="background:#e8f5e9;">午後<br>予定</td>${pmPlanCells}
+    </tr>
+    <tr class="shift-actual-tr ${zebra}">
+      <td class="shift-subrow-label actual" style="background:#e8f5e9;">午後<br>実績</td>${pmActualCells}
     </tr>`;
   });
 
@@ -4189,16 +4295,16 @@ function renderShiftPatternTable() {
   renderShiftConfirmStatus();
 }
 
-function toggleShiftCell(name, idx) {
+function toggleShiftCell(name, idx, period) {
   if (appState.db.shiftPlanConfirmed) {
     showStatus('shiftConfirmStatus', '⚠️ 予定は確定済みのため編集できません。変更が必要な場合は下の「実績」に入力するか、確定を解除してください。', 'error');
     return;
   }
   ensureShiftPattern(name);
-  const cur = appState.db.shiftPattern[name][idx];
+  const cur = appState.db.shiftPattern[name][period][idx];
   const curIdx = SHIFT_CODES.indexOf(cur);
   const nextIdx = (curIdx === -1 ? 0 : curIdx + 1) % SHIFT_CODES.length;
-  appState.db.shiftPattern[name][idx] = SHIFT_CODES[nextIdx];
+  appState.db.shiftPattern[name][period][idx] = SHIFT_CODES[nextIdx];
   saveDb();
   renderShiftPatternTable();
 }
@@ -4239,19 +4345,45 @@ function renderShiftConfirmStatus() {
 // ---- 実績（予定日ごとの変更を記録。未入力の場合は予定がそのまま使われる） ----
 const SHIFT_ACTUAL_CYCLE = [null, ...SHIFT_CODES]; // null = 予定通り（実績の上書きなし）
 
-function getShiftActual(name, dateStr) {
-  return (appState.db.shiftActual && appState.db.shiftActual[dateStr] && appState.db.shiftActual[dateStr][name]) || null;
+function getShiftActual(name, dateStr, period) {
+  const data = appState.db.shiftActual && appState.db.shiftActual[dateStr] && appState.db.shiftActual[dateStr][name];
+  if (!data) return null;
+  if (typeof data === 'string') {
+    // 旧データ形式（文字列）を新形式に自動移行
+    return { am: 'work', pm: data };
+  }
+  return data[period] || null;
 }
 
 function hasShiftActualOverride(name, dateStr) {
-  return !!getShiftActual(name, dateStr);
+  const data = appState.db.shiftActual && appState.db.shiftActual[dateStr] && appState.db.shiftActual[dateStr][name];
+  return !!data;
 }
 
 // 実績があれば実績を、なければ予定を返す（業務日誌など、実際の勤務状況が必要な場面で使用）
-function getStaffEffectiveShiftStatus(name, dateStr) {
-  const actual = getShiftActual(name, dateStr);
-  if (actual) return actual;
-  return getStaffShiftStatus(name, dateStr);
+// period: 'am' または 'pm' を指定すると該当時間帯を返す
+// period を指定しない場合は、午前・午後を統合：どちらかが出勤なら「出勤」、両方休みなら「休」を返す
+function getStaffEffectiveShiftStatus(name, dateStr, period) {
+  if (period) {
+    const actual = getShiftActual(name, dateStr, period);
+    if (actual) return actual;
+    const status = getStaffShiftStatus(name, dateStr, period);
+    return status || 'work';
+  }
+  
+  // period なし：午前・午後を統合判定（業務日誌用）
+  const amActual = getShiftActual(name, dateStr, 'am');
+  const pmActual = getShiftActual(name, dateStr, 'pm');
+  const amStatus = getStaffShiftStatus(name, dateStr, 'am');
+  const pmStatus = getStaffShiftStatus(name, dateStr, 'pm');
+  
+  const amVal = amActual || amStatus;
+  const pmVal = pmActual || pmStatus;
+  
+  // 午前・午後どちらかが「出」なら「出」、両方休みなら「休」
+  if (amVal === 'work' || pmVal === 'work') return 'work';
+  // 両方休み系コードの場合、午前を返す（代表値）
+  return amVal;
 }
 
 function setShiftActualDateToday() {
@@ -4260,20 +4392,22 @@ function setShiftActualDateToday() {
   renderShiftActualTable();
 }
 
-function toggleShiftActualCell(name, dateStr) {
+function toggleShiftActualCell(name, dateStr, period) {
   if (!appState.db.shiftActual) appState.db.shiftActual = {};
   if (!appState.db.shiftActual[dateStr]) appState.db.shiftActual[dateStr] = {};
-  const cur = appState.db.shiftActual[dateStr][name] || null;
+  if (!appState.db.shiftActual[dateStr][name]) {
+    appState.db.shiftActual[dateStr][name] = { am: null, pm: null };
+  }
+  const cur = appState.db.shiftActual[dateStr][name][period] || null;
   const curIdx = SHIFT_ACTUAL_CYCLE.indexOf(cur);
   const nextVal = SHIFT_ACTUAL_CYCLE[(curIdx === -1 ? 0 : curIdx + 1) % SHIFT_ACTUAL_CYCLE.length];
-  if (nextVal === null) {
+  appState.db.shiftActual[dateStr][name][period] = nextVal;
+  // 両方ともnullなら削除
+  if (!appState.db.shiftActual[dateStr][name].am && !appState.db.shiftActual[dateStr][name].pm) {
     delete appState.db.shiftActual[dateStr][name];
     if (!Object.keys(appState.db.shiftActual[dateStr]).length) delete appState.db.shiftActual[dateStr];
-  } else {
-    appState.db.shiftActual[dateStr][name] = nextVal;
   }
   saveDb();
-  renderShiftActualTable();
   renderShiftPatternTable();
   // 業務日誌が同じ日付で開かれていれば、出勤職員欄も追随して更新する
   const dlDateEl = document.getElementById('dl_date');
@@ -4360,25 +4494,36 @@ function exportShiftMonthExcel() {
 
   const aoa = [];
   aoa.push([`勤務表　${escHtml(facility)}　${label}（起点日を第1列とする4週間）`]);
-  aoa.push(['凡例：出／休／有／P／P有／記／2H有／1H有／A／A有（実績は予定と異なる日のみ入ります。空欄＝予定通り）']);
+  aoa.push(['凡例：出／休／有／記／2H有／1H有（実績は予定と異なる日のみ入ります。空欄＝予定通り）']);
   aoa.push([]);
-  aoa.push(['スタッフ', '区分', ...dates.map(d => { const [, mo, da] = d.split('-'); return `${Number(mo)}/${Number(da)}`; })]);
-  aoa.push(['', '', ...dates.map(d => weekdayLabelOf(d))]);
+  aoa.push(['スタッフ', '時間帯', '区分', ...dates.map(d => { const [, mo, da] = d.split('-'); return `${Number(mo)}/${Number(da)}`; })]);
+  aoa.push(['', '', '', ...dates.map(d => weekdayLabelOf(d))]);
 
   staffList.forEach(s => {
-    const plannedRow = dates.map(d => isBusinessDayStr(d) ? shiftCodeLabel(getStaffShiftStatus(s.name, d)) : '休');
-    const actualRow = dates.map(d => {
+    const amPlannedRow = dates.map(d => isBusinessDayStr(d) ? shiftCodeLabel(getStaffShiftStatus(s.name, d, 'am')) : '休');
+    const amActualRow = dates.map(d => {
       if (!isBusinessDayStr(d)) return '';
-      if (!hasShiftActualOverride(s.name, d)) return '';
-      return shiftCodeLabel(getStaffEffectiveShiftStatus(s.name, d));
+      const actual = getShiftActual(s.name, d, 'am');
+      if (!actual) return '';
+      return shiftCodeLabel(actual);
     });
-    aoa.push([s.name, '予定', ...plannedRow]);
-    aoa.push(['', '実績', ...actualRow]);
+    const pmPlannedRow = dates.map(d => isBusinessDayStr(d) ? shiftCodeLabel(getStaffShiftStatus(s.name, d, 'pm')) : '休');
+    const pmActualRow = dates.map(d => {
+      if (!isBusinessDayStr(d)) return '';
+      const actual = getShiftActual(s.name, d, 'pm');
+      if (!actual) return '';
+      return shiftCodeLabel(actual);
+    });
+
+    aoa.push([s.name, '午前', '予定', ...amPlannedRow]);
+    aoa.push(['', '午前', '実績', ...amActualRow]);
+    aoa.push(['', '午後', '予定', ...pmPlannedRow]);
+    aoa.push(['', '午後', '実績', ...pmActualRow]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 12 }, { wch: 6 }, ...dates.map(() => ({ wch: 5 }))];
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: dates.length + 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: dates.length + 1 } }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 6 }, ...dates.map(() => ({ wch: 5 }))];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: dates.length + 2 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: dates.length + 2 } }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, label.replace(/[\\/?*[\]:]/g, '-'));
   XLSX.writeFile(wb, `勤務表_${dates[0]}_${dates[dates.length - 1]}.xlsx`);

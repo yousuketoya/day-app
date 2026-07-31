@@ -1502,10 +1502,6 @@
       background: var(--card);
     }
 
-    #shiftActualTableArea .shift-table tbody tr:nth-child(even) td.shift-staff-name {
-      background: #eef5f0;
-    }
-
     .shift-legend {
       display: flex;
       flex-wrap: wrap;
@@ -4515,9 +4511,6 @@
       }
       if (page === 'shift') {
         renderShiftPatternTable();
-        const shiftActualDateEl = document.getElementById('shiftActualDateInput');
-        if (shiftActualDateEl && !shiftActualDateEl.value) shiftActualDateEl.value = todayStr();
-        renderShiftActualTable();
       }
       if (page === 'rehabrecord') {
         if (!document.getElementById('rrDateInput').value) setRehabRecordToday();
@@ -6194,12 +6187,6 @@
       return amVal;
     }
 
-    function setShiftActualDateToday() {
-      const el = document.getElementById('shiftActualDateInput');
-      if (el) el.value = todayStr();
-      renderShiftActualTable();
-    }
-
     function toggleShiftActualCell(name, dateStr, period) {
       if (!appState.db.shiftActual) appState.db.shiftActual = {};
       if (!appState.db.shiftActual[dateStr]) appState.db.shiftActual[dateStr] = {};
@@ -6220,46 +6207,6 @@
       // 業務日誌が同じ日付で開かれていれば、出勤職員欄も追随して更新する
       const dlDateEl = document.getElementById('dl_date');
       if (dlDateEl && dlDateEl.value === dateStr) renderDailyLogStaffChips();
-    }
-
-    function renderShiftActualTable() {
-      const el = document.getElementById('shiftActualTableArea');
-      if (!el) return;
-      const dateInput = document.getElementById('shiftActualDateInput');
-      if (dateInput && !dateInput.value) dateInput.value = todayStr();
-      const dateStr = dateInput ? dateInput.value : todayStr();
-
-      if (!appState.db.shiftCycleStart) {
-        el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">先に起点日を設定してください</div>';
-        return;
-      }
-      const staffList = getShiftStaffList();
-      if (!staffList.length) {
-        el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">設定 ⚙️ からスタッフを登録してください</div>';
-        return;
-      }
-
-      const wd = weekdayLabelOf(dateStr);
-      const isBiz = isBusinessDayStr(dateStr);
-      let rows = '';
-      staffList.forEach(s => {
-        const planned = getStaffShiftStatus(s.name, dateStr);
-        const actual = getShiftActual(s.name, dateStr);
-        const plannedLabel = shiftCodeLabel(planned);
-        const cellCls = actual ? shiftCodeClass(actual) : 'off';
-        const cellLabel = actual ? shiftCodeLabel(actual) : '予定通り';
-        rows += `<tr>
-      <td class="shift-staff-name">${escHtml(s.name)}<div style="font-size:9.5px; color:var(--muted); font-weight:400;">${s.group}</div></td>
-      <td style="text-align:center; color:var(--muted); font-size:12px;">${escHtml(plannedLabel)}</td>
-      <td style="text-align:center;"><span class="shift-cell ${cellCls}" style="display:inline-block; width:auto; min-width:64px; padding:4px 8px;" onclick="toggleShiftActualCell('${escAttr(s.name)}','${dateStr}')">${escHtml(cellLabel)}</span></td>
-    </tr>`;
-      });
-
-      el.innerHTML = `<div style="font-size:12px; color:var(--muted); margin-bottom:6px;">${dateStr}（${wd}）${isBiz ? '' : '　※休業日'}</div>
-  <table class="shift-table" style="font-size:12px;">
-    <thead><tr><th style="text-align:left;">スタッフ</th><th>予定</th><th>実績</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
     }
 
     // ---- 4週ブロックのナビゲーション（起点日を第1列として4週ずつ表示） ----
@@ -6283,14 +6230,6 @@
       ensureShiftBlockIndex();
       appState.shift.cycleBlockIndex += delta;
       renderShiftPatternTable();
-    }
-
-    // 月間プレビューの日付をクリックすると、その日の「実績」編集エリアへジャンプする
-    function jumpToShiftActual(dateStr) {
-      const dateInput = document.getElementById('shiftActualDateInput');
-      if (dateInput) dateInput.value = dateStr;
-      renderShiftActualTable();
-      document.getElementById('shiftActualTableArea')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     function exportShiftMonthExcel() {
@@ -6802,10 +6741,6 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         .map(s => ({ name: s.name, code: getStaffEffectiveShiftStatus(s.name, dateStr), overridden: hasShiftActualOverride(s.name, dateStr) }))
         .filter(s => s.code && !SHIFT_FULL_DAY_OFF_CODES.includes(s.code));
     }
-    function computeDailyLogStaffNames(dateStr) {
-      return computeDailyLogStaffPresence(dateStr).map(s => s.name);
-    }
-
     // 本日「有」「記」で丸1日休みのスタッフ一覧（業務日誌の参考表示用）
     function computeDailyLogStaffFullDayOff(dateStr) {
       const staffList = getDailyLogTargetStaffList();
@@ -6897,7 +6832,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     }
 
     function computeDailySummaryText(dateStr) {
-      const residents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用）
+      const residents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用・予定なし（提供表））
       const attending = residents.filter(r => !r._dayStatus);
       const excused = residents.filter(r => r._dayStatus === '休み' || r._dayStatus === '欠席');
       const hospitalized = residents.filter(r => r._dayStatus === '入院中');
@@ -9522,7 +9457,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       }
       const dateStr = document.getElementById('dateInput')?.value || todayStr();
       const showAll = appState.renrakucho.showAllResidents;
-      const dayResidents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用）
+      const dayResidents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用・予定なし（提供表））
       const scheduledIds = new Set(dayResidents.filter(r => !r._dayStatus).map(r => r.id));
       const offIds = new Set(dayResidents.filter(r => r._dayStatus).map(r => r.id));
       const residents = (showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id)))

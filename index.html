@@ -6759,12 +6759,18 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       win.print();
     }
 
+    // 業務日誌に載せるスタッフは「リハビリ」「介護」スタッフのみ（「その他」の職員は対象外）
+    // ※勤務表本体（renderShiftPatternTable等）には影響しない。業務日誌関連の集計にのみ適用する。
+    function getDailyLogTargetStaffList() {
+      return getShiftStaffList().filter(s => s.group === 'リハビリ' || s.group === '介護');
+    }
+
     // 勤務表（予定＋実績）から、指定日に出勤しているスタッフの一覧を返す
     // 実績の上書きがあればそれを、なければ予定をそのまま使う
     // 「休」「有」「記」（丸1日休み）は出勤扱いから除外する
     const SHIFT_FULL_DAY_OFF_CODES = ['off', '有', '記'];
     function computeDailyLogStaffPresence(dateStr) {
-      const staffList = getShiftStaffList();
+      const staffList = getDailyLogTargetStaffList();
       if (!staffList.length || !appState.db.shiftCycleStart) return [];
       return staffList
         .map(s => ({ name: s.name, code: getStaffEffectiveShiftStatus(s.name, dateStr), overridden: hasShiftActualOverride(s.name, dateStr) }))
@@ -6776,7 +6782,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
     // 本日「有」「記」で丸1日休みのスタッフ一覧（業務日誌の参考表示用）
     function computeDailyLogStaffFullDayOff(dateStr) {
-      const staffList = getShiftStaffList();
+      const staffList = getDailyLogTargetStaffList();
       if (!staffList.length || !appState.db.shiftCycleStart) return [];
       return staffList
         .map(s => ({ name: s.name, code: getStaffEffectiveShiftStatus(s.name, dateStr) }))
@@ -6788,7 +6794,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // 1人が複数カテゴリに重複して載ることがある（例：午前=有給・午後=出勤 → 「出勤」と「4H有給」の両方）
     const DL_STAFF_CATEGORY_ORDER = ['出勤', '1日休み', '午前休み', '午後休み', '8H有給', '4H有給', '2H有給', '1H有給', '記念日休暇8H', '記念日休暇4H'];
     function computeDailyLogStaffCategories(dateStr) {
-      const staffList = getShiftStaffList();
+      const staffList = getDailyLogTargetStaffList();
       const categories = {};
       DL_STAFF_CATEGORY_ORDER.forEach(k => { categories[k] = []; });
       if (!staffList.length || !appState.db.shiftCycleStart) return categories;
@@ -6827,10 +6833,10 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       const row = document.getElementById('dlStaffChipRow');
       if (!row) return;
       const dateStr = document.getElementById('dl_date').value || todayStr();
-      const staffList = getShiftStaffList();
+      const staffList = getDailyLogTargetStaffList();
 
       if (!staffList.length) {
-        row.innerHTML = `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</span>`;
+        row.innerHTML = `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフ・介護スタッフを登録してください</span>`;
         document.getElementById('dl_staff').value = '';
         return;
       }

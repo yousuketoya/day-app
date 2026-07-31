@@ -2767,6 +2767,10 @@
               <span class="mode-icon">🔍</span>自由抽出
               <div style="font-size:10px; color:var(--muted); margin-top:3px; font-weight:400;">書類内容をそのまま読取</div>
             </button>
+            <button class="mode-btn" data-mode="teikyohyo" onclick="selectMode(this)">
+              <span class="mode-icon">🗓️</span>提供表→スケジュール
+              <div style="font-size:10px; color:var(--muted); margin-top:3px; font-weight:400;">月間の利用予定日を読み取り反映</div>
+            </button>
           </div>
         </div>
 
@@ -2807,7 +2811,7 @@
                 読み取り完了</span>
             </div>
             <div id="extractedFields"></div>
-            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <div id="shoruiActionButtons" style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
               <button class="btn btn-secondary btn-sm" onclick="copyAsCSV()">📋 CSVコピー</button>
               <button class="btn btn-secondary btn-sm" onclick="copyAsText()">📝 テキストコピー</button>
               <button class="btn btn-accent btn-sm" onclick="exportToDB()">📲 DBに登録・更新</button>
@@ -4414,7 +4418,8 @@
       db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
       shorui: {
         files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
-        pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null
+        pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null,
+        teikyohyoYm: null, teikyohyoList: []
       },
       renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false },
       schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
@@ -7491,7 +7496,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       return `西暦${y}年${m}月${d}日（${weekdayLabelOf(dateStr)}）`;
     }
 
-    const DAY_STATUS_OPTIONS = ['休み', '欠席', 'ショートステイ利用', '入院中'];
+    const DAY_STATUS_OPTIONS = ['休み', '欠席', 'ショートステイ利用', '入院中', '予定なし（提供表）'];
 
     function getResidentsForDate(dateStr) {
       const wd = weekdayLabelOf(dateStr);
@@ -8460,7 +8465,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // SHORUI - Analyze
     // ============================================================
     // 長文出力が必要なモードはトークン上限を多めに確保（途中で切れるのを防ぐ）
-    const SHORUI_MAX_OUTPUT_TOKENS = { basic: 2048, care: 2048, plan: 8192, free: 8192 };
+    const SHORUI_MAX_OUTPUT_TOKENS = { basic: 2048, care: 2048, plan: 8192, free: 8192, teikyohyo: 4096 };
     const SHORUI_MAX_RETRIES = 2; // 空応答・通信エラー時の自動リトライ回数
 
     async function callGeminiOnce(imageParts, mode) {
@@ -8563,15 +8568,39 @@ ${SHORUI_COMMON_NOTE}`;
 【家族への説明事項】
 ※この雛形はAIが生成した案です。担当スタッフが必ず確認・修正してください。
 ${SHORUI_COMMON_NOTE}`;
+      if (mode === 'teikyohyo') return `このサービス提供票（通所介護・通所リハビリの月間提供票）を読み取ってください。
+書類に記載されている「年月」と、利用者ごとの「その月にデイサービス／デイケアを利用する予定の日（日付の数字）」を抽出してください。
+複数の利用者が1枚の表にまとまっている場合はすべての利用者分を、1人分の書類が複数枚に分かれている場合はすべて統合してください。
+JSONのみ返してください。他の文章は含めないでください。
+{"年月":"YYYY年M月","利用者一覧":[{"氏名":"","利用予定日":[1,2,3]}]}
+※「利用予定日」は日にちの数字のみの配列にしてください（例：8月5日と8月12日が対象なら[5,12]）。
+※デイサービス・デイケア以外のサービス（訪問介護・訪問看護等）の利用日は含めないでください。判別できない場合は含めてください。
+※氏名が不鮮明で判読できない場合は、その利用者の行ごと省略してください。
+${SHORUI_COMMON_NOTE}`;
       return `この書類の内容をすべて読み取り、全文テキストと重要情報まとめを出力してください。${SHORUI_COMMON_NOTE}`;
     }
 
     function processResult(text, mode) {
       document.getElementById('rawText').textContent = text;
+      const actionBtnRow = document.getElementById('shoruiActionButtons');
       if (mode === 'plan' || mode === 'free') {
+        if (actionBtnRow) actionBtnRow.style.display = 'flex';
         document.getElementById('extractedFields').innerHTML = `<div class="plan-text">${escHtml(text)}</div>`;
         return;
       }
+      if (mode === 'teikyohyo') {
+        if (actionBtnRow) actionBtnRow.style.display = 'none';
+        try {
+          const m = text.match(/\{[\s\S]*\}/);
+          if (!m) throw new Error();
+          const parsed = JSON.parse(m[0]);
+          renderTeikyohyoPreview(parsed);
+        } catch (e) {
+          document.getElementById('extractedFields').innerHTML = `<div class="raw-text">${escHtml(text)}</div>`;
+        }
+        return;
+      }
+      if (actionBtnRow) actionBtnRow.style.display = 'flex';
       try {
         const m = text.match(/\{[\s\S]*\}/);
         if (!m) throw new Error();
@@ -8581,6 +8610,164 @@ ${SHORUI_COMMON_NOTE}`;
       } catch (e) {
         document.getElementById('extractedFields').innerHTML = `<div class="raw-text">${escHtml(text)}</div>`;
       }
+    }
+
+    // ============================================================
+    // SHORUI - 提供票 → スケジュール反映
+    // ============================================================
+    function normalizeNameForMatch(s) {
+      return (s || '').replace(/\s+/g, '').replace(/　/g, '').trim();
+    }
+
+    function matchResidentByName(name) {
+      const norm = normalizeNameForMatch(name);
+      if (!norm) return null;
+      const found = appState.db.residentDb.find(r => normalizeNameForMatch(r.name) === norm);
+      return found || null;
+    }
+
+    function parseNenGetsu(nengetsu) {
+      const m = (nengetsu || '').match(/(\d{4})\D+(\d{1,2})/);
+      if (!m) return null;
+      const year = parseInt(m[1], 10), month = parseInt(m[2], 10);
+      if (!year || !month || month < 1 || month > 12) return null;
+      return { year, month };
+    }
+
+    function daysInMonthOf(year, month) { return new Date(year, month, 0).getDate(); }
+
+    function renderTeikyohyoPreview(data) {
+      const ym = parseNenGetsu(data['年月']);
+      const list = Array.isArray(data['利用者一覧']) ? data['利用者一覧'] : [];
+      appState.shorui.teikyohyoYm = ym;
+      appState.shorui.teikyohyoList = list.map(item => {
+        const matched = matchResidentByName(item['氏名']);
+        const days = Array.isArray(item['利用予定日'])
+          ? item['利用予定日'].map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 31)
+          : [];
+        return { name: item['氏名'] || '', days, residentId: matched ? matched.id : '', excluded: !matched };
+      });
+
+      const el = document.getElementById('extractedFields');
+      if (!ym) {
+        el.innerHTML = `<div style="color:#c0392b; font-size:13px; padding:10px; border:1.5px solid #c0392b; border-radius:var(--radius-sm);">
+      ⚠️ 年月を読み取れませんでした。提供票の年月部分が写っているか確認のうえ、撮り直してお試しください。</div>`;
+        return;
+      }
+      if (!appState.shorui.teikyohyoList.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px; padding:10px;">利用者・予定日を読み取れませんでした。「きれいに読み取るコツ」を確認し、撮り直してみてください。</div>`;
+        return;
+      }
+
+      const ymLabel = `${ym.year}年${ym.month}月`;
+      el.innerHTML = `
+    <div style="font-size:13px; margin-bottom:10px;">📅 対象年月：<b>${ymLabel}</b>（${daysInMonthOf(ym.year, ym.month)}日間）</div>
+    <div id="teikyohyoResidentList">${renderTeikyohyoResidentRows()}</div>
+    <div style="font-size:11px; color:var(--muted); margin:10px 0; line-height:1.6;">
+      ※利用者DBと自動で一致しなかった方はチェックが外れています。プルダウンで手動選択すると反映対象に含められます。<br>
+      ※通所曜日パターン上は来るはずなのに提供票に無い日は「予定なし（提供表）」として記録されます。<br>
+      ※すでに「休み」「欠席」「入院中」等の個別ステータスが入っている日は上書きしません。</div>
+    <button class="btn btn-primary" onclick="applyTeikyohyoToSchedule()">📅 この内容でスケジュールに反映する</button>
+    <div id="teikyohyoApplyStatus" style="margin-top:8px;"></div>`;
+    }
+
+    function renderTeikyohyoResidentRows() {
+      return appState.shorui.teikyohyoList.map((item, i) => {
+        const options = appState.db.residentDb.map(r =>
+          `<option value="${r.id}" ${item.residentId === r.id ? 'selected' : ''}>${escHtml(r.name)}</option>`).join('');
+        return `<div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; margin-bottom:6px; ${item.excluded ? 'opacity:0.55;' : ''}">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:4px; font-size:12px; white-space:nowrap;">
+          <input type="checkbox" ${item.excluded ? '' : 'checked'} onchange="toggleTeikyohyoRow(${i}, this.checked)"> 反映する
+        </label>
+        <span style="font-size:13px; font-weight:700;">読取氏名：${escHtml(item.name || '（不明）')}</span>
+        <select style="flex:1; min-width:140px; padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-family:inherit;"
+          onchange="setTeikyohyoRowResident(${i}, this.value)">
+          <option value="">－ 利用者DBと紐付け（未選択）－</option>
+          ${options}
+        </select>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">
+        利用予定日：${item.days.length ? item.days.slice().sort((a, b) => a - b).join('、') + '日' : '（読み取れませんでした）'}</div>
+    </div>`;
+      }).join('');
+    }
+
+    function toggleTeikyohyoRow(i, checked) {
+      appState.shorui.teikyohyoList[i].excluded = !checked;
+    }
+
+    function setTeikyohyoRowResident(i, residentId) {
+      appState.shorui.teikyohyoList[i].residentId = residentId;
+      appState.shorui.teikyohyoList[i].excluded = !residentId;
+    }
+
+    function applyTeikyohyoToSchedule() {
+      const ym = appState.shorui.teikyohyoYm;
+      const list = (appState.shorui.teikyohyoList || []).filter(item => !item.excluded && item.residentId);
+      if (!ym || !list.length) {
+        showStatus('teikyohyoApplyStatus', '⚠️ 反映対象の利用者がいません。利用者DBとの紐付けを確認してください。', 'info');
+        return;
+      }
+
+      const { year, month } = ym;
+      const totalDays = daysInMonthOf(year, month);
+      let addedCount = 0, clearedCount = 0, markedNoneCount = 0, skippedCount = 0;
+
+      list.forEach(item => {
+        const resident = appState.db.residentDb.find(r => r.id === item.residentId);
+        if (!resident) return;
+        const scheduledDays = new Set(item.days);
+        const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
+
+        for (let d = 1; d <= totalDays; d++) {
+          const dateStr = ymd(year, month - 1, d);
+          const wd = weekdayLabelOf(dateStr);
+          const isPatternDay = patternDays.includes(wd);
+          const isScheduled = scheduledDays.has(d);
+
+          if (!appState.db.attendanceOverrides[dateStr]) appState.db.attendanceOverrides[dateStr] = { add: [], remove: [] };
+          const ov = appState.db.attendanceOverrides[dateStr];
+          if (!appState.db.dayStatusOverrides[dateStr]) appState.db.dayStatusOverrides[dateStr] = {};
+          const statusMap = appState.db.dayStatusOverrides[dateStr];
+          const currentStatus = statusMap[resident.id];
+
+          if (isScheduled) {
+            // 利用予定あり：曜日パターン外の日なら臨時追加する。過去に付けた「予定なし（提供表）」は解除する。
+            ov.remove = (ov.remove || []).filter(id => id !== resident.id);
+            if (!isPatternDay && !(ov.add || []).includes(resident.id)) {
+              ov.add = [...(ov.add || []), resident.id];
+              addedCount++;
+            }
+            if (currentStatus === '予定なし（提供表）') {
+              delete statusMap[resident.id];
+              clearedCount++;
+            }
+          } else {
+            // 利用予定なし：通所曜日パターン上は来るはずの日だけ、明示的に「予定なし（提供表）」を記録する。
+            // 他の個別ステータス（休み・欠席・入院中・ショートステイ利用など）が既に入っている場合は上書きしない。
+            if (isPatternDay) {
+              if (!currentStatus) {
+                statusMap[resident.id] = '予定なし（提供表）';
+                markedNoneCount++;
+              } else if (currentStatus !== '予定なし（提供表）') {
+                skippedCount++;
+              }
+            }
+            if ((ov.add || []).includes(resident.id)) {
+              ov.add = ov.add.filter(id => id !== resident.id);
+            }
+          }
+        }
+      });
+
+      saveDb();
+      if (typeof renderCalendar === 'function') renderCalendar();
+      if (typeof renderWeeklyAttendance === 'function') renderWeeklyAttendance();
+
+      showStatus('teikyohyoApplyStatus',
+        `✅ ${year}年${month}月のスケジュールに反映しました（対象${list.length}名／臨時追加${addedCount}件／予定なしに設定${markedNoneCount}件／解除${clearedCount}件／既存ステータスのため保留${skippedCount}件）`,
+        'success');
     }
 
     function renderExtractedFields(data) {

@@ -2676,7 +2676,7 @@
           </select>
         </div>
         <div style="margin-bottom:12px; display:flex; gap:8px;">
-          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="downloadResidentTemplate()">📄
+          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="downloadResidentTemplate(event)">📄
             雛形をダウンロード</button>
           <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openImportModal()">📥 Excel一括インポート</button>
         </div>
@@ -4043,6 +4043,13 @@
         <div class="form-group"><label>フリガナ</label><input type="text" id="rf_kana" placeholder="ヤマダ ハナコ"></div>
       </div>
       <div class="form-grid">
+        <div class="form-group"><label>性別</label>
+          <select id="rf_gender">
+            <option value="">未設定</option>
+            <option value="女性">女性</option>
+            <option value="男性">男性</option>
+          </select>
+        </div>
         <div class="form-group"><label>要介護度</label>
           <select id="rf_careLevel">
             <option value="">未設定</option>
@@ -4055,6 +4062,8 @@
             <option value="要介護5">要介護5</option>
           </select>
         </div>
+      </div>
+      <div class="form-grid single">
         <div class="form-group">
           <label>生年月日</label>
           <div class="weekday-chip-row" style="margin-bottom:6px;">
@@ -4215,8 +4224,7 @@
 
       <details class="detail-section">
         <summary>🔽 詳細情報を表示・編集（書類読取で拾った追加項目）</summary>
-        <div class="form-grid">
-          <div class="form-group"><label>性別</label><input type="text" id="rf_gender" placeholder="女性"></div>
+        <div class="form-grid single">
           <div class="form-group"><label>住所</label><input type="text" id="rf_address" placeholder="宮崎県〇〇市..."></div>
         </div>
         <div class="form-grid">
@@ -4355,7 +4363,8 @@
 
       <div id="importStep2" style="display:none;">
         <p style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">
-          Excelの各列がどの項目に対応するか確認してください。自動で推測していますが、違う場合は選び直せます。「対応なし」の項目は取り込まれません。
+          Excelの各列がどの項目に対応するか確認してください。自動で推測していますが、違う場合は選び直せます。「対応なし」の項目は取り込まれません。<br>
+          ※「雛形をダウンロード」で出力した基本動作評価・ADL評価の列は、見出しが一致していれば自動で取り込まれます（下の一覧には表示されません）。
         </p>
         <div id="importMappingList" style="max-height:320px; overflow-y:auto;"></div>
         <div class="form-grid single" style="margin-top:10px;">
@@ -7233,6 +7242,9 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         document.getElementById('residentModalTitle').textContent = '👤 利用者登録';
         document.getElementById('rf_id').value = '';
         RF_FIELDS.forEach(f => { const el = document.getElementById('rf_' + f); if (el) el.value = ''; });
+        document.getElementById('rf_standardStartTime').value = '09:30';
+        document.getElementById('rf_standardEndTime').value = '15:30';
+        document.getElementById('rf_usageDurationCategory').value = '5時間以上6時間未満';
         loadDbAssessValues(null);
       }
       syncWeekdayChips();
@@ -7857,13 +7869,23 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       communication: ['コミュニケーション']
     };
 
-    function downloadResidentTemplate() {
+    async function downloadResidentTemplate(evt) {
       const fields = RF_FIELDS.filter(f => f !== 'extraInfo');
-      const header = fields.map(f => FIELD_LABELS[f] || f);
+      const colOf = (f) => fields.indexOf(f) + 1;
+
+      // 基本動作評価・ADL評価の列見出し（項目ごとに「状況」「特記事項」の2列）
+      const bmHeaders = BASIC_MOTION_ITEMS.flatMap(item => [
+        assessColumnHeader('基本動作', item, '状況'), assessColumnHeader('基本動作', item, '特記事項')
+      ]);
+      const adlHeaders = ADL_ITEMS.flatMap(item => [
+        assessColumnHeader('ADL', item, '状況'), assessColumnHeader('ADL', item, '特記事項')
+      ]);
+      const header = [...fields.map(f => FIELD_LABELS[f] || f), ...bmHeaders, ...adlHeaders];
+      const totalCols = header.length;
 
       const sample = {
         name: '山田 花子', kana: 'ヤマダ ハナコ', careLevel: '要介護2', dob: '1945-03-15',
-        attendanceDays: '月,水,金', meal: '常食', bath: '一般浴', allergy: 'なし', medicine: '降圧剤（朝食後）',
+        attendanceDays: '月,水,金', meal: '普通食', bath: '一般浴', allergy: 'なし', medicine: '降圧剤（朝食後）',
         notes: '転倒に注意', cm: '鈴木 一郎', family: '長女 山田 幸子',
         age: '', gender: '女性', address: '宮崎県〇〇市〇〇1-2-3', phone: '0985-00-0000',
         cmOffice: '〇〇居宅介護支援事業所', doctor: '〇〇クリニック 田中医師', hospital: '〇〇病院',
@@ -7873,15 +7895,91 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         dementia: 'なし', communication: '',
         rehabStaffInCharge: '', careStaffInCharge: ''
       };
-      const sampleRow = fields.map(f => sample[f] || '');
-      const blankRow = fields.map(() => '');
+      const sampleRow = [
+        ...fields.map(f => sample[f] || ''),
+        ...bmHeaders.map(() => ''),
+        ...adlHeaders.map(() => '')
+      ];
 
-      const aoa = [header, sampleRow, blankRow, blankRow, blankRow];
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = fields.map(() => ({ wch: 16 }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '利用者DB雛形');
-      XLSX.writeFile(wb, '利用者DB_雛形.xlsx');
+      const btn = evt?.target;
+      const originalLabel = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '作成中…'; }
+
+      try {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = '通所サービス管理アシスタント';
+        const ws = wb.addWorksheet('利用者DB雛形');
+
+        const headerRow = ws.addRow(header);
+        headerRow.eachCell(c => {
+          c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2D7D5A' } };
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        headerRow.height = 20;
+        ws.addRow(sampleRow);
+
+        for (let i = 1; i <= totalCols; i++) ws.getColumn(i).width = 16;
+        ws.views = [{ state: 'frozen', ySplit: 1, xSplit: fields.length }];
+
+        // ---- プルダウン選択肢は別シートに置き、そこを参照する形にする ----
+        // （選択肢を直接埋め込む方式だと項目数や文字数の上限に当たりやすく、
+        //  スタッフ名簿のように件数が変動するものにも対応できないため）
+        const choiceSheet = wb.addWorksheet('選択肢（編集不要）');
+        choiceSheet.state = 'veryHidden';
+
+        // 利用者DBの各プルダウンと同じ選択肢を列挙。[列, フィールド, 選択肢配列] の組で管理する。
+        const DROPDOWN_DEFS = [
+          ['A', colOf('careLevel'), ['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5']],
+          ['B', colOf('meal'), ['普通食', '一口大', '刻み食', 'ミキサー食', 'ソフト食', '流動食']],
+          ['C', colOf('bath'), ['一般浴', '機械浴', 'シャワー浴', '清拭のみ']],
+          ['D', colOf('usageDurationCategory'), ['2時間以上3時間未満', '3時間以上4時間未満', '4時間以上5時間未満', '5時間以上6時間未満', '6時間以上7時間未満']],
+          ['E', colOf('transportType'), ['事業所送迎', '家族送迎']],
+          ['F', colOf('rehabStaffInCharge'), (appState.db.rehabStaffList || []).slice()],
+          ['G', colOf('careStaffInCharge'), (appState.db.careStaffList || []).slice()],
+          ['I', colOf('gender'), ['女性', '男性']]
+        ];
+        // 基本動作評価・ADL評価の「状況」列にも同じ選択肢（自立・見守り・一部介助・全介助）を設定する
+        const levelOptions = ADL_LEVELS.filter(Boolean);
+        const bmLevelCols = BASIC_MOTION_ITEMS.map((_, i) => fields.length + 1 + i * 2);
+        const adlLevelCols = ADL_ITEMS.map((_, i) => fields.length + bmHeaders.length + 1 + i * 2);
+        [...bmLevelCols, ...adlLevelCols].forEach(col => {
+          DROPDOWN_DEFS.push(['H', col, levelOptions]);
+        });
+
+        // 同じ選択肢配列は選択肢シート上で使い回し、列を無駄に増やさないようにする
+        const writtenRanges = {};
+        DROPDOWN_DEFS.forEach(([sheetCol, targetCol, options]) => {
+          if (!options.length) return; // スタッフ未登録などで選択肢が0件の場合は設定しない
+          const key = options.join('\u0001');
+          if (!writtenRanges[key]) {
+            options.forEach((opt, i) => { choiceSheet.getCell(`${sheetCol}${i + 1}`).value = opt; });
+            writtenRanges[key] = `'選択肢（編集不要）'!$${sheetCol}$1:$${sheetCol}$${options.length}`;
+          }
+          const range = writtenRanges[key];
+          for (let row = 2; row <= 200; row++) {
+            ws.getCell(row, targetCol).dataValidation = {
+              type: 'list', allowBlank: true, formulae: [range], showErrorMessage: false
+            };
+          }
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '利用者DB_雛形.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        alert('雛形の作成中にエラーが発生しました。時間をおいて再度お試しください。');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+      }
     }
 
     function openImportModal() {
@@ -7959,6 +8057,34 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       });
     }
 
+    function buildAssessImportPlan(headers) {
+      // 「利用者DB雛形」が出力する列見出しと完全一致する列だけを対象にする（手動マッピングは不要）
+      const bmCols = BASIC_MOTION_ITEMS.map(item => ({
+        levelIdx: headers.indexOf(assessColumnHeader('基本動作', item, '状況')),
+        noteIdx: headers.indexOf(assessColumnHeader('基本動作', item, '特記事項'))
+      }));
+      const adlCols = ADL_ITEMS.map(item => ({
+        levelIdx: headers.indexOf(assessColumnHeader('ADL', item, '状況')),
+        noteIdx: headers.indexOf(assessColumnHeader('ADL', item, '特記事項'))
+      }));
+      const found = [...bmCols, ...adlCols].some(c => c.levelIdx !== -1 || c.noteIdx !== -1);
+      return { found, bmCols, adlCols };
+    }
+
+    function readAssessRow(row, cols) {
+      return cols.map(c => ({
+        level: c.levelIdx !== -1 ? String(row[c.levelIdx] || '').trim() : '',
+        note: c.noteIdx !== -1 ? String(row[c.noteIdx] || '').trim() : ''
+      }));
+    }
+
+    // 既存の評価を、インポート側で値が入っている項目だけ上書きする（空欄の項目は既存データを残す）
+    function mergeAssessArray(existingArr, newArr) {
+      const base = Array.isArray(existingArr) ? existingArr.slice() : [];
+      newArr.forEach((n, i) => { if (n.level || n.note) base[i] = n; });
+      return base;
+    }
+
     function runImport() {
       const overwrite = document.getElementById('importOverwriteCheck').checked;
       const mapping = {};
@@ -7973,6 +8099,8 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         return;
       }
 
+      const assessPlan = buildAssessImportPlan(importState.headers);
+
       let added = 0, updated = 0, skipped = 0, skippedNoName = 0;
 
       importState.rows.forEach(row => {
@@ -7982,10 +8110,17 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         });
         if (!rec.name) { skippedNoName++; return; }
 
+        const bmRow = assessPlan.found ? readAssessRow(row, assessPlan.bmCols) : null;
+        const adlRow = assessPlan.found ? readAssessRow(row, assessPlan.adlCols) : null;
+
         const existing = appState.db.residentDb.find(r => r.name === rec.name);
         if (existing) {
           if (overwrite) {
             Object.entries(rec).forEach(([f, v]) => { if (v) existing[f] = v; });
+            if (assessPlan.found) {
+              existing.basicMotionAssess = mergeAssessArray(existing.basicMotionAssess, bmRow);
+              existing.adlAssess = mergeAssessArray(existing.adlAssess, adlRow);
+            }
             updated++;
           } else {
             skipped++;
@@ -7993,6 +8128,10 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         } else {
           const newRec = { id: 'r_' + Date.now() + '_' + Math.floor(Math.random() * 10000) };
           RF_FIELDS.forEach(f => { newRec[f] = rec[f] || ''; });
+          if (assessPlan.found) {
+            newRec.basicMotionAssess = bmRow;
+            newRec.adlAssess = adlRow;
+          }
           appState.db.residentDb.push(newRec);
           added++;
         }
@@ -8503,13 +8642,33 @@ ${SHORUI_COMMON_NOTE}`;
 【家族への説明事項】
 ※この雛形はAIが生成した案です。担当スタッフが必ず確認・修正してください。
 ${SHORUI_COMMON_NOTE}`;
-      if (mode === 'teikyohyo') return `このサービス提供票（通所介護・通所リハビリの月間提供票）を読み取ってください。
-書類に記載されている「年月」と、利用者ごとの「その月にデイサービス／デイケアを利用する予定の日（日付の数字）」を抽出してください。
+      if (mode === 'teikyohyo') return `このサービス提供票（居宅サービス計画に基づく月間の提供票）を読み取ってください。
+
+【書類のレイアウト】
+・表の一番左の列が「提供時間」、その右が「サービス内容」、その右が「サービス事業者事業所名」、そのさらに右に、その月の日にちが1日から月末まで横並びで並んでいます。
+・利用者本人の氏名は、この日付の表とは別の場所（書類の上部など）に1つだけ記載されています。表の行ごとに氏名が変わるわけではありません。
+・表には「サービス内容」が異なる行がたくさん縦に並んでいます（例：通所リハI251、通所リハ提供体制加算3、通所リハ入浴介助加算I、老短夜間職員配置加算、老短送迎加算、手すり貸与、歩行器貸与 など）。行を間違えると全く別のサービスの予定日を拾ってしまうので、1行ずつ「サービス内容」の文字を確認しながら、日付列を横にたどってください。
+・各行の日付列には、その日にサービスを利用する予定がある場合に半角数字の「1」が入っています（○やレ点ではなく数字の「1」です）。何も入っていない日は利用予定がない日です。「1」と「予定」「実績」という文字を混同しないでください。
+・特に「1日」の列は表の一番左端、「31日」の列は表の一番右端にあり、罫線や隣の見出し欄に近く、他の列よりずれて読み取りやすい列です。1日目・月末の列を読み取るときは、必ず日付の見出し数字（「1」「2」…という日付そのものの表記）の真下のマスだけを見ているか、隣の列とずれていないかを1マスずつ数えて確認してください。
+
+【対象にする行・対象外の行】
+・「サービス内容」が「通所リハI」「通所リハ提供体制加算」「通所リハ入浴介助加算」「通所介護」「通所リハビリテーション」「地域密着型通所介護」など、通所系サービス（デイサービス・デイケア）を示す行だけを対象にしてください。
+・「老短」で始まる行（老短夜間職員配置加算、老短送迎加算、老短サービス提供体制加算 など＝短期入所療養介護）、「訪問」で始まる行、「手すり貸与」「歩行器貸与」などの福祉用具貸与の行は対象外です。似た位置に「1」が入っていても、通所系の行と読み間違えないよう注意してください。
+
+【出力してほしいこと】
+・対象になる行を1行ずつ、「サービス内容」の見出し文字列と、その行の日付列に入っている「1」の日にちの配列として、そのまま出力してください（ここではまだ複数行を合算しないでください。行ごとに別々の配列として出力してください）。
+・同じ利用者について対象行が複数ある場合（通所リハI251／通所リハ提供体制加算3／通所リハ入浴介助加算I のように分かれている場合）は、それぞれを別の要素として「サービス行」に追加してください。
+・書類に記載されている年月を読み取ってください。「令和」表記の場合は西暦に変換してください（令和1年＝2019年として計算する。例：令和7年6月→2025年6月）。すでに西暦表記の場合はそのまま使ってください。
+
+【最後に必ず行う自己チェック】
+・各行について、日付の見出し行（1、2、3…という数字が並んでいる行）を先頭から1列ずつ指でなぞるように数え、「1」が入っている列の真上の見出し数字が本当にその日にちかどうかを再確認してから回答してください。特に月の最初と最後の数日は列がずれやすいので重点的に確認してください。
+・同じ利用者について複数の対象行がある場合、本来は全く同じ日にちの並びになっているはずです（通所リハI251・通所リハ提供体制加算・通所リハ入浴介助加算などは、同じ通所日に対して同時に算定される項目のため）。行ごとの結果が互いに異なる場合は、読み間違いの可能性が高いので、もう一度その行を見直してください。
+
 複数の利用者が1枚の表にまとまっている場合はすべての利用者分を、1人分の書類が複数枚に分かれている場合はすべて統合してください。
 JSONのみ返してください。他の文章は含めないでください。
-{"年月":"YYYY年M月","利用者一覧":[{"氏名":"","利用予定日":[1,2,3]}]}
-※「利用予定日」は日にちの数字のみの配列にしてください（例：8月5日と8月12日が対象なら[5,12]）。
-※デイサービス・デイケア以外のサービス（訪問介護・訪問看護等）の利用日は含めないでください。判別できない場合は含めてください。
+{"年月":"YYYY年M月","利用者一覧":[{"氏名":"","サービス行":[{"サービス内容":"","利用予定日":[1,2,3]}]}]}
+※「年月」は必ず西暦4桁で出力してください（例："2025年6月"）。
+※「利用予定日」は日にちの数字のみの配列にしてください（例：6月2日と6月4日が対象なら[2,4]）。
 ※氏名が不鮮明で判読できない場合は、その利用者の行ごと省略してください。
 ${SHORUI_COMMON_NOTE}`;
       return `この書類の内容をすべて読み取り、全文テキストと重要情報まとめを出力してください。${SHORUI_COMMON_NOTE}`;
@@ -8571,16 +8730,38 @@ ${SHORUI_COMMON_NOTE}`;
 
     function daysInMonthOf(year, month) { return new Date(year, month, 0).getDate(); }
 
+    // 複数のサービス行（本来は同じ通所予定のはずの行）から、多数決で日にちを確定する。
+    // 1行だけ読み取りがズレても、他の行と食い違えば採用しないため、単純な合算より誤読に強い。
+    function mergeAssessDaysByMajority(rowDayArrays) {
+      if (!rowDayArrays.length) return [];
+      const threshold = Math.floor(rowDayArrays.length / 2) + 1;
+      const counts = {};
+      rowDayArrays.forEach(days => { new Set(days).forEach(d => { counts[d] = (counts[d] || 0) + 1; }); });
+      const majority = Object.keys(counts).filter(d => counts[d] >= threshold).map(Number).sort((a, b) => a - b);
+      if (majority.length) return majority;
+      // 多数決で1つも一致しなかった場合（各行の読み取りが大きくばらついた場合）に空のまま返すと
+      // 見た目上「何も読み取れなかった」ように見えてしまうため、代わりに全行の合算（重複除去）を返す。
+      // どちらにしても最終的な内容は画面上で確認・修正できる。
+      const union = new Set();
+      rowDayArrays.forEach(days => days.forEach(d => union.add(d)));
+      return Array.from(union).sort((a, b) => a - b);
+    }
+
     function renderTeikyohyoPreview(data) {
       const ym = parseNenGetsu(data['年月']);
       const list = Array.isArray(data['利用者一覧']) ? data['利用者一覧'] : [];
       appState.shorui.teikyohyoYm = ym;
       appState.shorui.teikyohyoList = list.map(item => {
         const matched = matchResidentByName(item['氏名']);
-        const days = Array.isArray(item['利用予定日'])
-          ? item['利用予定日'].map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 31)
-          : [];
-        return { name: item['氏名'] || '', days, residentId: matched ? matched.id : '', excluded: !matched };
+        const rawRows = Array.isArray(item['サービス行']) ? item['サービス行'] : (item['利用予定日'] ? [item] : []);
+        const rows = rawRows.map(r => ({
+          label: r['サービス内容'] || '（サービス内容不明）',
+          days: Array.isArray(r['利用予定日'])
+            ? r['利用予定日'].map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 31)
+            : []
+        }));
+        const days = mergeAssessDaysByMajority(rows.map(r => r.days));
+        return { name: item['氏名'] || '', days, rows, residentId: matched ? matched.id : '', excluded: !matched };
       });
 
       const el = document.getElementById('extractedFields');
@@ -8600,6 +8781,7 @@ ${SHORUI_COMMON_NOTE}`;
     <div id="teikyohyoResidentList">${renderTeikyohyoResidentRows()}</div>
     <div style="font-size:11px; color:var(--muted); margin:10px 0; line-height:1.6;">
       ※利用者DBと自動で一致しなかった方はチェックが外れています。プルダウンで手動選択すると反映対象に含められます。<br>
+      ※複数のサービス行が見つかった場合、多数決で一致した日にちだけを採用しています。行ごとの内訳は「内訳を見る」から確認できます。読み取りが違う場合は下の欄を直接修正してください。<br>
       ※通所曜日パターン上は来るはずなのに提供票に無い日は「予定なし（提供表）」として記録されます。<br>
       ※すでに「休み」「欠席」「入院中」等の個別ステータスが入っている日は上書きしません。</div>
     <button class="btn btn-primary" onclick="applyTeikyohyoToSchedule()">📅 この内容でスケジュールに反映する</button>
@@ -8610,6 +8792,11 @@ ${SHORUI_COMMON_NOTE}`;
       return appState.shorui.teikyohyoList.map((item, i) => {
         const options = appState.db.residentDb.map(r =>
           `<option value="${r.id}" ${item.residentId === r.id ? 'selected' : ''}>${escHtml(r.name)}</option>`).join('');
+        const breakdown = item.rows.length > 1 ? `<details style="margin-top:4px;">
+        <summary style="font-size:11px; color:var(--green); cursor:pointer;">内訳を見る（${item.rows.length}行）</summary>
+        ${item.rows.map(r => `<div style="font-size:11px; color:var(--muted); margin:2px 0 2px 10px;">
+          ${escHtml(r.label)}：${r.days.length ? r.days.slice().sort((a, b) => a - b).join('、') + '日' : '（読み取れず）'}</div>`).join('')}
+      </details>` : '';
         return `<div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; margin-bottom:6px; ${item.excluded ? 'opacity:0.55;' : ''}">
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:4px; font-size:12px; white-space:nowrap;">
@@ -8623,9 +8810,17 @@ ${SHORUI_COMMON_NOTE}`;
         </select>
       </div>
       <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">
-        利用予定日：${item.days.length ? item.days.slice().sort((a, b) => a - b).join('、') + '日' : '（読み取れませんでした）'}</div>
+        利用予定日：<input type="text" value="${escAttr(item.days.slice().sort((a, b) => a - b).join('、'))}"
+          placeholder="例：2、4、6" style="width:70%; padding:2px 6px; border:1px solid var(--border); border-radius:4px; font-family:inherit; font-size:11.5px;"
+          onchange="setTeikyohyoRowDays(${i}, this.value)"> 日</div>
+      ${breakdown}
     </div>`;
       }).join('');
+    }
+
+    function setTeikyohyoRowDays(i, text) {
+      appState.shorui.teikyohyoList[i].days = text.split(/[、,\s]+/)
+        .map(s => parseInt(s, 10)).filter(n => Number.isInteger(n) && n >= 1 && n <= 31);
     }
 
     function toggleTeikyohyoRow(i, checked) {
@@ -8779,6 +8974,14 @@ ${SHORUI_COMMON_NOTE}`;
         }
       });
       if (leftovers.length) out.extraInfo = leftovers.join('\n');
+
+      // 新規登録の場合のみ、書類から読み取れなかった項目にデフォルト値を補う
+      // （既存利用者の更新時は、この値を差分比較に使うため上書きしない）
+      if (!id) {
+        if (!out.standardStartTime) out.standardStartTime = '09:30';
+        if (!out.standardEndTime) out.standardEndTime = '15:30';
+        if (!out.usageDurationCategory) out.usageDurationCategory = '5時間以上6時間未満';
+      }
       return out;
     }
 
@@ -9870,6 +10073,12 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     const STATUS_LEVELS = ['', 'なし', '軽度', '中等度', '重度'];
     const IMPACT_LEVELS = ['', 'なし', 'あり'];
     const ADL_LEVELS = ['', '自立', '見守り', '一部介助', '全介助'];
+
+    // 利用者DB雛形（Excel）と一括インポートの双方で同じ列見出しを使うための共通関数。
+    // 表記が1文字でもズレると一括インポート側で自動認識できなくなるため、ここで一元管理する。
+    function assessColumnHeader(sectionLabel, item, kind) {
+      return `${sectionLabel}：${item}（${kind}）`;
+    }
 
     function buildSelect(id, options, cls) {
       return `<select id="${id}" class="${cls || ''}">${options.map(o => `<option value="${o}">${o || '－'}</option>`).join('')}</select>`;

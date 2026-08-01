@@ -8810,9 +8810,13 @@ ${SHORUI_COMMON_NOTE}`;
         </select>
       </div>
       <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">
-        利用予定日：<input type="text" value="${escAttr(item.days.slice().sort((a, b) => a - b).join('、'))}"
-          placeholder="例：2、4、6" style="width:70%; padding:2px 6px; border:1px solid var(--border); border-radius:4px; font-family:inherit; font-size:11.5px;"
-          onchange="setTeikyohyoRowDays(${i}, this.value)"> 日</div>
+        利用予定日：<b style="color:var(--green);">${item.days.length ? item.days.slice().sort((a, b) => a - b).join('、') + '日' : '（なし）'}</b>
+        <span style="display:block; margin-top:2px;">
+          <input type="text" value="${escAttr(item.days.slice().sort((a, b) => a - b).join('、'))}"
+            placeholder="例：2、4、6" style="width:70%; padding:2px 6px; border:1px solid var(--border); border-radius:4px; font-family:inherit; font-size:11.5px;"
+            onchange="setTeikyohyoRowDays(${i}, this.value)"> 日（違う場合はここを直接修正）
+        </span>
+      </div>
       ${breakdown}
     </div>`;
       }).join('');
@@ -8821,6 +8825,8 @@ ${SHORUI_COMMON_NOTE}`;
     function setTeikyohyoRowDays(i, text) {
       appState.shorui.teikyohyoList[i].days = text.split(/[、,\s]+/)
         .map(s => parseInt(s, 10)).filter(n => Number.isInteger(n) && n >= 1 && n <= 31);
+      const listEl = document.getElementById('teikyohyoResidentList');
+      if (listEl) listEl.innerHTML = renderTeikyohyoResidentRows();
     }
 
     function toggleTeikyohyoRow(i, checked) {

@@ -2700,6 +2700,7 @@
         <div class="sidebar-items">
           <button class="sidebar-item" onclick="switchPageSidebar('vitalstrend')">❤️ バイタル推移</button>
           <button class="sidebar-item" onclick="switchPageSidebar('mealintake')">🍽️ 食事摂取量</button>
+          <button class="sidebar-item" onclick="switchPageSidebar('carelevel')">🏷️ 介護度別集計</button>
         </div>
       </div>
     </aside>
@@ -3986,6 +3987,29 @@
 
       </div>
 
+      <!-- ==================== CARE LEVEL SUMMARY PAGE ==================== -->
+      <div class="page" id="page-carelevel">
+
+        <div class="card">
+          <div class="card-title">🏷️ 介護度別集計</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+            <button class="btn btn-secondary btn-sm" id="clModeAllBtn" onclick="setCareLevelMode('all')">👥 全体（登録利用者全員）</button>
+            <button class="btn btn-secondary btn-sm" id="clModeDayBtn" onclick="setCareLevelMode('day')">📅 特定の日の利用予定者</button>
+          </div>
+          <div id="clDateRow" style="display:none; align-items:center; gap:8px; margin-bottom:10px;">
+            <input type="date" id="clDateInput"
+              style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:14px; font-family:inherit;"
+              onchange="renderCareLevelTable()">
+            <button class="btn btn-secondary btn-sm" onclick="setCareLevelToday()">今日</button>
+          </div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">「特定の日」を選ぶと、休み・欠席・入院中などを除いた、その日の利用予定者だけで集計します。</div>
+          <div style="overflow-x:auto;">
+            <table id="careLevelTable" class="care-level-table" style="width:100%; border-collapse:collapse; font-size:13px;"></table>
+          </div>
+        </div>
+
+      </div>
+
     </div><!-- /container -->
   </div><!-- /main-wrapper -->
 
@@ -4606,6 +4630,7 @@
       if (page === 'monitoring') { renderMonitoringResidentSelector(); }
       if (page === 'vitalstrend') { renderVitalsTrendResidentSelector(); }
       if (page === 'mealintake') { renderMealIntakeResidentSelector(); }
+      if (page === 'carelevel') { setCareLevelMode(careLevelMode); }
       if (page === 'dailylog') {
         if (!document.getElementById('dl_date').value) setDailyLogToday();
         else loadDailyLog();
@@ -7653,6 +7678,77 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
     function getAttendingCountForDate(dateStr) {
       return getResidentsForDate(dateStr).filter(r => !r._dayStatus).length;
+    }
+
+    // ============================================================
+    // 分析：介護度別集計
+    // ============================================================
+    const CARE_LEVEL_ORDER = ['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5', '未設定'];
+    let careLevelMode = 'all'; // 'all'＝登録利用者全員／'day'＝特定の日の利用予定者
+
+    function setCareLevelMode(mode) {
+      careLevelMode = mode;
+      const allBtn = document.getElementById('clModeAllBtn');
+      const dayBtn = document.getElementById('clModeDayBtn');
+      if (allBtn) allBtn.classList.toggle('btn-primary', mode === 'all');
+      if (allBtn) allBtn.classList.toggle('btn-secondary', mode !== 'all');
+      if (dayBtn) dayBtn.classList.toggle('btn-primary', mode === 'day');
+      if (dayBtn) dayBtn.classList.toggle('btn-secondary', mode !== 'day');
+      const dateRow = document.getElementById('clDateRow');
+      if (dateRow) dateRow.style.display = mode === 'day' ? 'flex' : 'none';
+      const dateInput = document.getElementById('clDateInput');
+      if (mode === 'day' && dateInput && !dateInput.value) dateInput.value = todayStr();
+      renderCareLevelTable();
+    }
+
+    function setCareLevelToday() {
+      const dateInput = document.getElementById('clDateInput');
+      if (dateInput) dateInput.value = todayStr();
+      renderCareLevelTable();
+    }
+
+    function renderCareLevelTable() {
+      const el = document.getElementById('careLevelTable');
+      if (!el) return;
+
+      let residents;
+      if (careLevelMode === 'day') {
+        const dateStr = (document.getElementById('clDateInput') && document.getElementById('clDateInput').value) || todayStr();
+        residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
+      } else {
+        residents = appState.db.residentDb;
+      }
+
+      const groups = {};
+      CARE_LEVEL_ORDER.forEach(k => { groups[k] = []; });
+      residents.forEach(r => {
+        const key = CARE_LEVEL_ORDER.includes(r.careLevel) ? r.careLevel : '未設定';
+        groups[key].push(r.name);
+      });
+
+      const rows = CARE_LEVEL_ORDER
+        .filter(k => groups[k].length)
+        .map(k => `<tr>
+      <td style="font-weight:700; white-space:nowrap; padding:6px 8px; border-bottom:1px solid var(--border);">${escHtml(k)}</td>
+      <td style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--border);">${groups[k].length}名</td>
+      <td style="padding:6px 8px; border-bottom:1px solid var(--border);">${groups[k].map(n => escHtml(n) + '様').join('、')}</td>
+    </tr>`)
+        .join('');
+
+      if (!residents.length) {
+        el.innerHTML = `<tr><td style="color:var(--muted); padding:16px; text-align:center;">対象となる利用者がいません</td></tr>`;
+        return;
+      }
+
+      el.innerHTML = `<tr>
+      <th style="text-align:left; padding:6px 8px; background:var(--bg);">介護度</th>
+      <th style="padding:6px 8px; background:var(--bg);">人数</th>
+      <th style="text-align:left; padding:6px 8px; background:var(--bg);">利用者名</th>
+    </tr>${rows}<tr style="font-weight:700;">
+      <td style="padding:6px 8px;">合計</td>
+      <td style="text-align:center; padding:6px 8px;">${residents.length}名</td>
+      <td style="padding:6px 8px;"></td>
+    </tr>`;
     }
 
     function setDayStatus(dateStr, residentId, status) {

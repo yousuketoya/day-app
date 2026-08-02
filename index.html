@@ -887,13 +887,14 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 10px;
+      padding: 7px 12px;
       border-radius: 16px;
       background: var(--green-light);
       color: var(--green-dark);
       font-size: 12.5px;
       font-weight: 600;
-      margin: 3px 4px 3px 0;
+      margin: 5px 6px 5px 0;
+      line-height: 1.6;
     }
 
     .staff-chip .rm-btn {
@@ -2689,6 +2690,7 @@
         <div class="sidebar-group-title" onclick="toggleSidebarGroup(this)">評価 ▼</div>
         <div class="sidebar-items">
           <button class="sidebar-item" onclick="switchPageSidebar('rehab')">📄 リハビリ計画書</button>
+          <button class="sidebar-item" onclick="switchPageSidebar('meeting')">📝 会議録</button>
           <button class="sidebar-item" onclick="switchPageSidebar('assessment')">✅ アセスメント</button>
           <button class="sidebar-item" onclick="switchPageSidebar('monitoring')">📊 モニタリング</button>
         </div>
@@ -3447,6 +3449,152 @@
 
       </div>
 
+      <!-- ==================== MEETING MINUTES PAGE ==================== -->
+      <div class="page" id="page-meeting">
+
+        <div class="card">
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary btn-sm" id="mtgModeBtn_tantosha" style="flex:1;" onclick="setMeetingMode('tantosha')">🗂️ 担当者会議</button>
+            <button class="btn btn-secondary btn-sm" id="mtgModeBtn_reha" style="flex:1;" onclick="setMeetingMode('reha')">🔄 リハビリ会議</button>
+          </div>
+        </div>
+
+        <!-- 担当者会議 -->
+        <div id="meetingTantoshaSection">
+
+          <div class="card">
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+              <button class="btn btn-primary btn-sm" id="mtgViewBtn_resident" style="flex:1;" onclick="setMeetingViewMode('resident')">👤 利用者ごと</button>
+              <button class="btn btn-secondary btn-sm" id="mtgViewBtn_round" style="flex:1;" onclick="setMeetingViewMode('round')">🗓️ 会議回ごと</button>
+            </div>
+            <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="openNewMeetingForm()">＋ 新規会議録を作成</button>
+          </div>
+
+          <div class="card" id="meetingByResidentBlock">
+            <div class="card-title">👤 利用者</div>
+            <div class="resident-selector" id="meetingResidentSelector"></div>
+            <div id="meetingResidentHistory" style="margin-top:10px;"></div>
+          </div>
+
+          <div class="card" id="meetingByRoundBlock" style="display:none;">
+            <div class="card-title">🗓️ 会議一覧</div>
+            <div id="meetingRoundList"></div>
+          </div>
+
+          <div class="card" id="meetingFormArea" style="display:none;">
+            <div class="card-title">📝 会議録の作成・編集</div>
+            <div class="form-grid">
+              <div class="form-group"><label>開催日</label><input type="date" id="mt_date"></div>
+              <div class="form-group"><label>開催場所</label><input type="text" id="mt_place" placeholder="例：当施設 相談室"></div>
+            </div>
+            <div class="form-group">
+              <label>会議種別</label>
+              <div class="weekday-chip-row" id="mtKindChipRow" style="flex-wrap:wrap;">
+                <span class="rp-type-chip" data-v="定期" onclick="toggleChipGeneric(this,'mtKindChipRow','mt_kind')">定期</span>
+                <span class="rp-type-chip" data-v="臨時" onclick="toggleChipGeneric(this,'mtKindChipRow','mt_kind')">臨時</span>
+                <span class="rp-type-chip" data-v="初回" onclick="toggleChipGeneric(this,'mtKindChipRow','mt_kind')">初回</span>
+                <span class="rp-type-chip" data-v="サービス担当者会議" onclick="toggleChipGeneric(this,'mtKindChipRow','mt_kind')">サービス担当者会議</span>
+              </div>
+              <input type="hidden" id="mt_kind">
+            </div>
+            <div class="form-group">
+              <label>出席者（スタッフ）</label>
+              <div class="weekday-chip-row" id="mtStaffChipRow" style="flex-wrap:wrap;"></div>
+              <input type="hidden" id="mt_attendees">
+            </div>
+            <div class="form-group">
+              <label>出席者（その他：家族・ケアマネ・医師など自由記述）</label>
+              <input type="text" id="mt_attendeesOther" placeholder="例：長女、〇〇居宅介護支援事業所 田中ケアマネ">
+            </div>
+
+            <div class="form-group">
+              <label>対象利用者（複数選択可）</label>
+              <div class="resident-selector" id="meetingFormResidentSelector"></div>
+            </div>
+
+            <div id="meetingPerResidentArea"></div>
+
+            <div class="form-group">
+              <label>会議全体の検討事項・結論・今後の課題（箇条書きでOK）</label>
+              <textarea id="mt_sharedBullets" rows="2" placeholder="例：来月の行事について、送迎ルート見直し"></textarea>
+            </div>
+            <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="generateMeetingContentAI(this)">🤖 AIで議事内容を整形する</button>
+            <div class="form-group" style="margin-top:8px;">
+              <label>会議録本文（全体）</label>
+              <textarea id="mt_sharedContent" rows="4"></textarea>
+            </div>
+            <div id="meetingAiStatus" style="margin-top:4px;"></div>
+
+            <div class="form-group"><label>次回会議予定日</label><input type="date" id="mt_nextDate"></div>
+
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="cancelMeetingForm()">キャンセル</button>
+              <button class="btn btn-secondary btn-sm" onclick="printMeetingDraft()">🖨️ 印刷</button>
+              <button class="btn btn-primary" style="flex:2;" onclick="saveMeeting()">💾 保存</button>
+            </div>
+            <div id="meetingSaveStatus" style="margin-top:8px;"></div>
+          </div>
+
+        </div>
+
+        <!-- リハビリ会議 -->
+        <div id="meetingRehaSection" style="display:none;">
+
+          <div class="card">
+            <div class="card-title">👤 利用者</div>
+            <div class="resident-selector" id="rehaMeetingResidentSelector"></div>
+          </div>
+
+          <div class="card" id="rehaMeetingArea" style="display:none;">
+            <div class="card-title">🗓️ リハビリ会議 履歴</div>
+            <div id="rehaMeetingHistory"></div>
+            <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;" onclick="openNewRehaMeetingForm()">＋ 新規リハビリ会議録を作成</button>
+          </div>
+
+          <div class="card" id="rehaMeetingFormArea" style="display:none;">
+            <div class="card-title">📝 リハビリ会議録の作成・編集</div>
+            <div class="form-grid">
+              <div class="form-group"><label>開催日</label><input type="date" id="rm_date"></div>
+              <div class="form-group"><label>開催場所</label><input type="text" id="rm_place" placeholder="例：当施設 機能訓練室"></div>
+            </div>
+            <div class="form-group">
+              <label>出席者（リハビリスタッフ／介護スタッフ）</label>
+              <div class="weekday-chip-row" id="rmAttendeeChipRow" style="flex-wrap:wrap;"></div>
+              <input type="hidden" id="rm_attendees">
+            </div>
+            <div class="form-group">
+              <label>出席者（その他：医師・本人・家族など自由記述）</label>
+              <input type="text" id="rm_attendeesOther" placeholder="例：〇〇クリニック 田中医師、本人、長女">
+            </div>
+            <div class="form-group">
+              <label>話し合った内容・気づき（キーワードでOK）</label>
+              <textarea id="rm_bullets" rows="2"></textarea>
+            </div>
+            <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="generateRehaMeetingContentAI(this)">🤖 AIで議事内容を作成する</button>
+            <div class="form-group" style="margin-top:8px;">
+              <label>会議録本文</label>
+              <textarea id="rm_content" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+              <label>リハビリ計画書の変更点（変更なしの場合は空欄でOK）</label>
+              <textarea id="rm_changes" rows="2" placeholder="例：短期目標を「見守りで50m歩行」に変更"></textarea>
+            </div>
+            <div id="rehaMeetingAiStatus" style="margin-top:4px;"></div>
+            <div class="form-group"><label>次回評価（見直し）予定日</label><input type="date" id="rm_nextReviewDate"></div>
+            <div style="color:var(--muted); font-size:12px; margin-top:-6px; margin-bottom:8px;">※保存すると「リハビリ計画書」の次回評価予定日も自動更新されます</div>
+
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="cancelRehaMeetingForm()">キャンセル</button>
+              <button class="btn btn-secondary btn-sm" onclick="printRehaMeetingDraft()">🖨️ 印刷</button>
+              <button class="btn btn-primary" style="flex:2;" onclick="saveRehaMeeting()">💾 保存</button>
+            </div>
+            <div id="rehaMeetingSaveStatus" style="margin-top:8px;"></div>
+          </div>
+
+        </div>
+
+      </div>
+
       <!-- ==================== REHAB RECORD PAGE ==================== -->
       <div class="page" id="page-rehabrecord">
 
@@ -4081,7 +4229,7 @@
       </div>
       <div class="form-grid single">
         <div class="form-group">
-          <label>リハビリスタッフ登録（リハビリ記録の「実施者」選択肢になります）</label>
+          <label>リハビリスタッフ登録</label>
           <div style="display:flex; gap:6px;">
             <input type="text" id="newStaffInput" placeholder="例：山田 太郎（PT）" style="flex:1;">
             <button class="btn btn-secondary btn-sm" onclick="addRehabStaff()">＋ 追加</button>
@@ -4091,7 +4239,17 @@
       </div>
       <div class="form-grid single">
         <div class="form-group">
-          <label>介護スタッフ登録（連絡帳の「記録者」選択肢になります）</label>
+          <label>看護スタッフ登録</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="newNurseStaffInput" placeholder="例：鈴木 恵子（看護師）" style="flex:1;">
+            <button class="btn btn-secondary btn-sm" onclick="addNurseStaff()">＋ 追加</button>
+          </div>
+          <div id="nurseStaffListArea" style="margin-top:8px;"></div>
+        </div>
+      </div>
+      <div class="form-grid single">
+        <div class="form-group">
+          <label>介護スタッフ登録</label>
           <div style="display:flex; gap:6px;">
             <input type="text" id="newCareStaffInput" placeholder="例：佐藤 花子" style="flex:1;">
             <button class="btn btn-secondary btn-sm" onclick="addCareStaff()">＋ 追加</button>
@@ -4336,11 +4494,19 @@
             <option value="">未設定</option>
           </select>
         </div>
+        <div class="form-group"><label>担当看護スタッフ（施設内）</label>
+          <select id="rf_nurseStaffInCharge">
+            <option value="">未設定</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid">
         <div class="form-group"><label>担当介護スタッフ（施設内）</label>
           <select id="rf_careStaffInCharge">
             <option value="">未設定</option>
           </select>
         </div>
+        <div class="form-group"></div>
       </div>
 
       <details class="detail-section">
@@ -4541,7 +4707,7 @@
     const DB_KEY = 'deiservice_db';
 
     let appState = {
-      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {} },
+      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [] },
       teikyohyoPage: { year: new Date().getFullYear(), month: new Date().getMonth() + 1 },
       shorui: {
         files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
@@ -4552,6 +4718,8 @@
       schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
       shift: { cycleBlockIndex: null },
       rehab: { selectedResident: null },
+      meeting: { mode: 'tantosha', viewMode: 'resident', selectedResidentId: null, selectedRoundId: null, formResidentIds: [], editingId: null, formOpen: false },
+      rehaMeeting: { selectedResident: null, editingId: null, formOpen: false },
       rehabRecord: { selectedResident: null, showAllResidents: false },
       assessment: { selectedResident: null },
       monitoring: { selectedResident: null },
@@ -4584,7 +4752,7 @@
 
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, ...JSON.parse(saved) };
+      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [], ...JSON.parse(saved) };
       // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
       if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
         appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -4640,6 +4808,7 @@
       if (page === 'db') renderDbList();
       if (page === 'renrakucho') { renderResidentSelector(); renderRenrakuchoWeekMatrix(); renderTodayRenrakuchoList(); renderCareStaffChips(); }
       if (page === 'rehab') { renderRehabResidentSelector(); renderReviewDueList(); }
+      if (page === 'meeting') { renderMeetingPage(); }
       if (page === 'assessment') { renderAssessmentResidentSelector(); }
       if (page === 'monitoring') { renderMonitoringResidentSelector(); }
       if (page === 'vitalstrend') { renderVitalsTrendResidentSelector(); }
@@ -4742,6 +4911,7 @@
       document.getElementById('settingsBusinessDays').value = appState.db.businessDays || '月,火,水,木,金,土';
       syncBusinessDayChips();
       renderStaffList();
+      renderNurseStaffList();
       renderCareStaffList();
       renderOtherStaffList();
       renderVehicleList();
@@ -4816,6 +4986,32 @@
       saveDb();
       renderCareStaffList();
       renderCareStaffChips();
+    }
+
+    function renderNurseStaffList() {
+      const el = document.getElementById('nurseStaffListArea');
+      if (!el) return;
+      const list = appState.db.nurseStaffList || [];
+      el.innerHTML = list.length
+        ? list.map(name => `<span class="staff-chip">${escHtml(name)}<span class="rm-btn" onclick="removeNurseStaff('${escAttr(name)}')">✕</span></span>`).join('')
+        : `<div style="font-size:12px; color:var(--muted);">まだ登録されていません</div>`;
+    }
+
+    function addNurseStaff() {
+      const input = document.getElementById('newNurseStaffInput');
+      const name = input.value.trim();
+      if (!name) return;
+      if (!appState.db.nurseStaffList) appState.db.nurseStaffList = [];
+      if (!appState.db.nurseStaffList.includes(name)) appState.db.nurseStaffList.push(name);
+      saveDb();
+      input.value = '';
+      renderNurseStaffList();
+    }
+
+    function removeNurseStaff(name) {
+      appState.db.nurseStaffList = (appState.db.nurseStaffList || []).filter(n => n !== name);
+      saveDb();
+      renderNurseStaffList();
     }
 
     function renderOtherStaffList() {
@@ -4974,6 +5170,27 @@
       });
       addSheet('リハビリ計画書', rpRows);
 
+      // ⑤-2 会議録（担当者会議）：会議×対象利用者ごとに1行
+      const mtRows = [['会議ID', '日付', '種別', '開催場所', '出席者（スタッフ）', '出席者（その他）', '利用者名', '個別の検討内容', '会議全体の検討事項・結論', '次回会議予定日', '最終更新']];
+      db.meetings.forEach(m => {
+        const staffLabel = (m.attendees || '').split(',').filter(Boolean).join('・');
+        (m.residentIds && m.residentIds.length ? m.residentIds : ['']).forEach(rid => {
+          const content = (m.perResident && m.perResident[rid] && m.perResident[rid].content) || '';
+          mtRows.push([m.id, m.date || '', m.kind || '', m.place || '', staffLabel, m.attendeesOther || '', rid ? residentNameOf(rid) : '', content, m.sharedContent || '', m.nextDate || '', m.updatedAt || '']);
+        });
+      });
+      addSheet('会議録(担当者会議)', mtRows);
+
+      // ⑤-3 リハビリ会議録（リハビリ計画書の改定履歴）
+      const rmRows = [['利用者名', '開催日', '開催場所', '出席者', '検討内容', '計画書の変更点', '次回評価予定日', '最終更新', '出席者(その他)']];
+      Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
+        (plan.history || []).forEach(h => {
+          const attendeesLabel = (h.attendees || '').split(',').filter(Boolean).join('・');
+          rmRows.push([residentNameOf(rid), h.date || '', h.place || '', attendeesLabel, h.content || '', h.changes || '', h.nextReviewDate || '', h.updatedAt || '', h.attendeesOther || '']);
+        });
+      });
+      addSheet('会議録(リハビリ会議)', rmRows);
+
       // ⑥ スケジュール（予定）
       const evRows = [['日付', '種別', 'タイトル', '時間', '出席者', 'メモ']];
       Object.keys(db.scheduleEvents).sort().forEach(date => {
@@ -5077,6 +5294,7 @@
       // ⑮ 勤務表（予定：4週28日パターン、午前・午後）
       const shiftStaffForExport = [
         ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
+        ...(db.nurseStaffList || []).map(n => ({ name: n, group: '看護' })),
         ...(db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
         ...(db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
       ];
@@ -5116,6 +5334,7 @@
         ['連絡帳の文体', db.style || ''],
         ['営業曜日', db.businessDays || ''],
         ['リハビリスタッフ', (db.rehabStaffList || []).join('、')],
+        ['看護スタッフ', (db.nurseStaffList || []).join('、')],
         ['介護スタッフ', (db.careStaffList || []).join('、')],
         ['その他の職員', (db.otherStaffList || []).join('、')],
         ['車両', (db.vehicleList || []).join('、')],
@@ -5233,7 +5452,8 @@
         dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '',
         customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {},
         shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {},
-        teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}
+        teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {},
+        meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: []
       };
 
       // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
@@ -5293,6 +5513,41 @@
         plan.mindBody = []; plan.basicMotion = []; plan.adl = [];
         plan.updatedAt = row[1 + rpFlatFields.length + 3] || '';
         newDb.rehabPlans[id] = plan;
+      });
+
+      // ⑤-2 会議録（担当者会議）：同じ会議IDの行をまとめて1件の会議録に復元
+      const mtGroups = {};
+      getSheetRows(wb, '会議録(担当者会議)').forEach(([mid, date, kind, place, staffLabel, attendeesOther, name, content, sharedContent, nextDate, updatedAt]) => {
+        if (!mid || !date) return;
+        if (!mtGroups[mid]) {
+          mtGroups[mid] = {
+            id: String(mid), date, kind: kind || '', place: place || '',
+            attendees: (staffLabel || '').split('・').filter(Boolean).join(','),
+            attendeesOther: attendeesOther || '', residentIds: [], perResident: {},
+            sharedContent: sharedContent || '', nextDate: nextDate || '', updatedAt: updatedAt || ''
+          };
+        }
+        const rid = findId(name);
+        if (rid) {
+          mtGroups[mid].residentIds.push(rid);
+          mtGroups[mid].perResident[rid] = { bullets: '', content: content || '' };
+        }
+      });
+      newDb.meetings = Object.values(mtGroups);
+
+      // ⑤-3 リハビリ会議録（リハビリ計画書の改定履歴として復元）
+      getSheetRows(wb, '会議録(リハビリ会議)').forEach(([name, date, place, attendeesLabel, content, changes, nextReviewDate, updatedAt, attendeesOther]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.rehabPlans[id]) newDb.rehabPlans[id] = {};
+        if (!newDb.rehabPlans[id].history) newDb.rehabPlans[id].history = [];
+        newDb.rehabPlans[id].history.push({
+          id: 'rm_' + Date.now() + Math.random(),
+          date, place: place || '',
+          attendees: (attendeesLabel || '').split('・').filter(Boolean).join(','),
+          attendeesOther: attendeesOther || '',
+          bullets: '', content: content || '', changes: changes || '',
+          nextReviewDate: nextReviewDate || '', updatedAt: updatedAt || ''
+        });
       });
 
       // ⑥ スケジュール
@@ -5407,6 +5662,7 @@
         if (key === '記録の文体' || key === '連絡帳の文体') newDb.style = val || 'warm';
         if (key === '営業曜日') newDb.businessDays = val || '月,火,水,木,金,土';
         if (key === 'リハビリスタッフ') newDb.rehabStaffList = (val || '').split('、').filter(Boolean);
+        if (key === '看護スタッフ') newDb.nurseStaffList = (val || '').split('、').filter(Boolean);
         if (key === '介護スタッフ') newDb.careStaffList = (val || '').split('、').filter(Boolean);
         if (key === 'その他の職員') newDb.otherStaffList = (val || '').split('、').filter(Boolean);
         if (key === '車両') newDb.vehicleList = (val || '').split('、').filter(Boolean);
@@ -5730,10 +5986,12 @@
       const care = appState.db.careStaffList || [];
       const other = appState.db.otherStaffList || [];
       const rehab = appState.db.rehabStaffList || [];
-      const known = [...care, ...other, ...rehab];
+      const nurse = appState.db.nurseStaffList || [];
+      const known = [...care, ...other, ...rehab, ...nurse];
       let opts = '<option value="">未設定</option>';
       if (care.length) opts += `<optgroup label="介護職員">${care.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
       if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
       if (other.length) opts += `<optgroup label="その他の職員">${other.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
@@ -5767,7 +6025,7 @@
       if (mode === 'vehicle') {
         list = appState.db.vehicleList || [];
       } else {
-        list = [...(appState.db.careStaffList || []), ...(appState.db.rehabStaffList || []), ...(appState.db.otherStaffList || [])];
+        list = [...(appState.db.careStaffList || []), ...(appState.db.rehabStaffList || []), ...(appState.db.nurseStaffList || []), ...(appState.db.otherStaffList || [])];
       }
       const idx = list.indexOf(value);
       return idx === -1 ? list.length : idx; // 未登録の値はリスト登録済みの後・未設定の前
@@ -6103,6 +6361,7 @@
     function getShiftStaffList() {
       return [
         ...(appState.db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
+        ...(appState.db.nurseStaffList || []).map(n => ({ name: n, group: '看護' })),
         ...(appState.db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
         ...(appState.db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
       ];
@@ -6964,7 +7223,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // 業務日誌に載せるスタッフは「リハビリ」「介護」スタッフのみ（「その他」の職員は対象外）
     // ※勤務表本体（renderShiftPatternTable等）には影響しない。業務日誌関連の集計にのみ適用する。
     function getDailyLogTargetStaffList() {
-      return getShiftStaffList().filter(s => s.group === 'リハビリ' || s.group === '介護');
+      return getShiftStaffList().filter(s => s.group === 'リハビリ' || s.group === '看護' || s.group === '介護');
     }
 
     // 勤務表（予定＋実績）から、指定日に出勤しているスタッフの一覧を返す
@@ -7268,7 +7527,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       mealRestriction: '食事制限', fluidRestriction: '水分制限', medicineTiming: '服薬タイミング',
       history: '既往歴', currentDisease: '現在の疾患', adl: 'ADL状況',
       dementia: '認知症の有無', communication: 'コミュニケーション', extraInfo: 'その他の抽出情報',
-      rehabStaffInCharge: '担当リハビリスタッフ', careStaffInCharge: '担当介護スタッフ', transportType: '送迎方法',
+      rehabStaffInCharge: '担当リハビリスタッフ', careStaffInCharge: '担当介護スタッフ', nurseStaffInCharge: '担当看護スタッフ', transportType: '送迎方法',
       standardStartTime: '標準利用開始時刻', standardEndTime: '標準利用終了時刻', usageDurationCategory: '所要時間区分'
     };
 
@@ -7375,7 +7634,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       renderDbSortRow();
       const residents = appState.db.residentDb.filter(r =>
         (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) &&
-        (!staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter)
+        (!staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter || r.nurseStaffInCharge === staffFilter)
       );
       sortResidentsInPlace(residents);
 
@@ -7411,6 +7670,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           (r.cm || r.cmOffice) ? `<span class="tag ok">🧑‍💼 ${[r.cm, r.cmOffice].filter(Boolean).join('／')}${r.phone ? '　' + r.phone : ''}</span>` : `<span class="tag missing">🧑‍💼 ケアマネ未設定</span>`,
           (r.family || r.emergencyPhone) ? `<span class="tag ok">🚨 ${[r.family, r.emergencyRelation].filter(Boolean).join('／')}${r.emergencyPhone ? '　' + r.emergencyPhone : ''}</span>` : `<span class="tag missing">🚨 緊急連絡先未設定</span>`,
           r.rehabStaffInCharge ? `<span class="tag ok">🏃 リハビリ担当:${r.rehabStaffInCharge}</span>` : '',
+          r.nurseStaffInCharge ? `<span class="tag ok">💉 看護担当:${r.nurseStaffInCharge}</span>` : '',
           r.careStaffInCharge ? `<span class="tag ok">🧑‍⚕️ 介護担当:${r.careStaffInCharge}</span>` : '',
         ].filter(Boolean).join('');
 
@@ -7461,16 +7721,17 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       if (!sel || sel.dataset.populated === combinedStaffKey()) return;
       const current = sel.value;
       const rehabOpts = (appState.db.rehabStaffList || []).map(n => `<option value="${escAttr(n)}">🏃 ${escHtml(n)}</option>`).join('');
+      const nurseOpts = (appState.db.nurseStaffList || []).map(n => `<option value="${escAttr(n)}">💉 ${escHtml(n)}</option>`).join('');
       const careOpts = (appState.db.careStaffList || []).map(n => `<option value="${escAttr(n)}">🧑‍⚕️ ${escHtml(n)}</option>`).join('');
-      sel.innerHTML = '<option value="">🔍 担当者で絞り込む（全員表示）</option>' + rehabOpts + careOpts;
+      sel.innerHTML = '<option value="">🔍 担当者で絞り込む（全員表示）</option>' + rehabOpts + nurseOpts + careOpts;
       sel.value = current;
       sel.dataset.populated = combinedStaffKey();
     }
     function combinedStaffKey() {
-      return [...(appState.db.rehabStaffList || []), ...(appState.db.careStaffList || [])].join(',');
+      return [...(appState.db.rehabStaffList || []), ...(appState.db.nurseStaffList || []), ...(appState.db.careStaffList || [])].join(',');
     }
     function matchesStaffFilter(r, staffFilter) {
-      return !staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter;
+      return !staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter || r.nurseStaffInCharge === staffFilter;
     }
 
     function jumpToDoc(page, residentId) {
@@ -7486,7 +7747,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     const RF_FIELDS = ['name', 'kana', 'careLevel', 'dob', 'attendanceDays', 'bathDays', 'meal', 'bath', 'allergy', 'medicine', 'notes', 'cm', 'family',
       'age', 'gender', 'address', 'phone', 'cmOffice', 'doctor', 'hospital', 'emergencyRelation', 'emergencyPhone',
       'mealRestriction', 'fluidRestriction', 'medicineTiming', 'history', 'currentDisease', 'adl', 'dementia', 'communication', 'extraInfo',
-      'rehabStaffInCharge', 'careStaffInCharge', 'transportType', 'standardStartTime', 'standardEndTime', 'usageDurationCategory'];
+      'rehabStaffInCharge', 'careStaffInCharge', 'transportType', 'standardStartTime', 'standardEndTime', 'usageDurationCategory', 'nurseStaffInCharge'];
 
     function buildDbAssessTables() {
       const bm = document.getElementById('dbBasicMotionTable');
@@ -7566,10 +7827,12 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     function populateStaffInChargeSelects() {
       const rehabSel = document.getElementById('rf_rehabStaffInCharge');
       const careSel = document.getElementById('rf_careStaffInCharge');
-      const rehabVal = rehabSel.value, careVal = careSel.value;
+      const nurseSel = document.getElementById('rf_nurseStaffInCharge');
+      const rehabVal = rehabSel.value, careVal = careSel.value, nurseVal = nurseSel.value;
       rehabSel.innerHTML = '<option value="">未設定</option>' + (appState.db.rehabStaffList || []).map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
       careSel.innerHTML = '<option value="">未設定</option>' + (appState.db.careStaffList || []).map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
-      rehabSel.value = rehabVal; careSel.value = careVal;
+      nurseSel.innerHTML = '<option value="">未設定</option>' + (appState.db.nurseStaffList || []).map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
+      rehabSel.value = rehabVal; careSel.value = careVal; nurseSel.value = nurseVal;
     }
 
     function updateAgeFromDob() {
@@ -8132,11 +8395,12 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       if (!row) return;
       const combined = [
         ...(appState.db.rehabStaffList || []).map(n => ({ n, group: 'リハビリ' })),
+        ...(appState.db.nurseStaffList || []).map(n => ({ n, group: '看護' })),
         ...(appState.db.careStaffList || []).map(n => ({ n, group: '介護' }))
       ];
       row.innerHTML = combined.length
         ? combined.map(s => `<span class="rp-type-chip" data-v="${escAttr(s.n)}" onclick="toggleChipGeneric(this,'evAttendeesChipRow','ev_attendees')">${escHtml(s.n)}</span>`).join('')
-        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフ／介護スタッフを登録してください</span>`;
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフ／看護スタッフ／介護スタッフを登録してください</span>`;
     }
 
     function onEventTypeChange() {
@@ -8318,6 +8582,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           ['E', colOf('transportType'), ['事業所送迎', '家族送迎']],
           ['F', colOf('rehabStaffInCharge'), (appState.db.rehabStaffList || []).slice()],
           ['G', colOf('careStaffInCharge'), (appState.db.careStaffList || []).slice()],
+          ['J', colOf('nurseStaffInCharge'), (appState.db.nurseStaffList || []).slice()],
           ['I', colOf('gender'), ['女性', '男性']]
         ];
         // 基本動作評価・ADL評価の「状況」列にも同じ選択肢（自立・見守り・一部介助・全介助）を設定する
@@ -10065,10 +10330,10 @@ ${SHORUI_COMMON_NOTE}`;
     function renderRehabStaffChips() {
       const row = document.getElementById('rrStaffChipRow');
       if (!row) return;
-      const list = appState.db.rehabStaffList || [];
+      const list = Array.from(new Set([...(appState.db.rehabStaffList || []), ...(appState.db.nurseStaffList || [])]));
       row.innerHTML = list.length
         ? list.map(name => `<span class="rp-type-chip" data-v="${escAttr(name)}" onclick="toggleChipGeneric(this,'rrStaffChipRow','rr_staff')">${escHtml(name)}</span>`).join('')
-        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフを登録してください</span>`;
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフ・看護スタッフを登録してください</span>`;
       syncChipRow('rrStaffChipRow', 'rr_staff');
     }
 
@@ -10085,10 +10350,10 @@ ${SHORUI_COMMON_NOTE}`;
     function renderCareStaffChips() {
       const row = document.getElementById('rcStaffChipRow');
       if (!row) return;
-      const list = appState.db.careStaffList || [];
+      const list = Array.from(new Set([...(appState.db.careStaffList || []), ...(appState.db.nurseStaffList || [])]));
       row.innerHTML = list.length
         ? list.map(name => `<span class="rp-type-chip" data-v="${escAttr(name)}" onclick="toggleChipGeneric(this,'rcStaffChipRow','rc_staff')">${escHtml(name)}</span>`).join('')
-        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ から介護スタッフを登録してください</span>`;
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ から介護スタッフ・看護スタッフを登録してください</span>`;
       syncChipRow('rcStaffChipRow', 'rc_staff');
     }
 
@@ -10977,6 +11242,654 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       } else {
         showStatus('rehabSaveStatus', plan.updatedAt ? `最終更新：${plan.updatedAt}` : '', 'info');
       }
+    }
+
+    // ============================================================
+    // MEETING MINUTES（会議録：担当者会議／リハビリ会議）
+    // ============================================================
+    function renderMeetingPage() {
+      setMeetingMode(appState.meeting.mode || 'tantosha');
+    }
+
+    function setMeetingMode(mode) {
+      appState.meeting.mode = mode;
+      document.getElementById('mtgModeBtn_tantosha').className = 'btn btn-sm ' + (mode === 'tantosha' ? 'btn-primary' : 'btn-secondary');
+      document.getElementById('mtgModeBtn_reha').className = 'btn btn-sm ' + (mode === 'reha' ? 'btn-primary' : 'btn-secondary');
+      document.getElementById('mtgModeBtn_tantosha').style.flex = '1';
+      document.getElementById('mtgModeBtn_reha').style.flex = '1';
+      document.getElementById('meetingTantoshaSection').style.display = mode === 'tantosha' ? 'block' : 'none';
+      document.getElementById('meetingRehaSection').style.display = mode === 'reha' ? 'block' : 'none';
+      if (mode === 'tantosha') { cancelRehaMeetingForm(); renderMeetingTantoshaView(); }
+      else { cancelMeetingForm(); renderRehaMeetingResidentSelector(); }
+    }
+
+    // ---------- 担当者会議：表示切替 ----------
+    function setMeetingViewMode(vm) {
+      appState.meeting.viewMode = vm;
+      document.getElementById('mtgViewBtn_resident').className = 'btn btn-sm ' + (vm === 'resident' ? 'btn-primary' : 'btn-secondary');
+      document.getElementById('mtgViewBtn_round').className = 'btn btn-sm ' + (vm === 'round' ? 'btn-primary' : 'btn-secondary');
+      document.getElementById('mtgViewBtn_resident').style.flex = '1';
+      document.getElementById('mtgViewBtn_round').style.flex = '1';
+      document.getElementById('meetingByResidentBlock').style.display = vm === 'resident' ? 'block' : 'none';
+      document.getElementById('meetingByRoundBlock').style.display = vm === 'round' ? 'block' : 'none';
+      renderMeetingTantoshaView();
+    }
+
+    function renderMeetingTantoshaView() {
+      if (appState.meeting.viewMode === 'round') { renderMeetingRoundList(); }
+      else { renderMeetingResidentSelector(); renderMeetingResidentHistory(); }
+    }
+
+    function renderMeetingResidentSelector() {
+      const el = document.getElementById('meetingResidentSelector');
+      if (!el) return;
+      if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
+      el.innerHTML = appState.db.residentDb.map(r => {
+        const count = appState.db.meetings.filter(m => (m.residentIds || []).includes(r.id)).length;
+        const selected = appState.meeting.selectedResidentId === r.id;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMeetingResident('${r.id}')">${escHtml(r.name)}${count ? ' (' + count + ')' : ''}</span>`;
+      }).join('');
+    }
+
+    function selectMeetingResident(id) {
+      appState.meeting.selectedResidentId = id;
+      renderMeetingResidentSelector();
+      renderMeetingResidentHistory();
+    }
+
+    function renderMeetingResidentHistory() {
+      const el = document.getElementById('meetingResidentHistory');
+      if (!el) return;
+      const rid = appState.meeting.selectedResidentId;
+      if (!rid) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者を選択してください</div>`; return; }
+      const list = appState.db.meetings.filter(m => (m.residentIds || []).includes(rid)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (!list.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">この利用者に関する会議録はまだありません</div>`; return; }
+      el.innerHTML = list.map(m => {
+        const content = (m.perResident && m.perResident[rid] && m.perResident[rid].content) || '';
+        return `<div class="review-item" style="display:block; cursor:default;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b>${escHtml(m.date || '')}</b>　<span style="font-size:12px; color:var(--muted);">${escHtml(m.kind || '')}　${escHtml(m.place || '')}</span>
+        </div>
+        ${content ? `<div style="font-size:13px; margin-top:4px; line-height:1.6;">${escHtml(content)}</div>` : ''}
+        <div style="margin-top:6px; display:flex; gap:8px;">
+          <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="editMeeting('${m.id}')">✏️ 編集</span>
+          <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="printMeetingRecord('${m.id}')">🖨️ 印刷</span>
+          <span style="font-size:12px; color:var(--danger); cursor:pointer;" onclick="deleteMeeting('${m.id}')">🗑️ 削除</span>
+        </div>
+      </div>`;
+      }).join('');
+    }
+
+    function renderMeetingRoundList() {
+      const el = document.getElementById('meetingRoundList');
+      if (!el) return;
+      const list = appState.db.meetings.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (!list.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">会議録はまだありません</div>`; return; }
+      el.innerHTML = list.map(m => {
+        const names = (m.residentIds || []).map(id => residentNameOf(id)).join('・');
+        const attendeesLabel = [(m.attendees || '').split(',').filter(Boolean).join('・'), m.attendeesOther].filter(Boolean).join('、');
+        return `<div class="review-item" style="display:block; cursor:default;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b>${escHtml(m.date || '')}</b>　<span style="font-size:12px; color:var(--muted);">${escHtml(m.kind || '')}　${escHtml(m.place || '')}</span>
+        </div>
+        <div style="font-size:13px; margin-top:4px;">対象：${escHtml(names || '（未設定）')}</div>
+        ${attendeesLabel ? `<div style="font-size:12px; color:var(--muted); margin-top:2px;">出席者：${escHtml(attendeesLabel)}</div>` : ''}
+        ${m.sharedContent ? `<div style="font-size:13px; margin-top:4px; line-height:1.6;">${escHtml(m.sharedContent)}</div>` : ''}
+        <div style="margin-top:6px; display:flex; gap:8px;">
+          <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="editMeeting('${m.id}')">✏️ 編集</span>
+          <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="printMeetingRecord('${m.id}')">🖨️ 印刷</span>
+          <span style="font-size:12px; color:var(--danger); cursor:pointer;" onclick="deleteMeeting('${m.id}')">🗑️ 削除</span>
+        </div>
+      </div>`;
+      }).join('');
+    }
+
+    // ---------- 担当者会議：フォーム ----------
+    function renderMeetingStaffChips() {
+      const row = document.getElementById('mtStaffChipRow');
+      if (!row) return;
+      const names = Array.from(new Set([...(appState.db.careStaffList || []), ...(appState.db.rehabStaffList || []), ...(appState.db.nurseStaffList || []), ...(appState.db.otherStaffList || [])]));
+      row.innerHTML = names.length
+        ? names.map(name => `<span class="rp-type-chip" data-v="${escAttr(name)}" onclick="toggleChipGeneric(this,'mtStaffChipRow','mt_attendees')">${escHtml(name)}</span>`).join('')
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からスタッフを登録してください</span>`;
+      syncChipRow('mtStaffChipRow', 'mt_attendees');
+    }
+
+    function renderMeetingFormResidentSelector() {
+      const el = document.getElementById('meetingFormResidentSelector');
+      if (!el) return;
+      if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
+      el.innerHTML = appState.db.residentDb.map(r => {
+        const selected = appState.meeting.formResidentIds.includes(r.id);
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="toggleMeetingFormResident('${r.id}')">${escHtml(r.name)}</span>`;
+      }).join('');
+    }
+
+    function toggleMeetingFormResident(id) {
+      const idx = appState.meeting.formResidentIds.indexOf(id);
+      if (idx >= 0) appState.meeting.formResidentIds.splice(idx, 1);
+      else appState.meeting.formResidentIds.push(id);
+      renderMeetingFormResidentSelector();
+      renderMeetingPerResidentArea();
+      autoFillCareManagers();
+    }
+
+    // 対象利用者の担当ケアマネを出席者（その他）欄に自動で追加する
+    // （すでに同じ名前が記載されている場合は追加しない＝手動での削除・編集は尊重する）
+    function autoFillCareManagers() {
+      const el = document.getElementById('mt_attendeesOther');
+      if (!el) return;
+      let text = el.value;
+      appState.meeting.formResidentIds.forEach(id => {
+        const r = appState.db.residentDb.find(x => x.id === id);
+        if (!r || !r.cm) return;
+        if (text.includes(r.cm)) return;
+        const label = r.cmOffice ? `${r.cm}（${r.cmOffice}）` : r.cm;
+        text = text ? `${text}、${label}` : label;
+      });
+      el.value = text;
+    }
+
+    function renderMeetingPerResidentArea() {
+      const el = document.getElementById('meetingPerResidentArea');
+      if (!el) return;
+      const ids = appState.meeting.formResidentIds;
+      if (!ids.length) { el.innerHTML = ''; return; }
+      const editing = appState.meeting.editingId ? appState.db.meetings.find(m => m.id === appState.meeting.editingId) : null;
+      el.innerHTML = ids.map(id => {
+        const r = appState.db.residentDb.find(x => x.id === id);
+        if (!r) return '';
+        return `<div class="form-group" style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; margin-top:8px;">
+        <label>${escHtml(r.name)}様　に関する検討内容（キーワードでOK）</label>
+        <textarea id="mt_pr_bullets_${id}" rows="2"></textarea>
+        <textarea id="mt_pr_content_${id}" rows="2" style="margin-top:6px;" placeholder="AI整形後の本文、または直接入力"></textarea>
+      </div>`;
+      }).join('');
+      ids.forEach(id => {
+        const existing = (editing && editing.perResident && editing.perResident[id]) || {};
+        const bEl = document.getElementById('mt_pr_bullets_' + id);
+        const cEl = document.getElementById('mt_pr_content_' + id);
+        if (bEl) bEl.value = existing.bullets || '';
+        if (cEl) cEl.value = existing.content || '';
+      });
+    }
+
+    function openNewMeetingForm(prefillResidentId) {
+      appState.meeting.editingId = null;
+      appState.meeting.formResidentIds = prefillResidentId ? [prefillResidentId] : (appState.meeting.selectedResidentId ? [appState.meeting.selectedResidentId] : []);
+      document.getElementById('mt_date').value = todayStr();
+      document.getElementById('mt_place').value = '';
+      document.getElementById('mt_attendeesOther').value = '';
+      document.getElementById('mt_attendees').value = '';
+      document.getElementById('mt_kind').value = '';
+      document.getElementById('mt_sharedBullets').value = '';
+      document.getElementById('mt_sharedContent').value = '';
+      document.getElementById('mt_nextDate').value = '';
+      renderMeetingStaffChips();
+      syncChipRow('mtKindChipRow', 'mt_kind');
+      renderMeetingFormResidentSelector();
+      renderMeetingPerResidentArea();
+      autoFillCareManagers();
+      showStatus('meetingSaveStatus', '', '');
+      showStatus('meetingAiStatus', '', '');
+      document.getElementById('meetingFormArea').style.display = 'block';
+      document.getElementById('meetingFormArea').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelMeetingForm() {
+      const el = document.getElementById('meetingFormArea');
+      if (el) el.style.display = 'none';
+      appState.meeting.editingId = null;
+    }
+
+    function editMeeting(id) {
+      const m = appState.db.meetings.find(x => x.id === id);
+      if (!m) return;
+      appState.meeting.editingId = id;
+      appState.meeting.formResidentIds = (m.residentIds || []).slice();
+      document.getElementById('mt_date').value = m.date || '';
+      document.getElementById('mt_place').value = m.place || '';
+      document.getElementById('mt_attendees').value = m.attendees || '';
+      document.getElementById('mt_attendeesOther').value = m.attendeesOther || '';
+      document.getElementById('mt_kind').value = m.kind || '';
+      document.getElementById('mt_sharedBullets').value = m.sharedBullets || '';
+      document.getElementById('mt_sharedContent').value = m.sharedContent || '';
+      document.getElementById('mt_nextDate').value = m.nextDate || '';
+      renderMeetingStaffChips();
+      syncChipRow('mtKindChipRow', 'mt_kind');
+      renderMeetingFormResidentSelector();
+      renderMeetingPerResidentArea();
+      autoFillCareManagers();
+      showStatus('meetingSaveStatus', '', '');
+      showStatus('meetingAiStatus', '', '');
+      document.getElementById('meetingFormArea').style.display = 'block';
+      document.getElementById('meetingFormArea').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function saveMeeting() {
+      const ids = appState.meeting.formResidentIds;
+      if (!ids.length) { alert('対象利用者を1名以上選択してください'); return; }
+      const date = document.getElementById('mt_date').value;
+      if (!date) { alert('開催日を入力してください'); return; }
+
+      const perResident = {};
+      ids.forEach(id => {
+        perResident[id] = {
+          bullets: document.getElementById('mt_pr_bullets_' + id)?.value.trim() || '',
+          content: document.getElementById('mt_pr_content_' + id)?.value.trim() || ''
+        };
+      });
+
+      const m = {
+        id: appState.meeting.editingId || ('mt_' + Date.now()),
+        date,
+        place: document.getElementById('mt_place').value.trim(),
+        kind: document.getElementById('mt_kind').value,
+        attendees: document.getElementById('mt_attendees').value,
+        attendeesOther: document.getElementById('mt_attendeesOther').value.trim(),
+        residentIds: ids.slice(),
+        perResident,
+        sharedBullets: document.getElementById('mt_sharedBullets').value.trim(),
+        sharedContent: document.getElementById('mt_sharedContent').value.trim(),
+        nextDate: document.getElementById('mt_nextDate').value,
+        updatedAt: new Date().toLocaleString('ja-JP')
+      };
+
+      const existingIdx = appState.db.meetings.findIndex(x => x.id === m.id);
+      if (existingIdx >= 0) appState.db.meetings[existingIdx] = m;
+      else appState.db.meetings.push(m);
+
+      saveDb();
+      appState.meeting.editingId = null;
+      document.getElementById('meetingFormArea').style.display = 'none';
+      renderMeetingTantoshaView();
+      showStatus('meetingSaveStatus', `✅ ${m.updatedAt} に保存しました`, 'success');
+    }
+
+    function deleteMeeting(id) {
+      if (!confirm('この会議録を削除しますか？')) return;
+      appState.db.meetings = appState.db.meetings.filter(x => x.id !== id);
+      saveDb();
+      renderMeetingTantoshaView();
+    }
+
+    async function generateMeetingContentAI(btn) {
+      const key = appState.renrakucho.apiKey;
+      if (!key) { showStatus('meetingAiStatus', '⚠️ APIキーを設定してください（設定 ⚙️ から設定できます）', 'info'); return; }
+      const ids = appState.meeting.formResidentIds;
+      const sharedBullets = document.getElementById('mt_sharedBullets').value.trim();
+      if (!ids.length && !sharedBullets) { showStatus('meetingAiStatus', '⚠️ 対象利用者を選択するか、全体の検討事項を入力してください', 'info'); return; }
+
+      const originalLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div> 作成中...';
+      showStatus('meetingAiStatus', '', '');
+
+      const residentBlocks = ids.map((id, i) => {
+        const bullets = document.getElementById('mt_pr_bullets_' + id)?.value.trim() || '';
+        return `【利用者${i + 1}】キーワードメモ：${bullets || 'なし'}`;
+      }).join('\n');
+
+      const prompt = `あなたは通所介護施設の職員です。以下は担当者会議で話し合われた内容のキーワードメモです。それぞれを議事録として自然な文章に整えてください。
+
+${residentBlocks || '（個別の対象利用者なし）'}
+
+【会議全体】キーワードメモ：${sharedBullets || 'なし'}
+
+ルール：
+・キーワードメモを、記録として自然な文章に整える（敬語不要、記録調で簡潔に、2〜4文程度）
+・キーワードにない情報を勝手に付け足さない（誇張・創作しない）
+・メモが「なし」の項目は、無理に文章を作らず「特記事項なし」のように短く返す
+${customInstructionsBlock('customPromptMeeting')}
+出力形式（この形式を厳守し、見出し以外の余計な文字は含めない）：
+${ids.map((_, i) => `【利用者${i + 1}】\n（ここに文章）`).join('\n')}
+【会議全体】
+（ここに文章）`;
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1536, temperature: 0.6 } })
+          });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        let anyOut = false;
+        ids.forEach((id, i) => {
+          const re = new RegExp(`【利用者${i + 1}】([\\s\\S]*?)(?=【利用者${i + 2}】|【会議全体】|$)`);
+          const match = rawText.match(re);
+          const out = match ? match[1].trim() : '';
+          const cEl = document.getElementById('mt_pr_content_' + id);
+          if (out && cEl) { cEl.value = out; anyOut = true; }
+        });
+        const sharedMatch = rawText.match(/【会議全体】([\s\S]*)$/);
+        const sharedOut = sharedMatch ? sharedMatch[1].trim() : '';
+        if (sharedOut) { document.getElementById('mt_sharedContent').value = sharedOut; anyOut = true; }
+
+        showStatus('meetingAiStatus', anyOut ? '✅ 文章を作成しました' : '⚠️ 生成に失敗しました。もう一度お試しください', anyOut ? 'success' : 'info');
+      } catch (err) {
+        showStatus('meetingAiStatus', `❌ エラー: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+      }
+    }
+
+    function collectMeetingFormAsObject() {
+      const ids = appState.meeting.formResidentIds;
+      const perResident = {};
+      ids.forEach(id => {
+        perResident[id] = {
+          content: document.getElementById('mt_pr_content_' + id)?.value.trim() || ''
+        };
+      });
+      return {
+        date: document.getElementById('mt_date').value,
+        place: document.getElementById('mt_place').value.trim(),
+        kind: document.getElementById('mt_kind').value,
+        attendees: document.getElementById('mt_attendees').value,
+        attendeesOther: document.getElementById('mt_attendeesOther').value.trim(),
+        residentIds: ids.slice(),
+        perResident,
+        sharedContent: document.getElementById('mt_sharedContent').value.trim(),
+        nextDate: document.getElementById('mt_nextDate').value
+      };
+    }
+
+    function printMeetingDraft() { printMeetingWindow(collectMeetingFormAsObject()); }
+
+    function printMeetingRecord(id) {
+      const m = appState.db.meetings.find(x => x.id === id);
+      if (m) printMeetingWindow(m);
+    }
+
+    function printMeetingWindow(m) {
+      const facility = appState.db.facility || '';
+      const names = (m.residentIds || []).map(id => residentNameOf(id)).join('・') || '（未設定）';
+      const attendeesLabel = [(m.attendees || '').split(',').filter(Boolean).join('・'), m.attendeesOther].filter(Boolean).join('、') || '（未記入）';
+      const perResidentRows = (m.residentIds || []).map(id => {
+        const c = (m.perResident && m.perResident[id] && m.perResident[id].content) || '';
+        return `<div class="row"><span class="label">${escHtml(residentNameOf(id))}様：</span>${escHtml(c || '（未記入）')}</div>`;
+      }).join('');
+
+      const win = window.open('', '_blank');
+      win.document.write(`
+    <html><head><title>担当者会議録 ${m.date || ''}</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; line-height: 1.8; font-size: 13px; }
+      h1 { font-size: 17px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+      .row { margin: 6px 0; }
+      .label { font-weight: bold; }
+    </style></head><body>
+    <h1>担当者会議録　${escHtml(facility)}</h1>
+    <div class="row"><span class="label">開催日：</span>${escHtml(m.date || '')}　<span class="label">種別：</span>${escHtml(m.kind || '')}</div>
+    <div class="row"><span class="label">開催場所：</span>${escHtml(m.place || '')}</div>
+    <div class="row"><span class="label">出席者：</span>${escHtml(attendeesLabel)}</div>
+    <div class="row"><span class="label">対象利用者：</span>${escHtml(names)}</div>
+    <hr>
+    ${perResidentRows}
+    <div class="row"><span class="label">検討事項・結論・今後の課題：</span>${escHtml(m.sharedContent || '（未記入）')}</div>
+    <div class="row"><span class="label">次回会議予定日：</span>${escHtml(m.nextDate || '（未定）')}</div>
+    </body></html>`);
+      win.document.close();
+      win.print();
+    }
+
+    // ---------- リハビリ会議 ----------
+    function renderRehaMeetingResidentSelector() {
+      const el = document.getElementById('rehaMeetingResidentSelector');
+      if (!el) return;
+      if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
+      el.innerHTML = appState.db.residentDb.map(r => {
+        const hist = (appState.db.rehabPlans[r.id] && appState.db.rehabPlans[r.id].history) || [];
+        const selected = appState.rehaMeeting.selectedResident?.id === r.id;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehaMeetingResident('${r.id}')">${escHtml(r.name)}${hist.length ? ' (' + hist.length + ')' : ''}</span>`;
+      }).join('');
+    }
+
+    function selectRehaMeetingResident(id) {
+      const r = appState.db.residentDb.find(x => x.id === id);
+      if (!r) return;
+      appState.rehaMeeting.selectedResident = r;
+      renderRehaMeetingResidentSelector();
+      document.getElementById('rehaMeetingArea').style.display = 'block';
+      cancelRehaMeetingForm();
+      renderRehaMeetingHistory();
+    }
+
+    function renderRehaMeetingHistory() {
+      const el = document.getElementById('rehaMeetingHistory');
+      if (!el) return;
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) return;
+      const plan = appState.db.rehabPlans[r.id] || {};
+      const hist = (plan.history || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (!hist.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">リハビリ会議録はまだありません</div>`; return; }
+      el.innerHTML = hist.map(h => `<div class="review-item" style="display:block; cursor:default;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b>${escHtml(h.date || '')}</b>　<span style="font-size:12px; color:var(--muted);">${escHtml(h.place || '')}</span>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-top:2px;">出席者：${escHtml([(h.attendees || '').split(',').filter(Boolean).join('・'), h.attendeesOther].filter(Boolean).join('、') || '（未記入）')}</div>
+        ${h.content ? `<div style="font-size:13px; margin-top:4px; line-height:1.6;">${escHtml(h.content)}</div>` : ''}
+        ${h.changes ? `<div style="font-size:12px; color:var(--accent); margin-top:4px;">計画変更点：${escHtml(h.changes)}</div>` : ''}
+        <div style="margin-top:6px; display:flex; gap:8px;">
+          <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="editRehaMeeting('${h.id}')">✏️ 編集</span>
+          <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="printRehaMeetingRecord('${h.id}')">🖨️ 印刷</span>
+          <span style="font-size:12px; color:var(--danger); cursor:pointer;" onclick="deleteRehaMeeting('${h.id}')">🗑️ 削除</span>
+        </div>
+      </div>`).join('');
+    }
+
+    function renderRehaMeetingStaffChips() {
+      const row = document.getElementById('rmAttendeeChipRow');
+      if (!row) return;
+      const names = Array.from(new Set([...(appState.db.rehabStaffList || []), ...(appState.db.careStaffList || []), ...(appState.db.nurseStaffList || [])]));
+      row.innerHTML = names.length
+        ? names.map(name => `<span class="rp-type-chip" data-v="${escAttr(name)}" onclick="toggleChipGeneric(this,'rmAttendeeChipRow','rm_attendees')">${escHtml(name)}</span>`).join('')
+        : `<span style="font-size:12px; color:var(--muted);">設定 ⚙️ からリハビリスタッフ・介護スタッフを登録してください</span>`;
+      syncChipRow('rmAttendeeChipRow', 'rm_attendees');
+    }
+
+    function openNewRehaMeetingForm() {
+      if (!appState.rehaMeeting.selectedResident) { alert('利用者を選択してください'); return; }
+      appState.rehaMeeting.editingId = null;
+      document.getElementById('rm_date').value = todayStr();
+      document.getElementById('rm_place').value = '';
+      document.getElementById('rm_attendees').value = '';
+      document.getElementById('rm_attendeesOther').value = '';
+      document.getElementById('rm_bullets').value = '';
+      document.getElementById('rm_content').value = '';
+      document.getElementById('rm_changes').value = '';
+      document.getElementById('rm_nextReviewDate').value = '';
+      renderRehaMeetingStaffChips();
+      showStatus('rehaMeetingSaveStatus', '', '');
+      showStatus('rehaMeetingAiStatus', '', '');
+      document.getElementById('rehaMeetingFormArea').style.display = 'block';
+      document.getElementById('rehaMeetingFormArea').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelRehaMeetingForm() {
+      const el = document.getElementById('rehaMeetingFormArea');
+      if (el) el.style.display = 'none';
+      appState.rehaMeeting.editingId = null;
+    }
+
+    function editRehaMeeting(id) {
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) return;
+      const plan = appState.db.rehabPlans[r.id] || {};
+      const h = (plan.history || []).find(x => x.id === id);
+      if (!h) return;
+      appState.rehaMeeting.editingId = id;
+      document.getElementById('rm_date').value = h.date || '';
+      document.getElementById('rm_place').value = h.place || '';
+      document.getElementById('rm_attendees').value = h.attendees || '';
+      document.getElementById('rm_attendeesOther').value = h.attendeesOther || '';
+      document.getElementById('rm_bullets').value = h.bullets || '';
+      document.getElementById('rm_content').value = h.content || '';
+      document.getElementById('rm_changes').value = h.changes || '';
+      document.getElementById('rm_nextReviewDate').value = h.nextReviewDate || '';
+      renderRehaMeetingStaffChips();
+      showStatus('rehaMeetingSaveStatus', '', '');
+      showStatus('rehaMeetingAiStatus', '', '');
+      document.getElementById('rehaMeetingFormArea').style.display = 'block';
+      document.getElementById('rehaMeetingFormArea').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function saveRehaMeeting() {
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) { alert('利用者を選択してください'); return; }
+      const date = document.getElementById('rm_date').value;
+      if (!date) { alert('開催日を入力してください'); return; }
+
+      if (!appState.db.rehabPlans[r.id]) appState.db.rehabPlans[r.id] = {};
+      const plan = appState.db.rehabPlans[r.id];
+      if (!plan.history) plan.history = [];
+
+      const h = {
+        id: appState.rehaMeeting.editingId || ('rm_' + Date.now()),
+        date,
+        place: document.getElementById('rm_place').value.trim(),
+        attendees: document.getElementById('rm_attendees').value,
+        attendeesOther: document.getElementById('rm_attendeesOther').value.trim(),
+        bullets: document.getElementById('rm_bullets').value.trim(),
+        content: document.getElementById('rm_content').value.trim(),
+        changes: document.getElementById('rm_changes').value.trim(),
+        nextReviewDate: document.getElementById('rm_nextReviewDate').value,
+        updatedAt: new Date().toLocaleString('ja-JP')
+      };
+
+      const idx = plan.history.findIndex(x => x.id === h.id);
+      if (idx >= 0) plan.history[idx] = h; else plan.history.push(h);
+
+      // 次回評価予定日を計画書側にも反映（「見直し期間が近い利用者」リストと連動）
+      if (h.nextReviewDate) plan.reviewDate = h.nextReviewDate;
+      plan.updatedAt = h.updatedAt;
+
+      saveDb();
+      appState.rehaMeeting.editingId = null;
+      document.getElementById('rehaMeetingFormArea').style.display = 'none';
+      renderRehaMeetingHistory();
+      renderRehaMeetingResidentSelector();
+      renderReviewDueList();
+      showStatus('rehaMeetingSaveStatus', `✅ ${h.updatedAt} に保存しました（次回評価予定日は計画書にも反映されます）`, 'success');
+    }
+
+    function deleteRehaMeeting(id) {
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) return;
+      const plan = appState.db.rehabPlans[r.id];
+      if (!plan || !plan.history) return;
+      if (!confirm('このリハビリ会議録を削除しますか？')) return;
+      plan.history = plan.history.filter(x => x.id !== id);
+      saveDb();
+      renderRehaMeetingHistory();
+      renderRehaMeetingResidentSelector();
+    }
+
+    async function generateRehaMeetingContentAI(btn) {
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) { showStatus('rehaMeetingAiStatus', '⚠️ 利用者を選択してください', 'info'); return; }
+      const key = appState.renrakucho.apiKey;
+      if (!key) { showStatus('rehaMeetingAiStatus', '⚠️ APIキーを設定してください（設定 ⚙️ から設定できます）', 'info'); return; }
+
+      const originalLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner"></div> 作成中...';
+      showStatus('rehaMeetingAiStatus', '', '');
+
+      const bullets = document.getElementById('rm_bullets').value.trim();
+      const attendeesLabel = [(document.getElementById('rm_attendees').value || '').split(',').filter(Boolean).join('・'), document.getElementById('rm_attendeesOther').value.trim()].filter(Boolean).join('、');
+      const plan = appState.db.rehabPlans[r.id] || {};
+      const goals = [plan.shortGoalMind, plan.shortGoalActivity, plan.shortGoalParticipation].filter(Boolean).join('／');
+
+      const prompt = `あなたは通所リハビリのスタッフです。以下はリハビリテーション会議で話し合われた内容のキーワードメモです。議事録用の文章として自然に整えてください。
+
+出席者：${attendeesLabel || 'なし'}
+現在の短期目標（参考。関連しそうな時だけ自然に触れる程度でよい）：${goals || 'なし'}
+話し合った内容のキーワードメモ：${bullets || 'なし'}
+
+ルール：
+・キーワードメモを、施設スタッフの記録として自然な2〜4文の文章に整える（敬語不要、記録調で簡潔に）
+・キーワードにない情報を勝手に付け足さない（誇張・創作しない）
+・「リハビリテーション計画書の内容に基づき、心身の状況、リハビリテーションの目標、実施内容について検討した」という主旨を自然に含める
+${customInstructionsBlock('customPromptRehaMeeting')}
+出力は文章のみとし、見出しや前置きは付けないこと。`;
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024, temperature: 0.6 } })
+          });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const rawText = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+        if (rawText) {
+          document.getElementById('rm_content').value = rawText;
+          showStatus('rehaMeetingAiStatus', '✅ 文章を作成しました', 'success');
+        } else {
+          showStatus('rehaMeetingAiStatus', '⚠️ 生成に失敗しました。もう一度お試しください', 'info');
+        }
+      } catch (err) {
+        showStatus('rehaMeetingAiStatus', `❌ エラー: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+      }
+    }
+
+    function collectRehaMeetingFormAsObject() {
+      return {
+        date: document.getElementById('rm_date').value,
+        place: document.getElementById('rm_place').value.trim(),
+        attendees: document.getElementById('rm_attendees').value,
+        attendeesOther: document.getElementById('rm_attendeesOther').value.trim(),
+        content: document.getElementById('rm_content').value.trim(),
+        changes: document.getElementById('rm_changes').value.trim(),
+        nextReviewDate: document.getElementById('rm_nextReviewDate').value
+      };
+    }
+
+    function printRehaMeetingDraft() {
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) { alert('利用者を選択してください'); return; }
+      printRehaMeetingWindow(r, collectRehaMeetingFormAsObject());
+    }
+
+    function printRehaMeetingRecord(id) {
+      const r = appState.rehaMeeting.selectedResident;
+      if (!r) return;
+      const plan = appState.db.rehabPlans[r.id] || {};
+      const h = (plan.history || []).find(x => x.id === id);
+      if (h) printRehaMeetingWindow(r, h);
+    }
+
+    function printRehaMeetingWindow(r, h) {
+      const facility = appState.db.facility || '';
+      const attendeesLabel = [(h.attendees || '').split(',').filter(Boolean).join('・'), h.attendeesOther].filter(Boolean).join('、') || '（未記入）';
+      const win = window.open('', '_blank');
+      win.document.write(`
+    <html><head><title>リハビリ会議録 ${h.date || ''}</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; line-height: 1.8; font-size: 13px; }
+      h1 { font-size: 17px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+      .row { margin: 6px 0; }
+      .label { font-weight: bold; }
+    </style></head><body>
+    <h1>リハビリテーション会議録　${escHtml(facility)}</h1>
+    <div class="row"><span class="label">利用者：</span>${escHtml(r.name)}様</div>
+    <div class="row"><span class="label">開催日：</span>${escHtml(h.date || '')}　<span class="label">開催場所：</span>${escHtml(h.place || '')}</div>
+    <div class="row"><span class="label">出席者：</span>${escHtml(attendeesLabel)}</div>
+    <hr>
+    <div class="row"><span class="label">検討内容：</span>${escHtml(h.content || '（未記入）')}</div>
+    <div class="row"><span class="label">計画書の変更点：</span>${escHtml(h.changes || 'なし')}</div>
+    <div class="row"><span class="label">次回評価予定日：</span>${escHtml(h.nextReviewDate || '（未定）')}</div>
+    </body></html>`);
+      win.document.close();
+      win.print();
     }
 
     function todayStr() {

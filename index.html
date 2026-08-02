@@ -372,7 +372,8 @@
     .cal-weekday-row {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      margin-bottom: 4px;
+      margin: 0 auto 4px auto;
+      max-width: min(100%, 66vh);
     }
 
     .cal-weekday {
@@ -395,6 +396,8 @@
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 4px;
+      margin: 0 auto;
+      max-width: min(100%, 66vh);
     }
 
     .cal-day {
@@ -3633,9 +3636,10 @@
           <div class="card-title">📄 提供表（月間の予定・実績の確認）</div>
           <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
             「書類読取」の「提供表→スケジュール」で読み取った内容を、ここで最終確認します。マス目をクリックすると
-            空欄→「1」→「休」 の順に切り替わります。<br>
+            空欄→「1」→「休」→「／」→「S」の順に切り替わります。<br>
+            <b>1</b>＝利用予定　<b>休</b>＝元々休み　<b>／</b>＝元々予定なし　<b>S</b>＝ショートステイ利用<br>
             「予定」を確定すると以後は編集できなくなり、以降の変更は「実績」の方に記録します（勤務表と同じ仕組みです）。<br>
-            ※このページの内容をスケジュール（カレンダー等）へ反映する機能は今のところありません。あくまで確認・記録用の一覧表です。
+            確定した月は、下の「📅 スケジュールに反映する」で、カレンダー・週間予定表にも反映できます。
           </div>
           <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">
             <button class="btn btn-secondary btn-sm" onclick="teikyohyoPrevMonth()">◀</button>
@@ -3648,7 +3652,10 @@
               この月の予定を確定する</button>
             <button class="btn btn-secondary btn-sm" id="teikyohyoUnlockBtn" style="display:none;"
               onclick="unlockTeikyohyoPlan()">🔓 確定を解除</button>
+            <button class="btn btn-refresh-highlight btn-sm" id="teikyohyoApplyScheduleBtn" style="display:none;"
+              onclick="applyTeikyohyoPlanToSchedule()">📅 スケジュールに反映する</button>
           </div>
+          <div id="teikyohyoApplyScheduleStatus" style="text-align:center; margin-bottom:8px; font-size:12.5px;"></div>
           <div style="overflow-x:auto;">
             <div id="teikyohyoTableArea"></div>
           </div>
@@ -8909,7 +8916,15 @@ ${SHORUI_COMMON_NOTE}`;
     // ============================================================
     function ymKeyOf(year, month) { return `${year}-${String(month).padStart(2, '0')}`; }
 
-    const TEIKYOHYO_CYCLE = ['', '1', '休'];
+    const TEIKYOHYO_CYCLE = ['', '1', '休', '／', 'S'];
+
+    function teikyohyoCellClass(v) {
+      if (v === '1') return 'work';
+      if (v === '休') return 'off';
+      if (v === '／') return 'non-business';
+      if (v === 'S') return 'code-a';
+      return '';
+    }
 
     function getTeikyohyoCell(kind, ymk, residentId, day) {
       const store = kind === 'plan' ? appState.db.teikyohyoPlan : appState.db.teikyohyoActual;
@@ -8969,22 +8984,90 @@ ${SHORUI_COMMON_NOTE}`;
       renderTeikyohyoPage();
     }
 
+    // 確定済みの「提供表」予定を、カレンダー・週間予定表（スケジュール本体）へ反映する。
+    // 1＝利用予定あり／休み＝dayStatus「休み」／／＝dayStatus「予定なし（提供表）」／S＝dayStatus「ショートステイ利用」。
+    // 空欄の日は「提供表に記載がなかった日」として、今のスケジュールをそのまま変更しない。
+    function applyTeikyohyoPlanToSchedule() {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      if (!appState.db.teikyohyoConfirmed[ymk]) {
+        showStatus('teikyohyoApplyScheduleStatus', '⚠️ この月の予定はまだ確定されていません。先に確定してください。', 'info');
+        return;
+      }
+      const plan = appState.db.teikyohyoPlan[ymk] || {};
+      const residentIds = Object.keys(plan);
+      if (!residentIds.length) {
+        showStatus('teikyohyoApplyScheduleStatus', '⚠️ この月の提供表にはまだ何も入力されていません。', 'info');
+        return;
+      }
+      if (!confirm(`${year}年${month}月分の提供表の内容を、カレンダー・週間予定表に反映します。よろしいですか？`)) return;
+
+      let touched = 0;
+      residentIds.forEach(residentId => {
+        const resident = appState.db.residentDb.find(r => r.id === residentId);
+        if (!resident) return;
+        const days = plan[residentId] || {};
+        const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
+
+        Object.keys(days).forEach(dayStr => {
+          const d = parseInt(dayStr, 10);
+          const v = days[dayStr];
+          if (!v) return;
+          const dateStr = ymd(year, month - 1, d);
+          const wd = weekdayLabelOf(dateStr);
+          const isPatternDay = patternDays.includes(wd);
+
+          if (!appState.db.attendanceOverrides[dateStr]) appState.db.attendanceOverrides[dateStr] = { add: [], remove: [] };
+          const ov = appState.db.attendanceOverrides[dateStr];
+          if (!appState.db.dayStatusOverrides[dateStr]) appState.db.dayStatusOverrides[dateStr] = {};
+          const statusMap = appState.db.dayStatusOverrides[dateStr];
+
+          // 提供表に記載がある日は、状態（1／休／／／S）に関わらず「本日の利用予定者」に必ず表示されるようにする。
+          // 曜日パターン外の日なら臨時追加、パターン内なら余計な臨時追加フラグが残っていれば外す。
+          ov.remove = (ov.remove || []).filter(id => id !== resident.id);
+          if (isPatternDay) {
+            if ((ov.add || []).includes(resident.id)) ov.add = ov.add.filter(id => id !== resident.id);
+          } else if (!(ov.add || []).includes(resident.id)) {
+            ov.add = [...(ov.add || []), resident.id];
+          }
+
+          if (v === '1') delete statusMap[resident.id];
+          else if (v === '休') statusMap[resident.id] = '休み';
+          else if (v === '／') statusMap[resident.id] = '予定なし（提供表）';
+          else if (v === 'S') statusMap[resident.id] = 'ショートステイ利用';
+          touched++;
+        });
+      });
+
+      saveDb();
+      if (typeof renderCalendar === 'function') renderCalendar();
+      if (typeof renderWeeklyAttendance === 'function') renderWeeklyAttendance();
+
+      showStatus('teikyohyoApplyScheduleStatus',
+        `✅ ${year}年${month}月分をスケジュールに反映しました（対象${residentIds.length}名／${touched}日分）。`,
+        'success');
+    }
+
     function renderTeikyohyoConfirmStatus() {
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
       const el = document.getElementById('teikyohyoConfirmStatus');
       const btn = document.getElementById('teikyohyoConfirmBtn');
       const unlockBtn = document.getElementById('teikyohyoUnlockBtn');
+      const applyBtn = document.getElementById('teikyohyoApplyScheduleBtn');
       if (!el) return;
       if (appState.db.teikyohyoConfirmed[ymk]) {
         el.innerHTML = `<span class="import-status-ok">🔒 確定済み（${escHtml(appState.db.teikyohyoConfirmedAt[ymk] || '')}）。予定は編集できません。</span>`;
         if (btn) btn.style.display = 'none';
         if (unlockBtn) unlockBtn.style.display = '';
+        if (applyBtn) applyBtn.style.display = '';
       } else {
         el.innerHTML = `<span style="color:var(--muted);">未確定（予定は編集可能です）</span>`;
         if (btn) btn.style.display = '';
         if (unlockBtn) unlockBtn.style.display = 'none';
+        if (applyBtn) applyBtn.style.display = 'none';
       }
+      showStatus('teikyohyoApplyScheduleStatus', '', '');
     }
 
     function renderTeikyohyoPage() {
@@ -9008,22 +9091,25 @@ ${SHORUI_COMMON_NOTE}`;
 
       const dayNums = Array.from({ length: totalDays }, (_, i) => i + 1);
       const dayHeaderCells = dayNums.map(d => {
-        const wd = weekdayLabelOf(ymd(year, month - 1, d));
-        return `<th class="${(wd === '土' || wd === '日') ? 'shift-day-off' : ''}">${d}<br>${wd}</th>`;
+        const dateStr = ymd(year, month - 1, d);
+        const wd = weekdayLabelOf(dateStr);
+        const isBiz = isBusinessDayStr(dateStr);
+        return `<th class="${isBiz ? '' : 'shift-day-off'}">${d}<br>${wd}</th>`;
       }).join('');
 
       let bodyRows = '';
+      const bizFlags = dayNums.map(d => isBusinessDayStr(ymd(year, month - 1, d)));
       residents.forEach((r, rIndex) => {
-        const planCells = dayNums.map(d => {
+        const planCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('plan', ymk, r.id, d);
-          const cls = v === '1' ? 'work' : v === '休' ? 'off' : '';
+          const cls = v ? teikyohyoCellClass(v) : (bizFlags[i] ? '' : 'non-business');
           const clickAttr = locked ? '' : ` onclick="toggleTeikyohyoCell('plan', '${r.id}', ${d})"`;
           const lockedStyle = locked ? ' style="cursor:default;"' : '';
           return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle}>${v}</td>`;
         }).join('');
-        const actualCells = dayNums.map(d => {
+        const actualCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('actual', ymk, r.id, d);
-          const cls = v === '1' ? 'work' : v === '休' ? 'off' : '';
+          const cls = v ? teikyohyoCellClass(v) : (bizFlags[i] ? '' : 'non-business');
           return `<td class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
         }).join('');
 

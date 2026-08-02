@@ -1190,6 +1190,28 @@
       padding: 1px 0;
     }
 
+    .tp-time-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+
+    .tp-lock-btn {
+      border: none;
+      background: none;
+      padding: 0;
+      margin: 0;
+      font-size: 9px;
+      line-height: 1.2;
+      cursor: pointer;
+      opacity: 0.65;
+    }
+
+    .tp-lock-btn.individual {
+      opacity: 1;
+    }
+
     .tp-badge {
       display: inline-block;
       font-size: 8.5px;
@@ -1506,6 +1528,12 @@
       height: 20px;
       font-size: 9.5px;
       opacity: 0.65;
+    }
+
+    .shift-cell.actual-row-cell.actual-unchanged {
+      opacity: 0.3;
+      background: var(--bg) !important;
+      cursor: pointer;
     }
 
     .shift-cell.actual-row-cell.actual-changed {
@@ -3670,7 +3698,8 @@
             空欄→「1」→「休」→「／」→「S」の順に切り替わります。<br>
             <b>1</b>＝利用予定　<b>休</b>＝元々休み　<b>／</b>＝元々予定なし　<b>S</b>＝ショートステイ利用<br>
             「予定」を確定すると以後は編集できなくなり、以降の変更は「実績」の方に記録します（勤務表と同じ仕組みです）。<br>
-            確定した月は、下の「📅 スケジュールに反映する」で、カレンダー・週間予定表にも反映できます。
+            確定した月は、下の「📅 スケジュールに反映する」で、カレンダー・週間予定表にも反映できます。<br>
+            <b>確定後に「実績」セルを変更すると、その日はスケジュールへ即座に反映されます（実績が優先されます）。</b>
           </div>
           <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">
             <button class="btn btn-secondary btn-sm" onclick="teikyohyoPrevMonth()">◀</button>
@@ -4957,16 +4986,17 @@
       addSheet('アセスメント', asRows);
 
       // ⑪ 送迎表
-      const tpRows = [['日付', '順', '利用者名', '迎え時刻', '到着時刻（施設）', '送り時刻', '到着時刻（自宅）', '車両', '運転手', '備考', '送迎区分', '本日家族迎え', '本日家族送り', '迎え車両', '迎え運転手', '迎え添乗員', '送り車両', '送り運転手', '送り添乗員']];
+      const tpRows = [['日付', '順', '利用者名', '迎え時刻', '到着時刻（施設）', '送り時刻', '到着時刻（自宅）', '車両', '運転手', '備考', '送迎区分', '本日家族迎え', '本日家族送り', '迎え車両', '迎え運転手', '迎え添乗員', '送り車両', '送り運転手', '送り添乗員', '迎え個別設定', '送り個別設定']];
       Object.keys(db.transportLog).sort().forEach(date => {
         Object.entries(db.transportLog[date]).forEach(([rid, t]) => {
           const r = db.residentDb.find(x => x.id === rid);
           const typeLabel = r?.transportType === '家族送迎' ? '家族送迎' : '事業所';
           tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '', typeLabel, t.familyPickupToday ? 'はい' : '', t.familyDropoffToday ? 'はい' : '',
-            t.pickupVehicle ?? t.vehicle ?? '', t.pickupDriver ?? t.driver ?? '', t.pickupAttendant || '', t.dropoffVehicle ?? t.vehicle ?? '', t.dropoffDriver ?? t.driver ?? '', t.dropoffAttendant || '']);
+            t.pickupVehicle ?? t.vehicle ?? '', t.pickupDriver ?? t.driver ?? '', t.pickupAttendant || '', t.dropoffVehicle ?? t.vehicle ?? '', t.dropoffDriver ?? t.driver ?? '', t.dropoffAttendant || '', t.pickupIndividual ? 'はい' : '', t.dropoffIndividual ? 'はい' : '']);
         });
       });
       addSheet('送迎表', tpRows);
+
 
       // ⑫ モニタリング
       const moRows = [['種別', '対象月', '利用者名', '内容', '最終更新']];
@@ -5288,12 +5318,13 @@
       });
 
       // ⑪ 送迎表
-      getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note, typeLabel, familyToday, familyDropoffToday, pickupVehicle, pickupDriver, pickupAttendant, dropoffVehicle, dropoffDriver, dropoffAttendant]) => {
+      getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note, typeLabel, familyToday, familyDropoffToday, pickupVehicle, pickupDriver, pickupAttendant, dropoffVehicle, dropoffDriver, dropoffAttendant, pickupIndividual, dropoffIndividual]) => {
         const id = findId(name); if (!id || !date) return;
         if (!newDb.transportLog[date]) newDb.transportLog[date] = {};
         newDb.transportLog[date][id] = {
           order: order || '', pickupTime: pickupTime || '', facilityArrivalTime: facilityArrivalTime || '', dropoffTime: dropoffTime || '', homeArrivalTime: homeArrivalTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '', familyPickupToday: familyToday === 'はい', familyDropoffToday: familyDropoffToday === 'はい',
-          pickupVehicle: pickupVehicle || '', pickupDriver: pickupDriver || '', pickupAttendant: pickupAttendant || '', dropoffVehicle: dropoffVehicle || '', dropoffDriver: dropoffDriver || '', dropoffAttendant: dropoffAttendant || ''
+          pickupVehicle: pickupVehicle || '', pickupDriver: pickupDriver || '', pickupAttendant: pickupAttendant || '', dropoffVehicle: dropoffVehicle || '', dropoffDriver: dropoffDriver || '', dropoffAttendant: dropoffAttendant || '',
+          pickupIndividual: pickupIndividual === 'はい', dropoffIndividual: dropoffIndividual === 'はい'
         };
       });
 
@@ -5767,7 +5798,7 @@
 
         const pickupTimeCell = naPickupLeg
           ? `<td class="tp-na">－</td>`
-          : `<td><input type="time" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"></td>`;
+          : `<td><div class="tp-time-wrap"><input type="time" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"><button type="button" class="tp-lock-btn${t.pickupIndividual ? ' individual' : ''}" title="${t.pickupIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','pickup')">${t.pickupIndividual ? '🔓' : '🔗'}</button></div></td>`;
         const facilityArrivalCell = `<td><input type="time" value="${t.facilityArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','facilityArrivalTime', this.value)"></td>`;
         const pickupVehicleCell = naPickupLeg
           ? `<td class="tp-na">－</td>`
@@ -5779,7 +5810,7 @@
           ? `<td class="tp-na">－</td>`
           : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupAttendant', this.value)">${buildDriverOptions(t.pickupAttendant)}</select></td>`;
 
-        const dropoffTimeCell = `<td><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"></td>`;
+        const dropoffTimeCell = `<td><div class="tp-time-wrap"><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"><button type="button" class="tp-lock-btn${t.dropoffIndividual ? ' individual' : ''}" title="${t.dropoffIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','dropoff')">${t.dropoffIndividual ? '🔓' : '🔗'}</button></div></td>`;
         const homeArrivalCell = isFamilyDefault
           ? `<td class="tp-na">－</td>`
           : `<td><input type="time" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"></td>`;
@@ -5830,15 +5861,99 @@
     <tr><th>順</th><th>利用者名</th><th></th><th>時刻</th><th>到着</th><th>車両</th><th>運転手</th><th>添乗</th><th>備考</th></tr>
     ${rows}
   </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。${tpSortMode !== 'order' ? '車両順・運転手順は「迎え」の担当でグループ化しています（送りの担当が異なる場合があります）。' : ''}</div>`;
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。${tpSortMode !== 'order' ? '車両順・運転手順は「迎え」の担当でグループ化しています（送りの担当が異なる場合があります）。' : ''}<br>
+  時刻欄の🔗は「連動中」（同じ車両の他の利用者と時刻が自動的にそろいます）、🔓は「個別」（この人だけ別の時刻に設定でき、他の人には影響しません）です。クリックで切り替えられます。</div>`;
     }
+
+    // 送迎の「時刻」系フィールドと、連動判定に使う情報（個別フラグ・車両フィールド）の対応表。
+    // 迎え（pickupTime・facilityArrivalTime）と送り（dropoffTime・homeArrivalTime）は別々に連動します。
+    const TRANSPORT_TIME_SYNC_MAP = {
+      pickupTime: { flagField: 'pickupIndividual', vehicleField: 'pickupVehicle' },
+      facilityArrivalTime: { flagField: 'pickupIndividual', vehicleField: 'pickupVehicle' },
+      dropoffTime: { flagField: 'dropoffIndividual', vehicleField: 'dropoffVehicle' },
+      homeArrivalTime: { flagField: 'dropoffIndividual', vehicleField: 'dropoffVehicle' },
+    };
 
     function saveTransportField(dateStr, residentId, field, value) {
       if (!appState.db.transportLog[dateStr]) appState.db.transportLog[dateStr] = {};
       if (!appState.db.transportLog[dateStr][residentId]) appState.db.transportLog[dateStr][residentId] = {};
-      appState.db.transportLog[dateStr][residentId][field] = value;
+      const log = appState.db.transportLog[dateStr];
+      const entry = log[residentId];
+      entry[field] = value;
+
+      let needsRerender = field === 'order';
+
+      // 時刻（迎え・送りの「時刻」「到着」）は、同じ車両かつ「個別」に設定されていない
+      // 他の利用者にも自動的に同じ値を反映する（＝車両単位で時刻をそろえる）
+      const syncInfo = TRANSPORT_TIME_SYNC_MAP[field];
+      if (syncInfo && !entry[syncInfo.flagField]) {
+        const vehicle = entry[syncInfo.vehicleField] ?? entry.vehicle ?? '';
+        if (vehicle) {
+          Object.keys(log).forEach(rid => {
+            if (rid === residentId) return;
+            const e = log[rid];
+            const eVehicle = e[syncInfo.vehicleField] ?? e.vehicle ?? '';
+            if (eVehicle === vehicle && !e[syncInfo.flagField] && e[field] !== value) {
+              e[field] = value;
+              needsRerender = true;
+            }
+          });
+        }
+      }
+
+      // 車両（迎え／送り）を変更した場合：個別設定でなければ、同じ車両を使う他の行から
+      // 現在の時刻を引き継ぐ（すでに時刻が入っていれば、それに合わせる）
+      if ((field === 'pickupVehicle' || field === 'dropoffVehicle')) {
+        const leg = field === 'pickupVehicle' ? 'pickup' : 'dropoff';
+        const flagField = leg === 'pickup' ? 'pickupIndividual' : 'dropoffIndividual';
+        const timeField = leg === 'pickup' ? 'pickupTime' : 'dropoffTime';
+        const arrivalField = leg === 'pickup' ? 'facilityArrivalTime' : 'homeArrivalTime';
+        if (!entry[flagField]) {
+          const siblingId = Object.keys(log).find(rid => rid !== residentId
+            && ((log[rid][field] ?? log[rid].vehicle ?? '') === value)
+            && !log[rid][flagField] && log[rid][timeField]);
+          if (siblingId) {
+            entry[timeField] = log[siblingId][timeField] || entry[timeField];
+            entry[arrivalField] = log[siblingId][arrivalField] || entry[arrivalField];
+          }
+        }
+        needsRerender = true;
+      }
+
       saveDb();
-      if (field === 'order') renderTransportTable();
+      if (needsRerender) renderTransportTable();
+    }
+
+    // 「連動」⇔「個別」の切り替え。連動中は同じ車両の時刻が自動的にそろい、
+    // 個別に切り替えるとその行だけ自由に時刻を変更でき、他の行には影響しなくなる。
+    // 再び連動に戻すと、同じ車両を使う他の（連動中の）行の時刻を引き継ぐ。
+    function toggleTransportIndividual(dateStr, residentId, leg) {
+      if (!appState.db.transportLog[dateStr]) appState.db.transportLog[dateStr] = {};
+      if (!appState.db.transportLog[dateStr][residentId]) appState.db.transportLog[dateStr][residentId] = {};
+      const log = appState.db.transportLog[dateStr];
+      const entry = log[residentId];
+      const flagField = leg === 'pickup' ? 'pickupIndividual' : 'dropoffIndividual';
+      const vehicleField = leg === 'pickup' ? 'pickupVehicle' : 'dropoffVehicle';
+      const timeField = leg === 'pickup' ? 'pickupTime' : 'dropoffTime';
+      const arrivalField = leg === 'pickup' ? 'facilityArrivalTime' : 'homeArrivalTime';
+
+      const turningOn = !entry[flagField];
+      entry[flagField] = turningOn;
+
+      if (!turningOn) {
+        const vehicle = entry[vehicleField] ?? entry.vehicle ?? '';
+        if (vehicle) {
+          const siblingId = Object.keys(log).find(rid => rid !== residentId
+            && ((log[rid][vehicleField] ?? log[rid].vehicle ?? '') === vehicle) && !log[rid][flagField]);
+          if (siblingId) {
+            entry[timeField] = log[siblingId][timeField] || entry[timeField];
+            entry[arrivalField] = log[siblingId][arrivalField] || entry[arrivalField];
+          }
+        }
+      }
+
+      saveDb();
+      renderTransportTable();
     }
 
     // 本日だけ、受診等の理由で家族が迎えに来る場合の一時的な設定（利用者DBの「家族送迎」設定とは別）
@@ -6078,7 +6193,7 @@
     ${SHIFT_CODES.map(c => `<span class="shift-legend-item"><span class="swatch shift-cell ${shiftCodeClass(c)}" style="cursor:default;"></span>${shiftCodeLabel(c)}</span>`).join('')}
     <span class="shift-legend-item"><span class="swatch shift-cell non-business" style="cursor:default;"></span>休業日（自動）</span>
   </div>
-  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;"><b>${monthDay(dayDates[0])}〜${monthDay(dayDates[dayDates.length - 1])}</b>（起点日を第1列として4週間）を表示中（上の◀▶で前後の4週間に切り替え）。各スタッフ4行表示：<b>午前予定・午前実績・午後予定・午後実績</b>。午前・午後で異なる休み形態に対応します。予定セルはパターン編集用（確定後は実績で記録）、実績セルは日付ごとのピンポイント記録です。</div>`;
+  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;"><b>${monthDay(dayDates[0])}〜${monthDay(dayDates[dayDates.length - 1])}</b>（起点日を第1列として4週間）を表示中（上の◀▶で前後の4週間に切り替え）。各スタッフ4行表示：<b>午前予定・午前実績・午後予定・午後実績</b>。午前・午後で異なる休み形態に対応します。予定セルはパターン編集用（確定後は実績で記録）、実績セルは日付ごとのピンポイント記録です。<b>実績行は予定通りの日は空欄で薄く表示し、予定と異なる日だけ枠付きで目立たせます（空欄セルもクリックして変更できます）。</b></div>`;
 
       const dayHeaderCells = dayDates.map((d, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${dayLabels[i]}<br><span style="font-weight:400; font-size:8.5px;">${monthDay(d)}</span></th>`).join('');
       const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
@@ -6103,6 +6218,7 @@
         }).join('');
 
         // ---- 午前実績行 ----
+        // 予定通りの日は空欄（淡色）にして目立たせず、実績が予定と異なる日だけコードを表示して強調する
         const amActualCells = dayDates.map((d, i) => {
           if (beforeStart[i]) return `<td class="shift-cell before-start actual-row-cell">－</td>`;
           if (!dayIsBiz[i]) return `<td class="shift-cell non-business actual-row-cell">休</td>`;
@@ -6110,10 +6226,10 @@
           const planned = pattern.am[idx];
           const override = getShiftActual(s.name, d, 'am');
           const effective = override || planned;
-          const cls = shiftCodeClass(effective);
-          const label = shiftCodeLabel(effective);
           const changed = !!override && override !== planned;
-          return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','am')" title="${d}">${label}</td>`;
+          const cls = changed ? shiftCodeClass(effective) : '';
+          const label = changed ? shiftCodeLabel(effective) : '';
+          return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','am')" title="${d}${changed ? '' : '（予定通り／クリックで変更）'}">${label}</td>`;
         }).join('');
 
         // ---- 午後予定行 ----
@@ -6130,6 +6246,7 @@
         }).join('');
 
         // ---- 午後実績行 ----
+        // 予定通りの日は空欄（淡色）にして目立たせず、実績が予定と異なる日だけコードを表示して強調する
         const pmActualCells = dayDates.map((d, i) => {
           if (beforeStart[i]) return `<td class="shift-cell before-start actual-row-cell">－</td>`;
           if (!dayIsBiz[i]) return `<td class="shift-cell non-business actual-row-cell">休</td>`;
@@ -6137,10 +6254,10 @@
           const planned = pattern.pm[idx];
           const override = getShiftActual(s.name, d, 'pm');
           const effective = override || planned;
-          const cls = shiftCodeClass(effective);
-          const label = shiftCodeLabel(effective);
           const changed = !!override && override !== planned;
-          return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ''}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','pm')" title="${d}">${label}</td>`;
+          const cls = changed ? shiftCodeClass(effective) : '';
+          const label = changed ? shiftCodeLabel(effective) : '';
+          return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','pm')" title="${d}${changed ? '' : '（予定通り／クリックで変更）'}">${label}</td>`;
         }).join('');
 
         const zebra = sIndex % 2 === 0 ? 'shift-zebra-a' : 'shift-zebra-b';
@@ -9002,8 +9119,48 @@ ${SHORUI_COMMON_NOTE}`;
       return !stored && !isTeikyohyoDocLoaded(ymk, residentId);
     }
 
+    // 実績優先で、その利用者・その日の「有効な値」を取得する
+    // （実績セルに値があればそちらを優先。無ければ予定セルの値＝通所曜日からの自動反映を含む）
+    function getEffectiveTeikyohyoValue(ymk, residentId, day) {
+      const actualStore = appState.db.teikyohyoActual;
+      const actualVal = (actualStore[ymk] && actualStore[ymk][residentId] && actualStore[ymk][residentId][day]) || '';
+      if (actualVal) return actualVal;
+      return getTeikyohyoCell('plan', ymk, residentId, day);
+    }
+
+    // 提供表の1日分の値を、スケジュール本体（カレンダー・週間予定表が参照する
+    // attendanceOverrides / dayStatusOverrides）へ書き込む。値が空なら何もしない。
+    function applyTeikyohyoValueToScheduleDay(residentId, dateStr, v, wd) {
+      const resident = appState.db.residentDb.find(r => r.id === residentId);
+      if (!resident || !v) return false;
+      const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
+      const isPatternDay = patternDays.includes(wd);
+
+      if (!appState.db.attendanceOverrides[dateStr]) appState.db.attendanceOverrides[dateStr] = { add: [], remove: [] };
+      const ov = appState.db.attendanceOverrides[dateStr];
+      if (!appState.db.dayStatusOverrides[dateStr]) appState.db.dayStatusOverrides[dateStr] = {};
+      const statusMap = appState.db.dayStatusOverrides[dateStr];
+
+      // 提供表に記載がある日は、状態（1／休／／／S）に関わらず「本日の利用予定者」に必ず表示されるようにする。
+      // 曜日パターン外の日なら臨時追加、パターン内なら余計な臨時追加フラグが残っていれば外す。
+      ov.remove = (ov.remove || []).filter(id => id !== resident.id);
+      if (isPatternDay) {
+        if ((ov.add || []).includes(resident.id)) ov.add = ov.add.filter(id => id !== resident.id);
+      } else if (!(ov.add || []).includes(resident.id)) {
+        ov.add = [...(ov.add || []), resident.id];
+      }
+
+      if (v === '1') delete statusMap[resident.id];
+      else if (v === '休') statusMap[resident.id] = '休み';
+      else if (v === '入') statusMap[resident.id] = '入院中';
+      else if (v === '／') statusMap[resident.id] = '予定なし（提供表）';
+      else if (v === 'S') statusMap[resident.id] = 'ショートステイ利用';
+      return true;
+    }
+
     function toggleTeikyohyoCell(kind, residentId, day) {
-      const ymk = ymKeyOf(appState.teikyohyoPage.year, appState.teikyohyoPage.month);
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
       if (kind === 'plan' && appState.db.teikyohyoConfirmed[ymk]) {
         showStatus('teikyohyoConfirmStatus', '⚠️ この月の予定は確定済みのため編集できません。変更が必要な場合は「実績」に入力するか、確定を解除してください。', 'error');
         return;
@@ -9017,6 +9174,21 @@ ${SHORUI_COMMON_NOTE}`;
       if (next === '') delete store[ymk][residentId][day];
       else store[ymk][residentId][day] = next;
       saveDb();
+
+      // 「実績」を、確定済みの月に対して変更した場合は、その日だけ即座にスケジュール
+      // （カレンダー・週間予定表）へ実績優先で反映する。
+      if (kind === 'actual' && appState.db.teikyohyoConfirmed[ymk]) {
+        const dateStr = ymd(year, month - 1, day);
+        const wd = weekdayLabelOf(dateStr);
+        const v = getEffectiveTeikyohyoValue(ymk, residentId, day);
+        if (applyTeikyohyoValueToScheduleDay(residentId, dateStr, v, wd)) {
+          saveDb();
+          if (typeof renderCalendar === 'function') renderCalendar();
+          if (typeof renderWeeklyAttendance === 'function') renderWeeklyAttendance();
+          showStatus('teikyohyoApplyScheduleStatus', `✅ ${month}月${day}日分の実績をスケジュールに即時反映しました。`, 'success');
+        }
+      }
+
       renderTeikyohyoPage();
     }
 
@@ -9098,9 +9270,10 @@ ${SHORUI_COMMON_NOTE}`;
       renderTeikyohyoPage();
     }
 
-    // 確定済みの「提供表」予定を、カレンダー・週間予定表（スケジュール本体）へ反映する。
+    // 確定済みの「提供表」を、カレンダー・週間予定表（スケジュール本体）へ反映する。
+    // 実績が入力されている日はそちらを優先し、無い日は予定（自動反映を含む）を使う。
     // 1＝利用予定あり／休み＝dayStatus「休み」／入＝dayStatus「入院中」／／＝dayStatus「予定なし（提供表）」／S＝dayStatus「ショートステイ利用」。
-    // 空欄の日は「提供表に記載がなかった日」として、今のスケジュールをそのまま変更しない。
+    // 予定・実績とも記載がない日は「提供表に記載がなかった日」として、今のスケジュールをそのまま変更しない。
     function applyTeikyohyoPlanToSchedule() {
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -9109,48 +9282,29 @@ ${SHORUI_COMMON_NOTE}`;
         return;
       }
       const plan = appState.db.teikyohyoPlan[ymk] || {};
-      const residentIds = Object.keys(plan);
+      const actual = appState.db.teikyohyoActual[ymk] || {};
+      const residentIds = Array.from(new Set([...Object.keys(plan), ...Object.keys(actual)]));
       if (!residentIds.length) {
         showStatus('teikyohyoApplyScheduleStatus', '⚠️ この月の提供表にはまだ何も入力されていません。', 'info');
         return;
       }
-      if (!confirm(`${year}年${month}月分の提供表の内容を、カレンダー・週間予定表に反映します。よろしいですか？`)) return;
+      if (!confirm(`${year}年${month}月分の提供表の内容を、カレンダー・週間予定表に反映します（実績がある日は実績を優先します）。よろしいですか？`)) return;
 
       let touched = 0;
       residentIds.forEach(residentId => {
         const resident = appState.db.residentDb.find(r => r.id === residentId);
         if (!resident) return;
-        const days = plan[residentId] || {};
-        const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
+        const planDays = plan[residentId] || {};
+        const actualDays = actual[residentId] || {};
+        const dayKeys = Array.from(new Set([...Object.keys(planDays), ...Object.keys(actualDays)]));
 
-        Object.keys(days).forEach(dayStr => {
+        dayKeys.forEach(dayStr => {
           const d = parseInt(dayStr, 10);
-          const v = days[dayStr];
+          const v = getEffectiveTeikyohyoValue(ymk, residentId, d);
           if (!v) return;
           const dateStr = ymd(year, month - 1, d);
           const wd = weekdayLabelOf(dateStr);
-          const isPatternDay = patternDays.includes(wd);
-
-          if (!appState.db.attendanceOverrides[dateStr]) appState.db.attendanceOverrides[dateStr] = { add: [], remove: [] };
-          const ov = appState.db.attendanceOverrides[dateStr];
-          if (!appState.db.dayStatusOverrides[dateStr]) appState.db.dayStatusOverrides[dateStr] = {};
-          const statusMap = appState.db.dayStatusOverrides[dateStr];
-
-          // 提供表に記載がある日は、状態（1／休／／／S）に関わらず「本日の利用予定者」に必ず表示されるようにする。
-          // 曜日パターン外の日なら臨時追加、パターン内なら余計な臨時追加フラグが残っていれば外す。
-          ov.remove = (ov.remove || []).filter(id => id !== resident.id);
-          if (isPatternDay) {
-            if ((ov.add || []).includes(resident.id)) ov.add = ov.add.filter(id => id !== resident.id);
-          } else if (!(ov.add || []).includes(resident.id)) {
-            ov.add = [...(ov.add || []), resident.id];
-          }
-
-          if (v === '1') delete statusMap[resident.id];
-          else if (v === '休') statusMap[resident.id] = '休み';
-          else if (v === '入') statusMap[resident.id] = '入院中';
-          else if (v === '／') statusMap[resident.id] = '予定なし（提供表）';
-          else if (v === 'S') statusMap[resident.id] = 'ショートステイ利用';
-          touched++;
+          if (applyTeikyohyoValueToScheduleDay(residentId, dateStr, v, wd)) touched++;
         });
       });
 
@@ -9159,7 +9313,7 @@ ${SHORUI_COMMON_NOTE}`;
       if (typeof renderWeeklyAttendance === 'function') renderWeeklyAttendance();
 
       showStatus('teikyohyoApplyScheduleStatus',
-        `✅ ${year}年${month}月分をスケジュールに反映しました（対象${residentIds.length}名／${touched}日分）。`,
+        `✅ ${year}年${month}月分をスケジュールに反映しました（対象${residentIds.length}名／${touched}日分、実績優先）。`,
         'success');
     }
 

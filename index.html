@@ -1442,6 +1442,37 @@
       cursor: default;
     }
 
+    .shift-cell.teikyohyo-auto {
+      opacity: 0.6;
+      outline: 1px dashed currentColor;
+      outline-offset: -2px;
+    }
+
+    .teikyohyo-hosp-btn {
+      display: inline-block;
+      margin-top: 3px;
+      padding: 1px 6px;
+      font-size: 9.5px;
+      font-weight: 700;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .teikyohyo-hosp-btn.active {
+      background: #FFF3E0;
+      border-color: #E65100;
+      color: #E65100;
+    }
+
+    .teikyohyo-hosp-btn:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+
     .shift-table td.shift-subrow-label {
       font-size: 8.5px;
       color: var(--muted);
@@ -4456,7 +4487,7 @@
     const DB_KEY = 'deiservice_db';
 
     let appState = {
-      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {} },
+      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {} },
       teikyohyoPage: { year: new Date().getFullYear(), month: new Date().getMonth() + 1 },
       shorui: {
         files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
@@ -4498,7 +4529,7 @@
 
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, ...JSON.parse(saved) };
+      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, ...JSON.parse(saved) };
       // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
       if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
         appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -5133,7 +5164,7 @@
         dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '',
         customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {},
         shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {},
-        teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}
+        teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}
       };
 
       // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
@@ -6936,7 +6967,9 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         lines.push('【本日の利用者・時間】');
         attending.forEach(r => {
           const t = transport[r.id];
-          const timeStr = (t && t.pickupTime && t.dropoffTime) ? `${t.pickupTime}〜${t.dropoffTime}` : '（送迎時間未登録）';
+          // 送迎の迎え・送り時刻ではなく、実際の利用時間（標準時間＋送迎実績で調整済み。上の「利用時間帯別 人数」と同じ算出方法）を表示する
+          const { startTime, endTime } = computeEffectiveUsageTimes(usage[r.id], t, r);
+          const timeStr = (startTime && endTime) ? `${startTime}〜${endTime}` : '（利用時間未登録）';
           lines.push(`・${r.name}様　${timeStr}`);
         });
       }
@@ -8895,13 +8928,17 @@ ${SHORUI_COMMON_NOTE}`;
         return;
       }
       if (!appState.db.teikyohyoPlan[ymk]) appState.db.teikyohyoPlan[ymk] = {};
+      if (!appState.db.teikyohyoDocLoaded[ymk]) appState.db.teikyohyoDocLoaded[ymk] = {};
 
       list.forEach(item => {
         const resident = appState.db.residentDb.find(r => r.id === item.residentId);
         if (!resident) return;
         // 読み取った「1」の日だけを提供表ページの「予定」に反映する（他の情報は書き換えない）。
+        // 書類読み込みの内容が最優先のため、通所曜日からの自動反映や、入院中ボタンによる手入力は上書きされる。
         appState.db.teikyohyoPlan[ymk][resident.id] = {};
         item.days.forEach(d => { appState.db.teikyohyoPlan[ymk][resident.id][d] = '1'; });
+        appState.db.teikyohyoDocLoaded[ymk][resident.id] = true;
+        if (appState.db.teikyohyoHospitalized[ymk]) appState.db.teikyohyoHospitalized[ymk][resident.id] = false;
       });
 
       saveDb();
@@ -8916,19 +8953,53 @@ ${SHORUI_COMMON_NOTE}`;
     // ============================================================
     function ymKeyOf(year, month) { return `${year}-${String(month).padStart(2, '0')}`; }
 
-    const TEIKYOHYO_CYCLE = ['', '1', '休', '／', 'S'];
+    const TEIKYOHYO_CYCLE = ['', '1', '休', '入', '／', 'S'];
 
     function teikyohyoCellClass(v) {
       if (v === '1') return 'work';
       if (v === '休') return 'off';
+      if (v === '入') return 'code-ki';
       if (v === '／') return 'non-business';
       if (v === 'S') return 'code-a';
       return '';
     }
 
+    // その利用者・その月の提供表が「書類読み込み」によって読み込み済みかどうか。
+    // 読み込み済みの場合のみ、以後は通所曜日からの自動反映を止め、書類の内容（未記載日は空欄）をそのまま優先表示する。
+    // 個別セルの手入力（入院中ボタンによる一括入力を含む）は、クリックした日だけを上書きし、他の日の自動反映には影響しない。
+    function isTeikyohyoDocLoaded(ymk, residentId) {
+      return !!(appState.db.teikyohyoDocLoaded[ymk] && appState.db.teikyohyoDocLoaded[ymk][residentId]);
+    }
+
+    // 提供表がまだ届いていない（書類読み込みされていない）利用者・月について、
+    // 利用者DBの「通所曜日」を参考に、該当曜日・営業日のみ「1（利用予定）」を自動反映する
+    function getTeikyohyoAttendanceFallback(resident, dateStr) {
+      if (!resident || !isBusinessDayStr(dateStr)) return '';
+      const wd = weekdayLabelOf(dateStr);
+      const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
+      return patternDays.includes(wd) ? '1' : '';
+    }
+
     function getTeikyohyoCell(kind, ymk, residentId, day) {
       const store = kind === 'plan' ? appState.db.teikyohyoPlan : appState.db.teikyohyoActual;
-      return (store[ymk] && store[ymk][residentId] && store[ymk][residentId][day]) || '';
+      const stored = (store[ymk] && store[ymk][residentId] && store[ymk][residentId][day]) || '';
+      if (stored) return stored;
+      // 自動反映（フォールバック）は「予定」のみが対象。書類読み込み済みの利用者・月には適用しない。
+      // （個別のセルを手入力しても、他の未入力日はそのまま自動反映され続ける＝クリックした箇所だけが変わる）
+      if (kind === 'plan' && !isTeikyohyoDocLoaded(ymk, residentId)) {
+        const [year, month] = ymk.split('-').map(Number);
+        const resident = appState.db.residentDb.find(r => r.id === residentId);
+        return getTeikyohyoAttendanceFallback(resident, ymd(year, month - 1, day));
+      }
+      return '';
+    }
+
+    // 提供表セルが「通所曜日からの自動反映」によるものかどうか（表示上、実データと区別するために使用）
+    function isTeikyohyoCellFallback(kind, ymk, residentId, day) {
+      if (kind !== 'plan') return false;
+      const store = appState.db.teikyohyoPlan;
+      const stored = (store[ymk] && store[ymk][residentId] && store[ymk][residentId][day]) || '';
+      return !stored && !isTeikyohyoDocLoaded(ymk, residentId);
     }
 
     function toggleTeikyohyoCell(kind, residentId, day) {
@@ -8945,6 +9016,49 @@ ${SHORUI_COMMON_NOTE}`;
       const next = TEIKYOHYO_CYCLE[(idx === -1 ? 0 : idx + 1) % TEIKYOHYO_CYCLE.length];
       if (next === '') delete store[ymk][residentId][day];
       else store[ymk][residentId][day] = next;
+      saveDb();
+      renderTeikyohyoPage();
+    }
+
+    // 入院中ボタン：その利用者の通所曜日（利用者DB）に一致する、今表示中の月の営業日をまとめて「入」に設定／解除する
+    function toggleTeikyohyoHospitalization(residentId) {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      if (appState.db.teikyohyoConfirmed[ymk]) {
+        showStatus('teikyohyoConfirmStatus', '⚠️ この月の予定は確定済みのため編集できません。変更が必要な場合は「実績」に入力するか、確定を解除してください。', 'error');
+        return;
+      }
+      const resident = appState.db.residentDb.find(r => r.id === residentId);
+      if (!resident) return;
+
+      if (!appState.db.teikyohyoHospitalized[ymk]) appState.db.teikyohyoHospitalized[ymk] = {};
+      const isOn = !!appState.db.teikyohyoHospitalized[ymk][residentId];
+      const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
+      const totalDays = daysInMonthOf(year, month);
+
+      if (!appState.db.teikyohyoPlan[ymk]) appState.db.teikyohyoPlan[ymk] = {};
+      if (!appState.db.teikyohyoPlan[ymk][residentId]) appState.db.teikyohyoPlan[ymk][residentId] = {};
+      const store = appState.db.teikyohyoPlan[ymk][residentId];
+
+      if (isOn) {
+        if (!confirm(`${resident.name}様の入院中設定を解除します（入院中ボタンで自動設定した「入」のみ取り消します）。よろしいですか？`)) return;
+        for (let d = 1; d <= totalDays; d++) {
+          if (store[d] === '入') delete store[d];
+        }
+        appState.db.teikyohyoHospitalized[ymk][residentId] = false;
+      } else {
+        if (!patternDays.length) {
+          alert('この利用者は利用者DBに通所曜日が設定されていません。先に利用者編集から通所曜日を設定してください。');
+          return;
+        }
+        if (!confirm(`${resident.name}様を入院中として、${year}年${month}月の通所予定日（${patternDays.join('、')}）をすべて「入院」に設定します。よろしいですか？`)) return;
+        for (let d = 1; d <= totalDays; d++) {
+          const dateStr = ymd(year, month - 1, d);
+          if (!isBusinessDayStr(dateStr)) continue;
+          if (patternDays.includes(weekdayLabelOf(dateStr))) store[d] = '入';
+        }
+        appState.db.teikyohyoHospitalized[ymk][residentId] = true;
+      }
       saveDb();
       renderTeikyohyoPage();
     }
@@ -8985,7 +9099,7 @@ ${SHORUI_COMMON_NOTE}`;
     }
 
     // 確定済みの「提供表」予定を、カレンダー・週間予定表（スケジュール本体）へ反映する。
-    // 1＝利用予定あり／休み＝dayStatus「休み」／／＝dayStatus「予定なし（提供表）」／S＝dayStatus「ショートステイ利用」。
+    // 1＝利用予定あり／休み＝dayStatus「休み」／入＝dayStatus「入院中」／／＝dayStatus「予定なし（提供表）」／S＝dayStatus「ショートステイ利用」。
     // 空欄の日は「提供表に記載がなかった日」として、今のスケジュールをそのまま変更しない。
     function applyTeikyohyoPlanToSchedule() {
       const { year, month } = appState.teikyohyoPage;
@@ -9033,6 +9147,7 @@ ${SHORUI_COMMON_NOTE}`;
 
           if (v === '1') delete statusMap[resident.id];
           else if (v === '休') statusMap[resident.id] = '休み';
+          else if (v === '入') statusMap[resident.id] = '入院中';
           else if (v === '／') statusMap[resident.id] = '予定なし（提供表）';
           else if (v === 'S') statusMap[resident.id] = 'ショートステイ利用';
           touched++;
@@ -9097,15 +9212,27 @@ ${SHORUI_COMMON_NOTE}`;
         return `<th class="${isBiz ? '' : 'shift-day-off'}">${d}<br>${wd}</th>`;
       }).join('');
 
+      const legend = `<div class="shift-legend">
+    <span class="shift-legend-item"><span class="swatch shift-cell work" style="cursor:default;"></span>利用予定</span>
+    <span class="shift-legend-item"><span class="swatch shift-cell off" style="cursor:default;"></span>休み</span>
+    <span class="shift-legend-item"><span class="swatch shift-cell code-ki" style="cursor:default;"></span>入院</span>
+    <span class="shift-legend-item"><span class="swatch shift-cell code-a" style="cursor:default;"></span>ショートステイ</span>
+    <span class="shift-legend-item"><span class="swatch shift-cell non-business" style="cursor:default;"></span>予定なし・休業日</span>
+    <span class="shift-legend-item"><span class="swatch shift-cell work teikyohyo-auto" style="cursor:default;"></span>通所曜日から自動反映（未確定）</span>
+  </div>
+  <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">薄く点線で囲まれたセルは、書類読み込みがまだ無いため、利用者DBの「通所曜日」から自動的に表示しているものです（実際の提供表ではありません）。セルをクリックするとその日だけを直接入力できます（他の自動反映日には影響しません）。「書類読み込み」でこの利用者・月の提供表を読み込むと、以後は自動反映を行わず、読み込んだ内容をそのまま優先表示します。</div>`;
+
       let bodyRows = '';
       const bizFlags = dayNums.map(d => isBusinessDayStr(ymd(year, month - 1, d)));
       residents.forEach((r, rIndex) => {
         const planCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('plan', ymk, r.id, d);
+          const isFallback = !!v && isTeikyohyoCellFallback('plan', ymk, r.id, d);
           const cls = v ? teikyohyoCellClass(v) : (bizFlags[i] ? '' : 'non-business');
           const clickAttr = locked ? '' : ` onclick="toggleTeikyohyoCell('plan', '${r.id}', ${d})"`;
           const lockedStyle = locked ? ' style="cursor:default;"' : '';
-          return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle}>${v}</td>`;
+          const title = isFallback ? ' title="通所曜日からの自動反映（未確定）"' : '';
+          return `<td class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
         }).join('');
         const actualCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('actual', ymk, r.id, d);
@@ -9113,9 +9240,14 @@ ${SHORUI_COMMON_NOTE}`;
           return `<td class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
         }).join('');
 
+        const isHospitalized = !!(appState.db.teikyohyoHospitalized[ymk] && appState.db.teikyohyoHospitalized[ymk][r.id]);
+        const hospBtn = `<button type="button" class="teikyohyo-hosp-btn${isHospitalized ? ' active' : ''}"
+          ${locked ? 'disabled' : ''} onclick="toggleTeikyohyoHospitalization('${r.id}')"
+          title="通所予定日をすべて「入院」に設定／解除します">🏥${isHospitalized ? ' 入院中' : ' 入院中にする'}</button>`;
+
         const zebra = rIndex % 2 === 0 ? 'shift-zebra-a' : 'shift-zebra-b';
         bodyRows += `<tr class="shift-group-start ${zebra}">
-      <td rowspan="2" class="shift-staff-name">${escHtml(r.name)}</td>
+      <td rowspan="2" class="shift-staff-name">${escHtml(r.name)}<br>${hospBtn}</td>
       <td class="shift-subrow-label">予定</td>${planCells}
     </tr>
     <tr class="shift-actual-tr ${zebra}">
@@ -9124,12 +9256,12 @@ ${SHORUI_COMMON_NOTE}`;
       });
 
       const colgroup = `<colgroup>
-    <col style="width:80px;">
+    <col style="width:96px;">
     <col style="width:28px;">
     ${dayNums.map(() => '<col style="width:26px;">').join('')}
   </colgroup>`;
 
-      el.innerHTML = `<table class="shift-table">
+      el.innerHTML = `${legend}<table class="shift-table">
     ${colgroup}
     <thead>
       <tr><th class="shift-staff-name-header">利用者</th><th class="shift-subrow-header"></th>${dayHeaderCells}</tr>

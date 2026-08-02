@@ -2613,6 +2613,7 @@
         <div class="sidebar-group-title" onclick="toggleSidebarGroup(this)">日次業務 ▼</div>
         <div class="sidebar-items">
           <button class="sidebar-item" onclick="switchPageSidebar('shift')">👥 勤務表</button>
+          <button class="sidebar-item" onclick="switchPageSidebar('teikyohyo')">📄 提供表</button>
           <button class="sidebar-item" onclick="switchPageSidebar('schedule')">📅 スケジュール</button>
           <button class="sidebar-item" onclick="switchPageSidebar('transport')">🚗 送迎表</button>
           <button class="sidebar-item" onclick="switchPageSidebar('renrakucho')">📝 連絡帳</button>
@@ -3626,6 +3627,34 @@
 
       </div>
 
+      <!-- ==================== 提供表 PAGE ==================== -->
+      <div class="page" id="page-teikyohyo">
+        <div class="card">
+          <div class="card-title">📄 提供表（月間の予定・実績の確認）</div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
+            「書類読取」の「提供表→スケジュール」で読み取った内容を、ここで最終確認します。マス目をクリックすると
+            空欄→「1」→「休」 の順に切り替わります。<br>
+            「予定」を確定すると以後は編集できなくなり、以降の変更は「実績」の方に記録します（勤務表と同じ仕組みです）。<br>
+            ※このページの内容をスケジュール（カレンダー等）へ反映する機能は今のところありません。あくまで確認・記録用の一覧表です。
+          </div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">
+            <button class="btn btn-secondary btn-sm" onclick="teikyohyoPrevMonth()">◀</button>
+            <div id="teikyohyoMonthLabel" style="font-weight:700; font-size:16px; min-width:110px; text-align:center;"></div>
+            <button class="btn btn-secondary btn-sm" onclick="teikyohyoNextMonth()">▶</button>
+          </div>
+          <div id="teikyohyoConfirmStatus" style="text-align:center; margin-bottom:8px; font-size:12.5px;"></div>
+          <div style="display:flex; gap:8px; justify-content:center; margin-bottom:12px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="teikyohyoConfirmBtn" onclick="confirmTeikyohyoPlan()">🔒
+              この月の予定を確定する</button>
+            <button class="btn btn-secondary btn-sm" id="teikyohyoUnlockBtn" style="display:none;"
+              onclick="unlockTeikyohyoPlan()">🔓 確定を解除</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <div id="teikyohyoTableArea"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- ==================== MONITORING PAGE ==================== -->
       <div class="page" id="page-monitoring">
 
@@ -4420,7 +4449,8 @@
     const DB_KEY = 'deiservice_db';
 
     let appState = {
-      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {} },
+      db: { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {} },
+      teikyohyoPage: { year: new Date().getFullYear(), month: new Date().getMonth() + 1 },
       shorui: {
         files: [], mode: 'basic', extractedData: {}, rawText: '', apiKey: '',
         pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null,
@@ -4461,7 +4491,7 @@
 
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, ...JSON.parse(saved) };
+      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, ...JSON.parse(saved) };
       // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
       if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
         appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -4520,6 +4550,9 @@
       }
       if (page === 'shift') {
         renderShiftPatternTable();
+      }
+      if (page === 'teikyohyo') {
+        renderTeikyohyoPage();
       }
       if (page === 'rehabrecord') {
         if (!document.getElementById('rrDateInput').value) setRehabRecordToday();
@@ -5092,7 +5125,8 @@
         transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {},
         dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '',
         customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {},
-        shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}
+        shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {},
+        teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}
       };
 
       // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
@@ -8782,9 +8816,8 @@ ${SHORUI_COMMON_NOTE}`;
     <div style="font-size:11px; color:var(--muted); margin:10px 0; line-height:1.6;">
       ※利用者DBと自動で一致しなかった方はチェックが外れています。プルダウンで手動選択すると反映対象に含められます。<br>
       ※複数のサービス行が見つかった場合、多数決で一致した日にちだけを採用しています。行ごとの内訳は「内訳を見る」から確認できます。読み取りが違う場合は下の欄を直接修正してください。<br>
-      ※通所曜日パターン上は来るはずなのに提供票に無い日は「予定なし（提供表）」として記録されます。<br>
-      ※すでに「休み」「欠席」「入院中」等の個別ステータスが入っている日は上書きしません。</div>
-    <button class="btn btn-primary" onclick="applyTeikyohyoToSchedule()">📅 この内容でスケジュールに反映する</button>
+      ※反映先はスケジュールではなく「提供表」ページです（日次業務メニュー内）。そちらで内容を確認・修正してから確定してください。</div>
+    <button class="btn btn-primary" onclick="applyTeikyohyoToSchedule()">📄 この内容を「提供表」ページに反映する</button>
     <div id="teikyohyoApplyStatus" style="margin-top:8px;"></div>`;
     }
 
@@ -8847,63 +8880,178 @@ ${SHORUI_COMMON_NOTE}`;
       }
 
       const { year, month } = ym;
-      const totalDays = daysInMonthOf(year, month);
-      let addedCount = 0, clearedCount = 0, markedNoneCount = 0, skippedCount = 0;
+      const ymk = ymKeyOf(year, month);
+      if (appState.db.teikyohyoConfirmed[ymk]) {
+        showStatus('teikyohyoApplyStatus',
+          `⚠️ ${year}年${month}月分の提供表はすでに確定済みです。上書きする場合は「提供表」ページでいったん確定を解除してから、もう一度読み込んでください。`,
+          'info');
+        return;
+      }
+      if (!appState.db.teikyohyoPlan[ymk]) appState.db.teikyohyoPlan[ymk] = {};
 
       list.forEach(item => {
         const resident = appState.db.residentDb.find(r => r.id === item.residentId);
         if (!resident) return;
-        const scheduledDays = new Set(item.days);
-        const patternDays = (resident.attendanceDays || '').split(',').map(s => s.trim()).filter(Boolean);
-
-        for (let d = 1; d <= totalDays; d++) {
-          const dateStr = ymd(year, month - 1, d);
-          const wd = weekdayLabelOf(dateStr);
-          const isPatternDay = patternDays.includes(wd);
-          const isScheduled = scheduledDays.has(d);
-
-          if (!appState.db.attendanceOverrides[dateStr]) appState.db.attendanceOverrides[dateStr] = { add: [], remove: [] };
-          const ov = appState.db.attendanceOverrides[dateStr];
-          if (!appState.db.dayStatusOverrides[dateStr]) appState.db.dayStatusOverrides[dateStr] = {};
-          const statusMap = appState.db.dayStatusOverrides[dateStr];
-          const currentStatus = statusMap[resident.id];
-
-          if (isScheduled) {
-            // 利用予定あり：曜日パターン外の日なら臨時追加する。過去に付けた「予定なし（提供表）」は解除する。
-            ov.remove = (ov.remove || []).filter(id => id !== resident.id);
-            if (!isPatternDay && !(ov.add || []).includes(resident.id)) {
-              ov.add = [...(ov.add || []), resident.id];
-              addedCount++;
-            }
-            if (currentStatus === '予定なし（提供表）') {
-              delete statusMap[resident.id];
-              clearedCount++;
-            }
-          } else {
-            // 利用予定なし：通所曜日パターン上は来るはずの日だけ、明示的に「予定なし（提供表）」を記録する。
-            // 他の個別ステータス（休み・欠席・入院中・ショートステイ利用など）が既に入っている場合は上書きしない。
-            if (isPatternDay) {
-              if (!currentStatus) {
-                statusMap[resident.id] = '予定なし（提供表）';
-                markedNoneCount++;
-              } else if (currentStatus !== '予定なし（提供表）') {
-                skippedCount++;
-              }
-            }
-            if ((ov.add || []).includes(resident.id)) {
-              ov.add = ov.add.filter(id => id !== resident.id);
-            }
-          }
-        }
+        // 読み取った「1」の日だけを提供表ページの「予定」に反映する（他の情報は書き換えない）。
+        appState.db.teikyohyoPlan[ymk][resident.id] = {};
+        item.days.forEach(d => { appState.db.teikyohyoPlan[ymk][resident.id][d] = '1'; });
       });
 
       saveDb();
-      if (typeof renderCalendar === 'function') renderCalendar();
-      if (typeof renderWeeklyAttendance === 'function') renderWeeklyAttendance();
 
       showStatus('teikyohyoApplyStatus',
-        `✅ ${year}年${month}月のスケジュールに反映しました（対象${list.length}名／臨時追加${addedCount}件／予定なしに設定${markedNoneCount}件／解除${clearedCount}件／既存ステータスのため保留${skippedCount}件）`,
+        `✅ ${year}年${month}月分として「提供表」ページに反映しました（対象${list.length}名）。「提供表」ページで内容を確認してください。`,
         'success');
+    }
+
+    // ============================================================
+    // 提供表ページ（月間の予定・実績の確認用一覧表。勤務表と同じ操作感）
+    // ============================================================
+    function ymKeyOf(year, month) { return `${year}-${String(month).padStart(2, '0')}`; }
+
+    const TEIKYOHYO_CYCLE = ['', '1', '休'];
+
+    function getTeikyohyoCell(kind, ymk, residentId, day) {
+      const store = kind === 'plan' ? appState.db.teikyohyoPlan : appState.db.teikyohyoActual;
+      return (store[ymk] && store[ymk][residentId] && store[ymk][residentId][day]) || '';
+    }
+
+    function toggleTeikyohyoCell(kind, residentId, day) {
+      const ymk = ymKeyOf(appState.teikyohyoPage.year, appState.teikyohyoPage.month);
+      if (kind === 'plan' && appState.db.teikyohyoConfirmed[ymk]) {
+        showStatus('teikyohyoConfirmStatus', '⚠️ この月の予定は確定済みのため編集できません。変更が必要な場合は「実績」に入力するか、確定を解除してください。', 'error');
+        return;
+      }
+      const store = kind === 'plan' ? appState.db.teikyohyoPlan : appState.db.teikyohyoActual;
+      if (!store[ymk]) store[ymk] = {};
+      if (!store[ymk][residentId]) store[ymk][residentId] = {};
+      const cur = store[ymk][residentId][day] || '';
+      const idx = TEIKYOHYO_CYCLE.indexOf(cur);
+      const next = TEIKYOHYO_CYCLE[(idx === -1 ? 0 : idx + 1) % TEIKYOHYO_CYCLE.length];
+      if (next === '') delete store[ymk][residentId][day];
+      else store[ymk][residentId][day] = next;
+      saveDb();
+      renderTeikyohyoPage();
+    }
+
+    function teikyohyoPrevMonth() {
+      let { year, month } = appState.teikyohyoPage;
+      month--;
+      if (month < 1) { month = 12; year--; }
+      appState.teikyohyoPage = { year, month };
+      renderTeikyohyoPage();
+    }
+
+    function teikyohyoNextMonth() {
+      let { year, month } = appState.teikyohyoPage;
+      month++;
+      if (month > 12) { month = 1; year++; }
+      appState.teikyohyoPage = { year, month };
+      renderTeikyohyoPage();
+    }
+
+    function confirmTeikyohyoPlan() {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      if (!confirm(`${year}年${month}月分の提供表（予定）を確定します。確定後は予定を直接編集できなくなり、以後の変更は「実績」で記録する形になります。よろしいですか？`)) return;
+      appState.db.teikyohyoConfirmed[ymk] = true;
+      appState.db.teikyohyoConfirmedAt[ymk] = new Date().toLocaleString('ja-JP');
+      saveDb();
+      renderTeikyohyoPage();
+    }
+
+    function unlockTeikyohyoPlan() {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      if (!confirm('確定を解除すると、再び予定を直接編集できるようになります。すでに記録した実績には影響しません。よろしいですか？')) return;
+      appState.db.teikyohyoConfirmed[ymk] = false;
+      saveDb();
+      renderTeikyohyoPage();
+    }
+
+    function renderTeikyohyoConfirmStatus() {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      const el = document.getElementById('teikyohyoConfirmStatus');
+      const btn = document.getElementById('teikyohyoConfirmBtn');
+      const unlockBtn = document.getElementById('teikyohyoUnlockBtn');
+      if (!el) return;
+      if (appState.db.teikyohyoConfirmed[ymk]) {
+        el.innerHTML = `<span class="import-status-ok">🔒 確定済み（${escHtml(appState.db.teikyohyoConfirmedAt[ymk] || '')}）。予定は編集できません。</span>`;
+        if (btn) btn.style.display = 'none';
+        if (unlockBtn) unlockBtn.style.display = '';
+      } else {
+        el.innerHTML = `<span style="color:var(--muted);">未確定（予定は編集可能です）</span>`;
+        if (btn) btn.style.display = '';
+        if (unlockBtn) unlockBtn.style.display = 'none';
+      }
+    }
+
+    function renderTeikyohyoPage() {
+      const el = document.getElementById('teikyohyoTableArea');
+      if (!el) return;
+      if (!appState.teikyohyoPage) appState.teikyohyoPage = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      const totalDays = daysInMonthOf(year, month);
+      const locked = !!appState.db.teikyohyoConfirmed[ymk];
+
+      const labelEl = document.getElementById('teikyohyoMonthLabel');
+      if (labelEl) labelEl.textContent = `${year}年${month}月`;
+
+      const residents = appState.db.residentDb;
+      if (!residents.length) {
+        el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください</div>';
+        renderTeikyohyoConfirmStatus();
+        return;
+      }
+
+      const dayNums = Array.from({ length: totalDays }, (_, i) => i + 1);
+      const dayHeaderCells = dayNums.map(d => {
+        const wd = weekdayLabelOf(ymd(year, month - 1, d));
+        return `<th class="${(wd === '土' || wd === '日') ? 'shift-day-off' : ''}">${d}<br>${wd}</th>`;
+      }).join('');
+
+      let bodyRows = '';
+      residents.forEach((r, rIndex) => {
+        const planCells = dayNums.map(d => {
+          const v = getTeikyohyoCell('plan', ymk, r.id, d);
+          const cls = v === '1' ? 'work' : v === '休' ? 'off' : '';
+          const clickAttr = locked ? '' : ` onclick="toggleTeikyohyoCell('plan', '${r.id}', ${d})"`;
+          const lockedStyle = locked ? ' style="cursor:default;"' : '';
+          return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle}>${v}</td>`;
+        }).join('');
+        const actualCells = dayNums.map(d => {
+          const v = getTeikyohyoCell('actual', ymk, r.id, d);
+          const cls = v === '1' ? 'work' : v === '休' ? 'off' : '';
+          return `<td class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
+        }).join('');
+
+        const zebra = rIndex % 2 === 0 ? 'shift-zebra-a' : 'shift-zebra-b';
+        bodyRows += `<tr class="shift-group-start ${zebra}">
+      <td rowspan="2" class="shift-staff-name">${escHtml(r.name)}</td>
+      <td class="shift-subrow-label">予定</td>${planCells}
+    </tr>
+    <tr class="shift-actual-tr ${zebra}">
+      <td class="shift-subrow-label actual">実績</td>${actualCells}
+    </tr>`;
+      });
+
+      const colgroup = `<colgroup>
+    <col style="width:80px;">
+    <col style="width:28px;">
+    ${dayNums.map(() => '<col style="width:26px;">').join('')}
+  </colgroup>`;
+
+      el.innerHTML = `<table class="shift-table">
+    ${colgroup}
+    <thead>
+      <tr><th class="shift-staff-name-header">利用者</th><th class="shift-subrow-header"></th>${dayHeaderCells}</tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+  </table>`;
+
+      renderTeikyohyoConfirmStatus();
     }
 
     function renderExtractedFields(data) {

@@ -2739,6 +2739,7 @@
             <option value="">🔍 担当者で絞り込む（全員表示）</option>
           </select>
         </div>
+        <div id="dbSortRow" style="margin-bottom:12px; display:flex; gap:6px; flex-wrap:wrap;"></div>
         <div style="margin-bottom:12px; display:flex; gap:8px;">
           <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="downloadResidentTemplate(event)">📄
             雛形をダウンロード</button>
@@ -4555,7 +4556,8 @@
       assessment: { selectedResident: null },
       monitoring: { selectedResident: null },
       vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null },
-      mealIntake: { selectedResident: null }
+      mealIntake: { selectedResident: null },
+      dbSort: { key: null, dir: 'asc' } // 利用者DB一覧の並び替え（セッション限り。db配下ではないので保存されない＝再訪問時は登録順にリセット）
     };
 
     const WEEKDAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
@@ -4595,7 +4597,19 @@
     }
 
     function saveDb() {
-      localStorage.setItem(DB_KEY, JSON.stringify(appState.db));
+      try {
+        localStorage.setItem(DB_KEY, JSON.stringify(appState.db));
+        return true;
+      } catch (err) {
+        console.error('保存に失敗しました:', err);
+        const isQuota = err && (err.name === 'QuotaExceededError' || err.code === 22 || err.code === 1014);
+        alert(
+          isQuota
+            ? '⚠️ 保存に失敗しました（ブラウザの保存容量が上限に達している可能性があります）。\n\n直前の変更が保存されていない恐れがあります。お手数ですが、設定画面からExcelバックアップを取ったうえで、不要な古いデータの整理をご検討ください。'
+            : '⚠️ 保存に失敗しました。直前の変更が保存されていない可能性があります。時間をおいて再度お試しいただくか、ページを再読み込みしてください。'
+        );
+        return false;
+      }
     }
 
     // ============================================================
@@ -5516,7 +5530,7 @@
       el.innerHTML = residents.map(r => {
         const has = !!appState.db.assessments[r.id];
         const selected = appState.assessment.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectAssessmentResident('${r.id}')">${r.name}${has ? ' ✅' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectAssessmentResident('${r.id}')">${escHtml(r.name)}${has ? ' ✅' : ''}</span>`;
       }).join('');
     }
 
@@ -5684,7 +5698,7 @@
 
       const win = window.open('', '_blank');
       win.document.write(`
-    <html><head><title>基本チェックリスト ${r.name}</title>
+    <html><head><title>基本チェックリスト ${escHtml(r.name)}</title>
     <style>
       body { font-family: sans-serif; padding: 24px; font-size: 12.5px; }
       h1 { font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 8px; }
@@ -5857,7 +5871,7 @@
 
         return `${groupHeaderRow}<tr class="tp-group-start">
       <td rowspan="2"><input type="number" value="${t.order ?? (i + 1)}" onchange="saveTransportField('${dateStr}','${r.id}','order', this.value)"></td>
-      <td rowspan="2" class="tp-name">${r.name}${badges ? `<br>${badges}` : ''}</td>
+      <td rowspan="2" class="tp-name">${escHtml(r.name)}${badges ? `<br>${badges}` : ''}</td>
       <td class="tp-leg-label">迎え</td>
       ${pickupTimeCell}
       ${facilityArrivalCell}
@@ -6518,7 +6532,7 @@
       }
       el.innerHTML = residents.map(r => {
         const selected = appState.monitoring.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMonitoringResident('${r.id}')">${r.name}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMonitoringResident('${r.id}')">${escHtml(r.name)}</span>`;
       }).join('');
     }
 
@@ -6883,7 +6897,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         // 保存済みの記録が無い場合のみ、送迎表の「迎え：到着」「送り：時刻」を自動表示（あくまで目安。その場で変更・保存可能）
         const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t, r);
         return `<tr>
-      <td class="tp-name">${r.name}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
+      <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
       <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
       <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
@@ -7276,14 +7290,94 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // ============================================================
     // DB - レンダリング
     // ============================================================
+    // ============================================================
+    // 利用者DB一覧：並び替え
+    // ============================================================
+    // 介護度の順序は既存の CARE_LEVEL_ORDER（下記グループ表示機能で定義）を利用
+    const DB_SORT_OPTIONS = [
+      { key: null, label: '登録順' },
+      { key: 'kana', label: 'フリガナ順', defaultDir: 'asc' },
+      { key: 'age', label: '年齢順', defaultDir: 'desc' },
+      { key: 'careLevel', label: '介護度順', defaultDir: 'asc' },
+    ];
+
+    // 生年月日から現在の満年齢を計算（未入力の場合は保存済みの年齢欄の数字を使う。どちらも無ければnull）
+    function computeCurrentAge(r) {
+      if (r.dob) {
+        const dob = new Date(r.dob);
+        if (!isNaN(dob.getTime())) {
+          const today = new Date();
+          let age = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+          if (age >= 0) return age;
+        }
+      }
+      if (r.age) {
+        const n = parseInt(String(r.age).replace(/[^\d]/g, ''), 10);
+        if (!isNaN(n)) return n;
+      }
+      return null;
+    }
+
+    function setDbSort(key) {
+      if (appState.dbSort.key === key) {
+        // 同じボタン再タップ：昇順⇔降順トグル（登録順はトグル不要）
+        if (key !== null) appState.dbSort.dir = appState.dbSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        const opt = DB_SORT_OPTIONS.find(o => o.key === key);
+        appState.dbSort.key = key;
+        appState.dbSort.dir = opt?.defaultDir || 'asc';
+      }
+      renderDbList();
+    }
+
+    function renderDbSortRow() {
+      const el = document.getElementById('dbSortRow');
+      if (!el) return;
+      el.innerHTML = DB_SORT_OPTIONS.map(o => {
+        const active = appState.dbSort.key === o.key;
+        const arrow = active && o.key !== null ? (appState.dbSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+        return `<button class="btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}" style="flex:1; padding:8px 6px; font-size:12.5px;" onclick="setDbSort(${o.key ? `'${o.key}'` : null})">${o.label}${arrow}</button>`;
+      }).join('');
+    }
+
+    // 未入力の項目は並び順に関わらず常に末尾へ
+    function sortResidentsInPlace(residents) {
+      const { key, dir } = appState.dbSort;
+      if (!key) return; // 登録順（元の並びのまま）
+      const mul = dir === 'asc' ? 1 : -1;
+
+      const valueOf = (r) => {
+        if (key === 'kana') return r.kana || null;
+        if (key === 'age') return computeCurrentAge(r);
+        if (key === 'careLevel') {
+          const idx = CARE_LEVEL_ORDER.indexOf(r.careLevel);
+          return idx === -1 ? null : idx;
+        }
+        return null;
+      };
+
+      residents.sort((a, b) => {
+        const va = valueOf(a), vb = valueOf(b);
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;  // 未入力は常に末尾
+        if (vb === null) return -1;
+        if (typeof va === 'string') return va.localeCompare(vb, 'ja') * mul;
+        return (va - vb) * mul;
+      });
+    }
+
     function renderDbList() {
       const query = (document.getElementById('searchInput')?.value || '').trim();
       const staffFilter = document.getElementById('staffFilterSelect')?.value || '';
       populateStaffFilterSelect();
+      renderDbSortRow();
       const residents = appState.db.residentDb.filter(r =>
         (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) &&
         (!staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter)
       );
+      sortResidentsInPlace(residents);
 
       const total = appState.db.residentDb.length;
       const complete = appState.db.residentDb.filter(r => calcCompletion(r) === 100).length;
@@ -7332,7 +7426,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     <div class="resident-card" onclick="openResidentModal('${r.id}')">
       <div class="resident-card-header">
         <div>
-          <div class="resident-name">${r.name}</div>
+          <div class="resident-name">${escHtml(r.name)}</div>
           <div class="resident-kana">${r.kana || ''}</div>
         </div>
         <div class="resident-card-actions" onclick="event.stopPropagation()">
@@ -7903,7 +7997,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         return `<div class="weekday-block">
       <div class="weekday-block-title">${wd}曜日（${residents.length}名）</div>
       ${residents.length
-            ? residents.map(r => `<span class="day-resident-chip">${r.name}</span>`).join('')
+            ? residents.map(r => `<span class="day-resident-chip">${escHtml(r.name)}</span>`).join('')
             : `<div class="weekday-block-empty">通所予定者なし</div>`}
     </div>`;
       }).join('');
@@ -7989,7 +8083,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const statusOptions = ['', ...DAY_STATUS_OPTIONS].map(s =>
           `<option value="${s}" ${r._dayStatus === s ? 'selected' : ''}>${s || '通常'}</option>`).join('');
         return `<div class="day-resident-row ${r._dayStatus ? 'is-off' : ''}">
-      <span class="day-resident-row-name">${r.name}${isOverrideAdd ? '（臨時）' : ''}${r._dayStatus ? `<span class="day-status-label">（${r._dayStatus}）</span>` : ''}</span>
+      <span class="day-resident-row-name">${escHtml(r.name)}${isOverrideAdd ? '（臨時）' : ''}${r._dayStatus ? `<span class="day-status-label">（${r._dayStatus}）</span>` : ''}</span>
       <select class="day-status-select" onchange="setDayStatus('${dateStr}','${r.id}', this.value)">${statusOptions}</select>
       <span class="rm-btn" onclick="removeResidentFromDay('${dateStr}','${r.id}')">✕</span>
     </div>`;
@@ -8000,7 +8094,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     <div style="margin-top:8px; display:flex; gap:6px;">
       <select id="addResidentSelect" style="flex:1; padding:8px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit;">
         <option value="">＋ 本日だけ利用者を追加...</option>
-        ${others.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
+        ${others.map(r => `<option value="${r.id}">${escHtml(r.name)}</option>`).join('')}
       </select>
       <button class="btn btn-secondary btn-sm" onclick="addResidentToDay('${dateStr}')">追加</button>
     </div>` : '';
@@ -8582,9 +8676,13 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       const result = executeVitalsImport(mapping, dateStr);
 
       if (document.getElementById('vitalsRememberMapping').checked) {
-        const toSave = {};
-        VITALS_FIELDS.forEach(f => { toSave[f] = mapping[f] !== undefined ? vitalsImportState.headers[mapping[f]] : null; });
-        localStorage.setItem(VITALS_MAP_KEY, JSON.stringify(toSave));
+        try {
+          const toSave = {};
+          VITALS_FIELDS.forEach(f => { toSave[f] = mapping[f] !== undefined ? vitalsImportState.headers[mapping[f]] : null; });
+          localStorage.setItem(VITALS_MAP_KEY, JSON.stringify(toSave));
+        } catch (err) {
+          console.warn('列マッピングの記憶に失敗しました（インポート自体は完了しています）:', err);
+        }
       }
 
       document.getElementById('vitalsImportResultBox').innerHTML = `
@@ -8818,8 +8916,13 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       }
       appState.shorui.apiKey = key;
       appState.renrakucho.apiKey = key;
-      localStorage.setItem('deiservice_apikey', key);
-      showStatus('apiKeyStatus', '✅ 保存しました（アプリ全体のAI機能に反映されます）', 'success');
+      try {
+        localStorage.setItem('deiservice_apikey', key);
+        showStatus('apiKeyStatus', '✅ 保存しました（アプリ全体のAI機能に反映されます）', 'success');
+      } catch (err) {
+        console.error('APIキーの保存に失敗しました:', err);
+        showStatus('apiKeyStatus', '⚠️ このセッションでは利用できますが、保存に失敗したため次回起動時は再入力が必要です', 'error');
+      }
     }
 
     // ============================================================
@@ -9728,7 +9831,7 @@ ${SHORUI_COMMON_NOTE}`;
           const done = !!(appState.db.renrakuchoLog[dateStr] && appState.db.renrakuchoLog[dateStr][r.id]);
           return `<td><span class="rc-mark ${done ? 'done' : 'pending'}" onclick="openLogEntry('${dateStr}','${r.id}')">${done ? '✓' : '−'}</span></td>`;
         }).join('');
-        return `<tr><td class="rc-name">${r.name}</td>${cells}</tr>`;
+        return `<tr><td class="rc-name">${escHtml(r.name)}</td>${cells}</tr>`;
       }).join('');
 
       const headerCells = weekDates.map(dateStr => {
@@ -9766,7 +9869,7 @@ ${SHORUI_COMMON_NOTE}`;
         document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
         document.getElementById('outputSection').style.display = 'none';
-        showStatus('generateStatus', `「${r.name}」さん・${dateStr}分はまだ作成されていません。下のフォームから作成してください。`, 'info');
+        showStatus('generateStatus', `「${escHtml(r.name)}」さん・${dateStr}分はまだ作成されていません。下のフォームから作成してください。`, 'info');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
@@ -9791,7 +9894,7 @@ ${SHORUI_COMMON_NOTE}`;
         const staff = appState.db.renrakuchoStaffLog[dateStr] && appState.db.renrakuchoStaffLog[dateStr][r.id];
         return `<div class="rc-today-item">
       <div class="rc-today-item-header" onclick="toggleTodayItem('${r.id}')">
-        <span class="rc-today-item-name">${r.name}</span>
+        <span class="rc-today-item-name">${escHtml(r.name)}</span>
         <span style="display:flex; gap:6px; flex-shrink:0;">
           <span class="rc-today-badge ${text ? 'done' : 'pending'}">連絡帳 ${text ? '✓' : '未'}</span>
           <span class="rc-today-badge ${krText ? 'done' : 'pending'}">経過記録 ${krText ? '✓' : '未'}</span>
@@ -10012,7 +10115,7 @@ ${SHORUI_COMMON_NOTE}`;
           const done = !!(appState.db.rehabRecordLog[dateStr] && appState.db.rehabRecordLog[dateStr][r.id]);
           return `<td><span class="rc-mark ${done ? 'done' : 'pending'}" onclick="openRehabRecordEntry('${dateStr}','${r.id}')">${done ? '✓' : '−'}</span></td>`;
         }).join('');
-        return `<tr><td class="rc-name">${r.name}</td>${cells}</tr>`;
+        return `<tr><td class="rc-name">${escHtml(r.name)}</td>${cells}</tr>`;
       }).join('');
 
       const headerCells = weekDates.map(dateStr => {
@@ -10038,7 +10141,7 @@ ${SHORUI_COMMON_NOTE}`;
         const rec = appState.db.rehabRecordLog[dateStr] && appState.db.rehabRecordLog[dateStr][r.id];
         return `<div class="rc-today-item">
       <div class="rc-today-item-header" onclick="toggleTodayRehabRecordItem('${r.id}')">
-        <span class="rc-today-item-name">${r.name}</span>
+        <span class="rc-today-item-name">${escHtml(r.name)}</span>
         <span class="rc-today-badge ${rec ? 'done' : 'pending'}">${rec ? '✓ 記録済み' : '未記録'}</span>
       </div>
       <div class="rc-today-item-body" id="rrTodayBody_${r.id}" style="display:none;">
@@ -10083,7 +10186,7 @@ ${SHORUI_COMMON_NOTE}`;
 
       el.innerHTML = residents.map(r => {
         const selected = appState.rehabRecord.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabRecordResident('${r.id}')">${r.name}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabRecordResident('${r.id}')">${escHtml(r.name)}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</span>`;
       }).join('');
     }
 
@@ -10102,7 +10205,7 @@ ${SHORUI_COMMON_NOTE}`;
       infoBox.style.display = 'block';
       infoBox.innerHTML = `
     <div style="background:var(--bg); border-radius:var(--radius-sm); padding:12px; margin-top:10px; font-size:13px; line-height:1.7;">
-      <b>${r.name}</b>様（${r.careLevel || '要介護度未設定'}）
+      <b>${escHtml(r.name)}</b>様（${r.careLevel || '要介護度未設定'}）
       ${r.rehabStaffInCharge ? `<br>担当リハビリスタッフ：${r.rehabStaffInCharge}` : '<br><span style="color:var(--warn);">⚠️ 利用者DBに担当リハビリスタッフが未設定です</span>'}
       ${r.precautions || r.dementia ? `<br>認知症の有無：${r.dementia || '－'}` : ''}
     </div>`;
@@ -10301,7 +10404,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
 
       el.innerHTML = residents.map(r =>
         `<button class="res-chip ${appState.renrakucho.selectedResident?.id === r.id ? 'selected' : ''}"
-      onclick="selectResident('${r.id}')">${r.name}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</button>`
+      onclick="selectResident('${r.id}')">${escHtml(r.name)}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</button>`
       ).join('');
     }
 
@@ -10670,7 +10773,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       el.innerHTML = msg ? `<div class="status-msg ${type}">${msg}</div>` : '';
     }
 
-    function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'); }
+    function escHtml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, '<br>'); }
     function escAttr(s) { return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
     // ============================================================
@@ -10789,7 +10892,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       el.innerHTML = residents.map(r => {
         const has = !!appState.db.rehabPlans[r.id];
         const selected = appState.rehab.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabResident('${r.id}')">${r.name}${has ? ' 📝' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabResident('${r.id}')">${escHtml(r.name)}${has ? ' 📝' : ''}</span>`;
       }).join('');
     }
 
@@ -10803,7 +10906,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       infoBox.style.display = 'block';
       infoBox.innerHTML = `
     <div style="background:var(--bg); border-radius:var(--radius-sm); padding:12px; margin-top:10px; font-size:13px; line-height:1.7;">
-      <b>${r.name}</b>様（${r.careLevel || '要介護度未設定'}）${r.dob ? '　生年月日：' + r.dob : ''}
+      <b>${escHtml(r.name)}</b>様（${r.careLevel || '要介護度未設定'}）${r.dob ? '　生年月日：' + r.dob : ''}
       ${r.doctor ? `<br>主治医：${r.doctor}` : ''}${r.hospital ? `（${r.hospital}）` : ''}
       ${r.history ? `<br>既往歴：${r.history}` : ''}
       ${r.currentDisease ? `<br>現在の疾患：${r.currentDisease}` : ''}

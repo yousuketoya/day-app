@@ -1321,6 +1321,15 @@
       -webkit-overflow-scrolling: touch;
     }
 
+    /* 勤務表・提供表：日付ヘッダーを縦スクロール時も固定表示するための専用ラッパー */
+    .shift-table-scroll-wrap {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      max-height: 70vh;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
     /* 勤務表 */
     .shift-table {
       width: max-content;
@@ -1337,6 +1346,12 @@
       border-bottom: 1px solid var(--border);
       padding: 3px 2px;
       text-align: center;
+    }
+
+    .shift-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 3;
     }
 
     .shift-table thead th {
@@ -1387,7 +1402,7 @@
       position: sticky;
       left: 0;
       background: var(--bg);
-      z-index: 2;
+      z-index: 4;
       width: 80px;
       max-width: 80px;
     }
@@ -3818,7 +3833,7 @@
             ⚙️ から行えます。</div>
           <button class="btn btn-secondary btn-sm" style="width:100%; margin-bottom:8px;"
             onclick="resetShiftPatternToDefault()">🔄 予定を初期化（日曜だけ休み・それ以外は全員「出」にする）</button>
-          <div class="rp-assess-table-wrap" id="shiftPatternTableArea"></div>
+          <div id="shiftPatternTableArea"></div>
           <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;"
             onclick="exportShiftMonthExcel()">📊 上で選択中の月をExcelで出力（印刷用）</button>
         </div>
@@ -6707,14 +6722,14 @@
     ${dayDates.map(() => '<col style="width:26px;">').join('')}
   </colgroup>`;
 
-      el.innerHTML = `${legend}<table class="shift-table">
+      el.innerHTML = `${legend}<div class="shift-table-scroll-wrap"><table class="shift-table">
     ${colgroup}
     <thead>
       <tr><th class="shift-staff-name-header"></th><th class="shift-subrow-header"></th>${weekHeaderCells}</tr>
       <tr><th class="shift-staff-name-header">スタッフ</th><th class="shift-subrow-header"></th>${dayHeaderCells}</tr>
     </thead>
     <tbody>${bodyRows}</tbody>
-  </table>`;
+  </table></div>`;
 
       renderShiftConfirmStatus();
     }
@@ -10007,13 +10022,13 @@ ${SHORUI_COMMON_NOTE}`;
     ${dayNums.map(() => '<col style="width:26px;">').join('')}
   </colgroup>`;
 
-      el.innerHTML = `${legend}<table class="shift-table">
+      el.innerHTML = `${legend}<div class="shift-table-scroll-wrap"><table class="shift-table">
     ${colgroup}
     <thead>
       <tr><th class="shift-staff-name-header">利用者</th><th class="shift-subrow-header"></th>${dayHeaderCells}</tr>
     </thead>
     <tbody>${bodyRows}</tbody>
-  </table>`;
+  </table></div>`;
 
       renderTeikyohyoConfirmStatus();
     }

@@ -7659,12 +7659,12 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     };
 
     function calcCompletion(r) {
-      const filled = REQUIRED_FIELDS.filter(f => r[f] && r[f].trim() !== '').length;
+      const filled = REQUIRED_FIELDS.filter(f => String(r[f] ?? '').trim() !== '').length;
       return Math.round((filled / REQUIRED_FIELDS.length) * 100);
     }
 
     function getMissingFields(r) {
-      return REQUIRED_FIELDS.filter(f => !r[f] || r[f].trim() === '').map(f => FIELD_LABELS[f]);
+      return REQUIRED_FIELDS.filter(f => String(r[f] ?? '').trim() === '').map(f => FIELD_LABELS[f]);
     }
 
     function getCompletionColor(pct) {

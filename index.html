@@ -1295,6 +1295,39 @@
       color: #999;
     }
 
+    /* 終了者（バックナンバー）の記録・計画書：編集ロック */
+    .paused-lock-wrapper {
+      position: relative;
+    }
+    .paused-lock-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 60;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(1px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 18px;
+    }
+    .paused-lock-banner {
+      max-width: 480px;
+      width: calc(100% - 24px);
+      background: #fff8e6;
+      border: 1.5px solid #e8c468;
+      border-radius: var(--radius-sm, 10px);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #6b5900;
+      text-align: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+    .paused-lock-banner .plb-title {
+      font-weight: 700;
+      color: #8a6d00;
+      margin-bottom: 8px;
+    }
+
     /* リハビリ計画書 - 評価表 */
     .rp-assess-table {
       width: 100%;
@@ -2772,6 +2805,14 @@
             <option value="">🔍 担当者で絞り込む（全員表示）</option>
           </select>
         </div>
+        <div style="margin-bottom:12px;">
+          <select id="dbDisplayFilterSelect" onchange="setDbDisplayFilter(this.value)"
+            style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
+            <option value="active">👥 利用中のみ表示</option>
+            <option value="paused">🗄️ 終了者のみ表示</option>
+            <option value="all">📋 全利用者表示（終了者を含む）</option>
+          </select>
+        </div>
         <div id="dbSortRow" style="margin-bottom:12px; display:flex; gap:6px; flex-wrap:wrap;"></div>
         <div style="margin-bottom:12px; display:flex; gap:8px;">
           <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="downloadResidentTemplate(event)">📄
@@ -2935,9 +2976,9 @@
           <div style="display:flex; gap:8px;">
             <input type="date" id="dateInput"
               style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;"
-              onchange="resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); applyCheckItemsIfAvailable(); loadRcStaffSelection();">
+              onchange="resetPausedUnlock('renrakucho'); resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); applyCheckItemsIfAvailable(); loadRcStaffSelection();">
             <button class="btn btn-secondary btn-sm"
-              onclick="setToday(); resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); applyCheckItemsIfAvailable(); loadRcStaffSelection();">今日</button>
+              onclick="setToday(); resetPausedUnlock('renrakucho'); resetRenrakuchoChips(); renderResidentSelector(); renderTodayRenrakuchoList(); applyVitalsIfAvailable(); applyMealIntakeIfAvailable(); applyCheckItemsIfAvailable(); loadRcStaffSelection();">今日</button>
           </div>
         </div>
 
@@ -2963,6 +3004,11 @@
             style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
             <input type="checkbox" id="rcShowAllResidentsCheck" onchange="toggleRenrakuchoShowAll(this.checked)">
             本日の予定にない利用者も表示する
+          </label>
+          <label
+            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+            <input type="checkbox" id="rcShowPausedResidentsCheck" onchange="toggleRenrakuchoShowPaused(this.checked)">
+            🗄️ 終了者（バックナンバー）も表示する
           </label>
           <div class="resident-selector" id="residentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
@@ -3212,6 +3258,11 @@
             style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px; margin-bottom:10px;">
             <option value="">🔍 担当者で絞り込む（全員表示）</option>
           </select>
+          <label
+            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+            <input type="checkbox" id="rehabShowPausedResidentsCheck" onchange="toggleRehabShowPaused(this.checked)">
+            🗄️ 終了者（バックナンバー）も表示する
+          </label>
           <div class="resident-selector" id="rehabResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
@@ -3508,6 +3559,11 @@
               <option value="">🔍 担当者で絞り込む（全員表示）</option>
             </select>
             <div class="resident-selector" id="meetingResidentSelector"></div>
+            <label
+              style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-top:8px; cursor:pointer;">
+              <input type="checkbox" id="mtShowPausedResidentsCheck" onchange="toggleMeetingShowPaused(this.checked)">
+              🗄️ 終了者（バックナンバー）も表示する
+            </label>
             <div id="meetingResidentHistory" style="margin-top:10px;"></div>
           </div>
 
@@ -3582,6 +3638,11 @@
               <option value="">🔍 担当者で絞り込む（全員表示）</option>
             </select>
             <div class="resident-selector" id="rehaMeetingResidentSelector"></div>
+            <label
+              style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-top:8px; cursor:pointer;">
+              <input type="checkbox" id="rmShowPausedResidentsCheck" onchange="toggleRehaMeetingShowPaused(this.checked)">
+              🗄️ 終了者（バックナンバー）も表示する
+            </label>
           </div>
 
           <div class="card" id="rehaMeetingArea" style="display:none;">
@@ -3642,7 +3703,7 @@
           <div style="display:flex; gap:8px;">
             <input type="date" id="rrDateInput"
               style="flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;"
-              onchange="renderRehabRecordResidentSelector(); renderTodayRehabRecordList()">
+              onchange="resetPausedUnlock('rehabrecord'); renderRehabRecordResidentSelector(); renderTodayRehabRecordList()">
             <button class="btn btn-secondary btn-sm" onclick="setRehabRecordToday()">今日</button>
           </div>
         </div>
@@ -3667,6 +3728,11 @@
             style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
             <input type="checkbox" id="rrShowAllResidentsCheck" onchange="toggleRehabRecordShowAll(this.checked)">
             本日の予定にない利用者も表示する
+          </label>
+          <label
+            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+            <input type="checkbox" id="rrShowPausedResidentsCheck" onchange="toggleRehabRecordShowPaused(this.checked)">
+            🗄️ 終了者（バックナンバー）も表示する
           </label>
           <div class="resident-selector" id="rehabRecordResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
@@ -3760,6 +3826,11 @@
           <div class="resident-selector" id="assessmentResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
+          <label
+            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-top:8px; cursor:pointer;">
+            <input type="checkbox" id="asShowPausedResidentsCheck" onchange="toggleAssessmentShowPaused(this.checked)">
+            🗄️ 終了者（バックナンバー）も表示する
+          </label>
         </div>
 
         <div id="assessmentFormArea" style="display:none;">
@@ -3923,6 +3994,11 @@
           <div class="resident-selector" id="monitoringResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
+          <label
+            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-top:8px; cursor:pointer;">
+            <input type="checkbox" id="moShowPausedResidentsCheck" onchange="toggleMonitoringShowPaused(this.checked)">
+            🗄️ 終了者（バックナンバー）も表示する
+          </label>
         </div>
 
         <div id="monitoringFormArea" style="display:none;">
@@ -3931,7 +4007,7 @@
             <div class="card-title">📅 対象月</div>
             <input type="month" id="mo_month"
               style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit;"
-              onchange="onMonitoringMonthChange()">
+              onchange="resetPausedUnlock('monitoring'); onMonitoringMonthChange()">
           </div>
 
           <div class="card" style="border:2px solid var(--green);">
@@ -4080,6 +4156,11 @@
           <div class="resident-selector" id="vitalsTrendResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
+          <label
+            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-top:8px; cursor:pointer;">
+            <input type="checkbox" id="vtShowPausedResidentsCheck" onchange="toggleVitalsTrendShowPaused(this.checked)">
+            🗄️ 終了者（バックナンバー）も表示する
+          </label>
         </div>
 
         <div id="vitalsTrendFormArea" style="display:none;">
@@ -4753,18 +4834,21 @@
         pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null,
         teikyohyoYm: null, teikyohyoList: []
       },
-      renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false },
+      renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false, showPausedResidents: false },
       schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
       shift: { cycleBlockIndex: null },
-      rehab: { selectedResident: null },
-      meeting: { mode: 'tantosha', viewMode: 'resident', selectedResidentId: null, selectedRoundId: null, formResidentIds: [], editingId: null, formOpen: false },
-      rehaMeeting: { selectedResident: null, editingId: null, formOpen: false },
-      rehabRecord: { selectedResident: null, showAllResidents: false },
-      assessment: { selectedResident: null },
-      monitoring: { selectedResident: null },
-      vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null },
+      rehab: { selectedResident: null, showPausedResidents: false },
+      meeting: { mode: 'tantosha', viewMode: 'resident', selectedResidentId: null, selectedRoundId: null, formResidentIds: [], editingId: null, formOpen: false, showPausedResidents: false },
+      rehaMeeting: { selectedResident: null, editingId: null, formOpen: false, showPausedResidents: false },
+      rehabRecord: { selectedResident: null, showAllResidents: false, showPausedResidents: false },
+      assessment: { selectedResident: null, showPausedResidents: false },
+      monitoring: { selectedResident: null, showPausedResidents: false },
+      vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null, showPausedResidents: false },
       mealIntake: { selectedResident: null },
-      dbSort: { key: null, dir: 'asc' } // 利用者DB一覧の並び替え（セッション限り。db配下ではないので保存されない＝再訪問時は登録順にリセット）
+      dbSort: { key: null, dir: 'asc' }, // 利用者DB一覧の並び替え（セッション限り。db配下ではないので保存されない＝再訪問時は登録順にリセット）
+      dbDisplayFilter: 'active', // 利用者DB一覧の表示フィルタ：'active'（利用中のみ）／'paused'（終了者のみ）／'all'（全利用者）
+      // 終了者（バックナンバー）の記録・計画書：画面ごとに「今どの利用者IDの編集ロックを解除中か」を保持（対象者変更・画面遷移・日付変更で自動リセット）
+      pausedUnlock: { renrakucho: null, rehab: null, rehabrecord: null, monitoring: null, assessment: null, meeting: null }
     };
 
     const WEEKDAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
@@ -4823,6 +4907,8 @@
     // NAVIGATION
     // ============================================================
     function switchPage(page) {
+      // 終了者（バックナンバー）の編集許可は画面遷移のたびに自動で再ロックする
+      Object.keys(appState.pausedUnlock).forEach(k => { appState.pausedUnlock[k] = null; });
       // 古いナビボタンクラス削除（互換性）
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       // ページアクティベーション
@@ -5150,8 +5236,8 @@
 
       // ① 利用者DB
       addSheet('利用者DB', [
-        ['ID', ...RF_FIELDS.map(f => FIELD_LABELS[f] || f)],
-        ...db.residentDb.map(r => [r.id, ...RF_FIELDS.map(f => r[f] || '')])
+        ['ID', ...RF_FIELDS.map(f => FIELD_LABELS[f] || f), '状態（利用中／終了者）', '中止・再開履歴(JSON)'],
+        ...db.residentDb.map(r => [r.id, ...RF_FIELDS.map(f => r[f] || ''), isResidentPaused(r) ? '終了者' : '利用中', JSON.stringify(r.resumeHistory || [])])
       ]);
 
       // ①-2 利用者DB 基本動作・ADL評価（現況）
@@ -5564,6 +5650,13 @@
         const id = 'r_' + Date.now() + '_' + idx;
         const obj = { id };
         RF_FIELDS.forEach((f, i) => { obj[f] = row[i + 1] || ''; }); // row[0]は旧ID
+        // 中止・再開履歴（新形式のバックアップのみ列あり。旧形式は未設定＝利用中扱いで後方互換）
+        const historyJson = row[RF_FIELDS.length + 2];
+        if (historyJson) {
+          try { obj.resumeHistory = JSON.parse(historyJson) || []; } catch (e) { obj.resumeHistory = []; }
+        } else {
+          obj.resumeHistory = [];
+        }
         newDb.residentDb.push(obj);
         if (obj.name) nameToId[obj.name] = id;
       });
@@ -5940,7 +6033,9 @@
       if (!el) return;
       populateStaffFilterSelect('assessmentStaffFilterSelect');
       const staffFilter = document.getElementById('assessmentStaffFilterSelect')?.value || '';
-      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
+      const showPaused = appState.assessment.showPausedResidents;
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = baseList.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         return;
@@ -5952,8 +6047,15 @@
       el.innerHTML = residents.map(r => {
         const has = !!appState.db.assessments[r.id];
         const selected = appState.assessment.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectAssessmentResident('${r.id}')">${escHtml(r.name)}${has ? ' ✅' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectAssessmentResident('${r.id}')">${escHtml(r.name)}${has ? ' ✅' : ''}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+
+      if (appState.assessment.selectedResident) applyPausedLock('assessment', 'page-assessment', 'assessmentResidentSelector', appState.assessment.selectedResident);
+    }
+
+    function toggleAssessmentShowPaused(checked) {
+      appState.assessment.showPausedResidents = checked;
+      renderAssessmentResidentSelector();
     }
 
     function selectAssessmentResident(id) {
@@ -6947,7 +7049,9 @@
       if (!el) return;
       populateStaffFilterSelect('monitoringStaffFilterSelect');
       const staffFilter = document.getElementById('monitoringStaffFilterSelect')?.value || '';
-      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
+      const showPaused = appState.monitoring.showPausedResidents;
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = baseList.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         return;
@@ -6958,8 +7062,15 @@
       }
       el.innerHTML = residents.map(r => {
         const selected = appState.monitoring.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMonitoringResident('${r.id}')">${escHtml(r.name)}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMonitoringResident('${r.id}')">${escHtml(r.name)}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+
+      if (appState.monitoring.selectedResident) applyPausedLock('monitoring', 'page-monitoring', 'monitoringResidentSelector', appState.monitoring.selectedResident);
+    }
+
+    function toggleMonitoringShowPaused(checked) {
+      appState.monitoring.showPausedResidents = checked;
+      renderMonitoringResidentSelector();
     }
 
     function currentYearMonth() {
@@ -7797,26 +7908,32 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     function renderDbList() {
       const query = (document.getElementById('searchInput')?.value || '').trim();
       const staffFilter = document.getElementById('staffFilterSelect')?.value || '';
+      const displayFilter = appState.dbDisplayFilter || 'active';
       populateStaffFilterSelect();
       renderDbSortRow();
+      const displaySel = document.getElementById('dbDisplayFilterSelect');
+      if (displaySel && displaySel.value !== displayFilter) displaySel.value = displayFilter;
       const residents = appState.db.residentDb.filter(r =>
         (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) &&
-        (!staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter || r.nurseStaffInCharge === staffFilter)
+        (!staffFilter || r.rehabStaffInCharge === staffFilter || r.careStaffInCharge === staffFilter || r.nurseStaffInCharge === staffFilter) &&
+        (displayFilter === 'all' || (displayFilter === 'paused' ? isResidentPaused(r) : !isResidentPaused(r)))
       );
       sortResidentsInPlace(residents);
 
       const total = appState.db.residentDb.length;
+      const activeTotal = getActiveResidentDb().length;
+      const pausedTotal = total - activeTotal;
       const complete = appState.db.residentDb.filter(r => calcCompletion(r) === 100).length;
       const incomplete = total - complete;
 
-      document.getElementById('totalCount').textContent = total;
+      document.getElementById('totalCount').textContent = `${activeTotal}${pausedTotal ? `（＋終了者${pausedTotal}）` : ''}`;
       document.getElementById('completeCount').textContent = complete;
       document.getElementById('incompleteCount').textContent = incomplete;
 
       const el = document.getElementById('dbList');
       if (!residents.length) {
         el.innerHTML = `<div style="text-align:center; color:var(--muted); padding:30px; font-size:14px;">
-      ${query || staffFilter ? '該当する利用者が見つかりません' : '利用者が登録されていません。「＋ 登録」から追加してください。'}
+      ${query || staffFilter ? '該当する利用者が見つかりません' : (displayFilter === 'paused' ? '終了者（バックナンバー）はいません' : '利用者が登録されていません。「＋ 登録」から追加してください。')}
     </div>`;
         return;
       }
@@ -7849,14 +7966,28 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       <span class="doc-badge ${hasRehabRecord ? 'ok' : 'missing'}" onclick="event.stopPropagation(); jumpToDoc('rehabrecord','${r.id}')">📝 リハ記録 ${hasRehabRecord ? '✓' : '－'}</span>
       <span class="doc-badge ${hasRecord ? 'ok' : 'missing'}" onclick="event.stopPropagation(); jumpToDoc('renrakucho','${r.id}')">📄 連絡帳 ${hasRecord ? '✓' : '－'}</span>`;
 
+        const paused = isResidentPaused(r);
+        const pauseResumeBtn = paused
+          ? `<button class="icon-btn" title="再開する" onclick="resumeResident('${r.id}')">▶</button>`
+          : `<button class="icon-btn" title="中止にする（終了者へ）" onclick="pauseResident('${r.id}')">⏸</button>`;
+        const historyRows = (r.resumeHistory || []).slice().reverse().map(h =>
+          `<div>・中止：${h.pausedAt || '?'} ${h.resumedAt ? `→ 再開：${h.resumedAt}` : '（中止中）'}${h.reason ? `　理由：${escHtml(h.reason)}` : ''}</div>`
+        ).join('');
+        const historyBlock = historyRows ? `
+      <div style="margin-top:8px; padding:8px 10px; background:#f7f7f7; border-radius:8px; font-size:11.5px; color:var(--muted);">
+        <div style="font-weight:700; margin-bottom:3px;">🗄️ 中止・再開の履歴</div>
+        ${historyRows}
+      </div>` : '';
+
         return `
-    <div class="resident-card" onclick="openResidentModal('${r.id}')">
+    <div class="resident-card" onclick="openResidentModal('${r.id}')" style="${paused ? 'opacity:0.75;' : ''}">
       <div class="resident-card-header">
         <div>
-          <div class="resident-name">${escHtml(r.name)}</div>
+          <div class="resident-name">${escHtml(r.name)} ${residentStatusBadgeHtml(r)}</div>
           <div class="resident-kana">${r.kana || ''}</div>
         </div>
         <div class="resident-card-actions" onclick="event.stopPropagation()">
+          ${pauseResumeBtn}
           <button class="icon-btn" onclick="openResidentModal('${r.id}')">✏️</button>
           <button class="icon-btn danger" onclick="deleteResident('${r.id}')">🗑️</button>
         </div>
@@ -7879,6 +8010,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           <div class="missing-list">${missing.join('　・　')}</div>
         </div>
       ` : `<div style="margin-top:8px; font-size:12px; color:var(--green); font-weight:700;">✅ すべての項目が入力済みです</div>`}
+      ${historyBlock}
     </div>`;
       }).join('');
     }
@@ -8185,9 +8317,144 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
     const DAY_STATUS_OPTIONS = ['休み', '欠席', 'ショートステイ利用', '入院中', '予定なし（提供表）'];
 
+    // ============================================================
+    // 利用者DB：中止（終了者・バックナンバー）／再開
+    // ------------------------------------------------------------
+    // resident.resumeHistory = [{ pausedAt, resumedAt, reason }, ...]
+    // 最新要素の resumedAt が null（未設定）なら「終了者（中止中）」。
+    // resumeHistory が無い／空の場合は「利用中」（既存データとの後方互換）。
+    // ============================================================
+    function isResidentPaused(r) {
+      if (!r || !Array.isArray(r.resumeHistory) || !r.resumeHistory.length) return false;
+      const last = r.resumeHistory[r.resumeHistory.length - 1];
+      return !last.resumedAt;
+    }
+
+    function residentPausedInfo(r) {
+      if (!isResidentPaused(r)) return null;
+      return r.resumeHistory[r.resumeHistory.length - 1];
+    }
+
+    function getActiveResidentDb() {
+      return appState.db.residentDb.filter(r => !isResidentPaused(r));
+    }
+
+    function residentStatusBadgeHtml(r) {
+      if (!isResidentPaused(r)) return '';
+      return `<span class="tag" style="background:#eee; color:#888; border:1px solid #ccc;">🗄️ 終了者</span>`;
+    }
+
+    function pauseResident(id) {
+      const r = appState.db.residentDb.find(x => x.id === id);
+      if (!r || isResidentPaused(r)) return;
+      if (!confirm(`「${r.name}」を終了者（バックナンバー）にしますか？\n提供表・送迎表・業務日誌・連絡帳・勤務表・スケジュールの対象から外れます。\n記録・計画書はそのまま残り、いつでも「再開する」ことができます。`)) return;
+      const reason = (prompt('中止の理由（任意・空欄でも構いません）', '') || '').trim();
+      if (!Array.isArray(r.resumeHistory)) r.resumeHistory = [];
+      r.resumeHistory.push({ pausedAt: todayStr(), resumedAt: null, reason });
+      saveDb();
+      renderDbList();
+      renderResidentSelector();
+      renderWeeklyAttendance();
+      renderCalendar();
+      renderTodayRenrakuchoList();
+      if (appState.schedule.weekStart) renderWeeklyScheduleTable();
+    }
+
+    function resumeResident(id) {
+      const r = appState.db.residentDb.find(x => x.id === id);
+      if (!r || !isResidentPaused(r)) return;
+      if (!confirm(`「${r.name}」を再開しますか？\n利用中に戻り、提供表・送迎表などの対象に含まれるようになります。\nこのあと開く編集画面で、曜日や標準利用時間・所要時間区分などを確認してください。`)) return;
+      const last = r.resumeHistory[r.resumeHistory.length - 1];
+      last.resumedAt = todayStr();
+      saveDb();
+      renderDbList();
+      renderResidentSelector();
+      renderWeeklyAttendance();
+      renderCalendar();
+      renderTodayRenrakuchoList();
+      if (appState.schedule.weekStart) renderWeeklyScheduleTable();
+      openResidentModal(id); // 再開後は内容確認のため編集画面を開く
+    }
+
+    function setDbDisplayFilter(val) {
+      appState.dbDisplayFilter = val;
+      renderDbList();
+    }
+
+    // ============================================================
+    // 終了者（バックナンバー）の記録・計画書：編集ロック（共通処理）
+    // ------------------------------------------------------------
+    // 各画面の「対象者選択カード」の直後にある要素群を1つのラッパーへまとめ、
+    // 終了者を選択中はラッパー全体に半透明オーバーレイ＋許可ボタンを重ねて操作を止める。
+    // 「編集を許可する」→確認ポップアップでロック解除、対象者変更／画面遷移／日付変更で自動再ロック。
+    // ============================================================
+    function ensurePausedLockWrapper(pageId, selectorElId) {
+      const page = document.getElementById(pageId);
+      if (!page) return null;
+      let wrapper = page.querySelector('.paused-lock-wrapper');
+      if (wrapper) return wrapper;
+      const selectorEl = document.getElementById(selectorElId);
+      const anchor = selectorEl ? selectorEl.closest('.card') : null;
+      if (!anchor) return null;
+      wrapper = document.createElement('div');
+      wrapper.className = 'paused-lock-wrapper';
+      let sib = anchor.nextElementSibling;
+      while (sib) {
+        const next = sib.nextElementSibling;
+        wrapper.appendChild(sib);
+        sib = next;
+      }
+      anchor.parentNode.insertBefore(wrapper, anchor.nextSibling);
+      return wrapper;
+    }
+
+    function applyPausedLock(screenKey, pageId, selectorElId, resident) {
+      const wrapper = ensurePausedLockWrapper(pageId, selectorElId);
+      if (!wrapper || !resident) return;
+      let overlay = wrapper.querySelector('.paused-lock-overlay');
+      const paused = isResidentPaused(resident);
+      const unlockedId = appState.pausedUnlock[screenKey];
+      const locked = paused && unlockedId !== resident.id;
+      if (locked) {
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.className = 'paused-lock-overlay';
+          wrapper.appendChild(overlay);
+        }
+        overlay.innerHTML = `
+      <div class="paused-lock-banner">
+        <div class="plb-title">⚠️ ${escHtml(resident.name)} さんは終了者（バックナンバー）です</div>
+        <div>内容は表示のみです。書き換えるには許可が必要です。</div>
+        <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="requestPausedUnlock('${screenKey}','${resident.id}')">🔓 編集を許可する</button>
+      </div>`;
+        overlay.style.display = 'flex';
+      } else if (overlay) {
+        overlay.style.display = 'none';
+      }
+    }
+
+    function requestPausedUnlock(screenKey, residentId) {
+      const r = appState.db.residentDb.find(x => x.id === residentId);
+      if (!confirm(`終了者「${r ? r.name : ''}」の記録を編集します。よろしいですか？`)) return;
+      appState.pausedUnlock[screenKey] = residentId;
+      const rerenderMap = {
+        renrakucho: () => selectResident(residentId),
+        rehab: () => selectRehabResident(residentId),
+        rehabrecord: () => selectRehabRecordResident(residentId),
+        monitoring: () => selectMonitoringResident(residentId),
+        assessment: () => selectAssessmentResident(residentId),
+      };
+      if (rerenderMap[screenKey]) rerenderMap[screenKey]();
+    }
+
+    function resetPausedUnlock(screenKey) {
+      appState.pausedUnlock[screenKey] = null;
+    }
+
     function getResidentsForDate(dateStr) {
       const wd = weekdayLabelOf(dateStr);
       let ids = appState.db.residentDb
+        .filter(r => !isResidentPaused(r))
         .filter(r => (r.attendanceDays || '').split(',').map(s => s.trim()).includes(wd))
         .map(r => r.id);
       const ov = appState.db.attendanceOverrides[dateStr];
@@ -8195,6 +8462,11 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         if (ov.add) ov.add.forEach(id => { if (!ids.includes(id)) ids.push(id); });
         if (ov.remove) ids = ids.filter(id => !ov.remove.includes(id));
       }
+      // 追加（ov.add）で入った分も含め、終了者は日別対象から除外する
+      ids = ids.filter(id => {
+        const rr = appState.db.residentDb.find(x => x.id === id);
+        return rr && !isResidentPaused(rr);
+      });
       const statusMap = appState.db.dayStatusOverrides[dateStr] || {};
       return ids.map(id => appState.db.residentDb.find(r => r.id === id)).filter(Boolean)
         .map(r => ({ ...r, _dayStatus: statusMap[r.id] || '' }));
@@ -8240,7 +8512,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const dateStr = (document.getElementById('clDateInput') && document.getElementById('clDateInput').value) || todayStr();
         residents = getResidentsForDate(dateStr).filter(r => !r._dayStatus);
       } else {
-        residents = appState.db.residentDb;
+        residents = getActiveResidentDb();
       }
 
       const groups = {};
@@ -8423,7 +8695,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       if (!el) return;
       const order = getBusinessDays();
       el.innerHTML = order.map(wd => {
-        const residents = appState.db.residentDb.filter(r => (r.attendanceDays || '').split(',').map(s => s.trim()).includes(wd));
+        const residents = getActiveResidentDb().filter(r => (r.attendanceDays || '').split(',').map(s => s.trim()).includes(wd));
         return `<div class="weekday-block">
       <div class="weekday-block-title">${wd}曜日（${residents.length}名）</div>
       ${residents.length
@@ -8519,7 +8791,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     </div>`;
       }).join('');
 
-      const others = appState.db.residentDb.filter(r => !activeResidents.some(a => a.id === r.id));
+      const others = getActiveResidentDb().filter(r => !activeResidents.some(a => a.id === r.id));
       const addSelect = others.length ? `
     <div style="margin-top:8px; display:flex; gap:6px;">
       <select id="addResidentSelect" style="flex:1; padding:8px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit;">
@@ -8990,7 +9262,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     let vitalsImportState = { headers: [], rows: [] };
 
     function downloadVitalsTemplate() {
-      const residents = appState.db.residentDb || [];
+      const residents = getActiveResidentDb();
       const header = ['氏名', '体温', '血圧（収縮期）', '血圧（拡張期）', '脈拍', 'SpO₂', '体重'];
       const rows = residents.length
         ? residents.map(r => [r.name, '', '', '', '', '', ''])
@@ -9982,9 +10254,9 @@ ${SHORUI_COMMON_NOTE}`;
       const labelEl = document.getElementById('teikyohyoMonthLabel');
       if (labelEl) labelEl.textContent = `${year}年${month}月`;
 
-      const residents = appState.db.residentDb;
+      const residents = getActiveResidentDb();
       if (!residents.length) {
-        el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください</div>';
+        el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください（利用中の方がいない場合、終了者は提供表に表示されません）</div>';
         renderTeikyohyoConfirmStatus();
         return;
       }
@@ -10247,7 +10519,7 @@ ${SHORUI_COMMON_NOTE}`;
       const el = document.getElementById('rcWeekMatrix');
       if (!el) return;
       const weekDates = getWeekDates(new Date());
-      const residents = appState.db.residentDb;
+      const residents = getActiveResidentDb();
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
@@ -10526,6 +10798,7 @@ ${SHORUI_COMMON_NOTE}`;
 
     function setRehabRecordToday() {
       document.getElementById('rrDateInput').value = todayStr();
+      resetPausedUnlock('rehabrecord');
       renderTodayRehabRecordList();
     }
 
@@ -10533,7 +10806,7 @@ ${SHORUI_COMMON_NOTE}`;
       const el = document.getElementById('rrWeekMatrix');
       if (!el) return;
       const weekDates = getWeekDates(new Date());
-      const residents = appState.db.residentDb;
+      const residents = getActiveResidentDb();
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
@@ -10603,8 +10876,10 @@ ${SHORUI_COMMON_NOTE}`;
       }
       const dateStr = document.getElementById('rrDateInput')?.value || todayStr();
       const showAll = appState.rehabRecord.showAllResidents;
+      const showPaused = appState.rehabRecord.showPausedResidents;
       const scheduledIds = new Set(getResidentsForDate(dateStr).map(r => r.id));
-      const residents = showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id));
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = showAll ? baseList : baseList.filter(r => scheduledIds.has(r.id));
 
       if (appState.rehabRecord.selectedResident && !residents.some(r => r.id === appState.rehabRecord.selectedResident.id)) {
         appState.rehabRecord.selectedResident = null;
@@ -10618,12 +10893,19 @@ ${SHORUI_COMMON_NOTE}`;
 
       el.innerHTML = residents.map(r => {
         const selected = appState.rehabRecord.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabRecordResident('${r.id}')">${escHtml(r.name)}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabRecordResident('${r.id}')">${escHtml(r.name)}${!scheduledIds.has(r.id) ? '（予定外）' : ''}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+
+      if (appState.rehabRecord.selectedResident) applyPausedLock('rehabrecord', 'page-rehabrecord', 'rehabRecordResidentSelector', appState.rehabRecord.selectedResident);
     }
 
     function toggleRehabRecordShowAll(checked) {
       appState.rehabRecord.showAllResidents = checked;
+      renderRehabRecordResidentSelector();
+    }
+
+    function toggleRehabRecordShowPaused(checked) {
+      appState.rehabRecord.showPausedResidents = checked;
       renderRehabRecordResidentSelector();
     }
 
@@ -10817,10 +11099,12 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       }
       const dateStr = document.getElementById('dateInput')?.value || todayStr();
       const showAll = appState.renrakucho.showAllResidents;
-      const dayResidents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用・予定なし（提供表））
+      const showPaused = appState.renrakucho.showPausedResidents;
+      const dayResidents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用・予定なし（提供表））※終了者は含まれない
       const scheduledIds = new Set(dayResidents.filter(r => !r._dayStatus).map(r => r.id));
       const offIds = new Set(dayResidents.filter(r => r._dayStatus).map(r => r.id));
-      const residents = (showAll ? appState.db.residentDb : appState.db.residentDb.filter(r => scheduledIds.has(r.id)))
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = (showAll ? baseList : baseList.filter(r => scheduledIds.has(r.id)))
         .filter(r => !offIds.has(r.id)); // 休み・欠席等の人は連絡帳の対象にしない
 
       if (appState.renrakucho.selectedResident && !residents.some(r => r.id === appState.renrakucho.selectedResident.id)) {
@@ -10836,12 +11120,19 @@ ${customInstructionsBlock('customPromptRehabRecord')}
 
       el.innerHTML = residents.map(r =>
         `<button class="res-chip ${appState.renrakucho.selectedResident?.id === r.id ? 'selected' : ''}"
-      onclick="selectResident('${r.id}')">${escHtml(r.name)}${!scheduledIds.has(r.id) ? '（予定外）' : ''}</button>`
+      onclick="selectResident('${r.id}')">${escHtml(r.name)}${!scheduledIds.has(r.id) ? '（予定外）' : ''}${isResidentPaused(r) ? '（終了）' : ''}</button>`
       ).join('');
+
+      if (appState.renrakucho.selectedResident) applyPausedLock('renrakucho', 'page-renrakucho', 'residentSelector', appState.renrakucho.selectedResident);
     }
 
     function toggleRenrakuchoShowAll(checked) {
       appState.renrakucho.showAllResidents = checked;
+      renderResidentSelector();
+    }
+
+    function toggleRenrakuchoShowPaused(checked) {
+      appState.renrakucho.showPausedResidents = checked;
       renderResidentSelector();
     }
 
@@ -11312,7 +11603,9 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       if (!el) return;
       populateStaffFilterSelect('rehabStaffFilterSelect');
       const staffFilter = document.getElementById('rehabStaffFilterSelect')?.value || '';
-      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
+      const showPaused = appState.rehab.showPausedResidents;
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = baseList.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         return;
@@ -11324,8 +11617,15 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       el.innerHTML = residents.map(r => {
         const has = !!appState.db.rehabPlans[r.id];
         const selected = appState.rehab.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabResident('${r.id}')">${escHtml(r.name)}${has ? ' 📝' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehabResident('${r.id}')">${escHtml(r.name)}${has ? ' 📝' : ''}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+
+      if (appState.rehab.selectedResident) applyPausedLock('rehab', 'page-rehab', 'rehabResidentSelector', appState.rehab.selectedResident);
+    }
+
+    function toggleRehabShowPaused(checked) {
+      appState.rehab.showPausedResidents = checked;
+      renderRehabResidentSelector();
     }
 
     function selectRehabResident(id) {
@@ -11452,14 +11752,22 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       if (!el) return;
       populateStaffFilterSelect('meetingStaffFilterSelect');
       const staffFilter = document.getElementById('meetingStaffFilterSelect')?.value || '';
-      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
+      const showPaused = appState.meeting.showPausedResidents;
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = baseList.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
       if (!residents.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者がいません</div>`; return; }
       el.innerHTML = residents.map(r => {
         const count = appState.db.meetings.filter(m => (m.residentIds || []).includes(r.id)).length;
         const selected = appState.meeting.selectedResidentId === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMeetingResident('${r.id}')">${escHtml(r.name)}${count ? ' (' + count + ')' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMeetingResident('${r.id}')">${escHtml(r.name)}${count ? ' (' + count + ')' : ''}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+    }
+
+    function toggleMeetingShowPaused(checked) {
+      appState.meeting.showPausedResidents = checked;
+      renderMeetingResidentSelector();
+      renderMeetingFormResidentSelector();
     }
 
     function selectMeetingResident(id) {
@@ -11530,9 +11838,11 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       const el = document.getElementById('meetingFormResidentSelector');
       if (!el) return;
       if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
-      el.innerHTML = appState.db.residentDb.map(r => {
+      const showPaused = appState.meeting.showPausedResidents;
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      el.innerHTML = baseList.map(r => {
         const selected = appState.meeting.formResidentIds.includes(r.id);
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="toggleMeetingFormResident('${r.id}')">${escHtml(r.name)}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="toggleMeetingFormResident('${r.id}')">${escHtml(r.name)}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
     }
 
@@ -11814,14 +12124,21 @@ ${ids.map((_, i) => `【利用者${i + 1}】\n（ここに文章）`).join('\n')
       if (!el) return;
       populateStaffFilterSelect('rehaMeetingStaffFilterSelect');
       const staffFilter = document.getElementById('rehaMeetingStaffFilterSelect')?.value || '';
-      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
+      const showPaused = appState.rehaMeeting.showPausedResidents;
+      const baseList = showPaused ? appState.db.residentDb : getActiveResidentDb();
+      const residents = baseList.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
       if (!residents.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者がいません</div>`; return; }
       el.innerHTML = residents.map(r => {
         const hist = (appState.db.rehabPlans[r.id] && appState.db.rehabPlans[r.id].history) || [];
         const selected = appState.rehaMeeting.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehaMeetingResident('${r.id}')">${escHtml(r.name)}${hist.length ? ' (' + hist.length + ')' : ''}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehaMeetingResident('${r.id}')">${escHtml(r.name)}${hist.length ? ' (' + hist.length + ')' : ''}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+    }
+
+    function toggleRehaMeetingShowPaused(checked) {
+      appState.rehaMeeting.showPausedResidents = checked;
+      renderRehaMeetingResidentSelector();
     }
 
     function selectRehaMeetingResident(id) {
@@ -12354,7 +12671,8 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
     function renderVitalsTrendResidentSelector() {
       const el = document.getElementById('vitalsTrendResidentSelector');
       if (!el) return;
-      const residents = appState.db.residentDb || [];
+      const showPaused = appState.vitalsTrend.showPausedResidents;
+      const residents = showPaused ? (appState.db.residentDb || []) : getActiveResidentDb();
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         document.getElementById('vitalsTrendFormArea').style.display = 'none';
@@ -12362,8 +12680,13 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       }
       el.innerHTML = residents.map(r => {
         const selected = appState.vitalsTrend.selectedResident?.id === r.id;
-        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectVitalsTrendResident('${r.id}')">${escHtml(r.name)}</span>`;
+        return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectVitalsTrendResident('${r.id}')">${escHtml(r.name)}${isResidentPaused(r) ? '（終了）' : ''}</span>`;
       }).join('');
+    }
+
+    function toggleVitalsTrendShowPaused(checked) {
+      appState.vitalsTrend.showPausedResidents = checked;
+      renderVitalsTrendResidentSelector();
     }
 
     function selectVitalsTrendResident(id) {
@@ -12576,7 +12899,7 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
     function renderMealIntakeResidentSelector() {
       const el = document.getElementById('mealIntakeResidentSelector');
       if (!el) return;
-      const residents = appState.db.residentDb || [];
+      const residents = getActiveResidentDb();
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         document.getElementById('mealIntakeFormArea').style.display = 'none';

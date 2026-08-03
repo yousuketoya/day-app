@@ -1097,6 +1097,22 @@
       -webkit-overflow-scrolling: touch;
     }
 
+    /* 送迎表：見出し行（順・利用者名・時刻…）を縦スクロール時も固定表示するための専用ラッパー */
+    .tp-table-scroll-wrap {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      max-height: 70vh;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .tp-table-transport tr:first-child th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: var(--bg);
+    }
+
     /* 送迎表専用：列数が多いため、できるだけ横スクロールなしで収まるよう調整 */
     .tp-table-transport {
       table-layout: fixed;
@@ -6290,7 +6306,7 @@
     </tr>`;
       }).join('');
 
-      el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table tp-table-transport">
+      el.innerHTML = `<div class="tp-table-scroll-wrap"><table class="tp-table tp-table-transport">
     <colgroup>
       <col class="tp-col-order"><col class="tp-col-name"><col class="tp-col-leg">
       <col class="tp-col-time"><col class="tp-col-time">

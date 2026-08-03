@@ -4293,7 +4293,7 @@
           <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="exportBackupExcel()">📥
             全データをExcelに書き出す</button>
           <div style="font-size:11px; color:var(--muted); margin-top:6px;">
-            利用者DB・連絡帳・経過記録・リハビリ記録／計画書・スケジュール・バイタルなど、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
+            利用者DB（評価含む）・連絡帳（チェック項目含む）・経過記録・リハビリ記録／計画書・会議録・スケジュール・バイタル・アセスメント・送迎表・モニタリング・業務日誌・利用時間／入浴／食事・勤務表・提供表・各種設定など、保存されている全項目を1つのExcelファイル（複数シート）に出力します。</div>
           <label class="btn btn-secondary btn-sm"
             style="width:100%; margin-top:10px; cursor:pointer; display:block; text-align:center;">
             📤 バックアップから復元する
@@ -5116,11 +5116,13 @@
       ]);
 
       // ①-2 利用者DB 基本動作・ADL評価（現況）
-      const dbAssessRows = [['利用者名', ...BASIC_MOTION_ITEMS.map(t => '基本動作:' + t), ...ADL_ITEMS.map(t => 'ADL:' + t)]];
+      // 末尾の「データ(JSON)」列は復元用の完全データ（表示列は目視確認用）
+      const dbAssessRows = [['利用者名', ...BASIC_MOTION_ITEMS.map(t => '基本動作:' + t), ...ADL_ITEMS.map(t => 'ADL:' + t), 'データ(JSON)']];
       db.residentDb.forEach(r => {
         const bm = BASIC_MOTION_ITEMS.map((_, i) => { const d = r.basicMotionAssess?.[i]; return d ? [d.level, d.note].filter(Boolean).join('/') : ''; });
         const adl = ADL_ITEMS.map((_, i) => { const d = r.adlAssess?.[i]; return d ? [d.level, d.note].filter(Boolean).join('/') : ''; });
-        dbAssessRows.push([r.name, ...bm, ...adl]);
+        const rawJson = JSON.stringify({ basicMotionAssess: r.basicMotionAssess || [], adlAssess: r.adlAssess || [] });
+        dbAssessRows.push([r.name, ...bm, ...adl, rawJson]);
       });
       addSheet('利用者DB評価(現況)', dbAssessRows);
 
@@ -5154,7 +5156,8 @@
       addSheet('リハビリ記録', rrRows);
 
       // ⑤ リハビリ計画書
-      const rpHeader = ['利用者名', ...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS, '心身機能構造', '基本動作', 'ADL', '最終更新'];
+      // 末尾の3列（*データ(JSON)）は復元用の完全データ（表示列は目視確認用で、復元には使用しない）
+      const rpHeader = ['利用者名', ...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS, '心身機能構造', '基本動作', 'ADL', '最終更新', '心身機能構造データ(JSON)', '基本動作データ(JSON)', 'ADLデータ(JSON)'];
       const rpRows = [rpHeader];
       Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
         const mb = (plan.mindBody || []).map((d, i) => `${MIND_BODY_ITEMS[i]}:${[d.status, d.impact, d.note].filter(Boolean).join('/')}`).join('；');
@@ -5165,7 +5168,8 @@
           ...RP_TEXT_FIELDS.map(f => plan[f] || ''),
           ...RP_DATE_FIELDS.map(f => plan[f] || ''),
           ...RP_CHIP_FIELDS.map(f => plan[f] || ''),
-          mb, bm, adl, plan.updatedAt || ''
+          mb, bm, adl, plan.updatedAt || '',
+          JSON.stringify(plan.mindBody || []), JSON.stringify(plan.basicMotion || []), JSON.stringify(plan.adl || [])
         ]);
       });
       addSheet('リハビリ計画書', rpRows);
@@ -5291,6 +5295,63 @@
       });
       addSheet('食事摂取量', miRows);
 
+      // ⑭c 連絡帳チェック項目（体調・気分・水分・入浴・排泄・レク・訓練・安全・服薬の選択と特記事項）
+      const ciRows = [['日付', '利用者名', ...RC_CHECKLOG_GROUPS.map(g => RC_CHECK_GROUP_LABELS[g] || g), '特記事項']];
+      Object.keys(db.checkItemsLog || {}).sort().forEach(date => {
+        Object.entries(db.checkItemsLog[date]).forEach(([rid, entry]) => {
+          const chips = entry.chips || {};
+          ciRows.push([date, residentNameOf(rid), ...RC_CHECKLOG_GROUPS.map(g => chips[g] || ''), entry.notes || '']);
+        });
+      });
+      addSheet('連絡帳チェック項目', ciRows);
+
+      // ⑭d 提供表（予定）
+      const tyPlanRows = [['年月', '利用者名', '日', '値']];
+      Object.keys(db.teikyohyoPlan || {}).sort().forEach(ymk => {
+        Object.entries(db.teikyohyoPlan[ymk]).forEach(([rid, days]) => {
+          Object.entries(days).forEach(([day, val]) => {
+            if (val) tyPlanRows.push([ymk, residentNameOf(rid), day, val]);
+          });
+        });
+      });
+      addSheet('提供表(予定)', tyPlanRows);
+
+      // ⑭e 提供表（実績）
+      const tyActualRows = [['年月', '利用者名', '日', '値']];
+      Object.keys(db.teikyohyoActual || {}).sort().forEach(ymk => {
+        Object.entries(db.teikyohyoActual[ymk]).forEach(([rid, days]) => {
+          Object.entries(days).forEach(([day, val]) => {
+            if (val) tyActualRows.push([ymk, residentNameOf(rid), day, val]);
+          });
+        });
+      });
+      addSheet('提供表(実績)', tyActualRows);
+
+      // ⑭f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
+      const tySettingRows = [['年月', '確定', '確定日時']];
+      Object.keys(db.teikyohyoConfirmed || {}).sort().forEach(ymk => {
+        if (db.teikyohyoConfirmed[ymk]) {
+          tySettingRows.push([ymk, 'はい', (db.teikyohyoConfirmedAt && db.teikyohyoConfirmedAt[ymk]) || '']);
+        }
+      });
+      addSheet('提供表_確定状況', tySettingRows);
+
+      const tyHospRows = [['年月', '利用者名']];
+      Object.keys(db.teikyohyoHospitalized || {}).sort().forEach(ymk => {
+        Object.entries(db.teikyohyoHospitalized[ymk]).forEach(([rid, flag]) => {
+          if (flag) tyHospRows.push([ymk, residentNameOf(rid)]);
+        });
+      });
+      addSheet('提供表_入院中設定', tyHospRows);
+
+      const tyDocRows = [['年月', '利用者名']];
+      Object.keys(db.teikyohyoDocLoaded || {}).sort().forEach(ymk => {
+        Object.entries(db.teikyohyoDocLoaded[ymk]).forEach(([rid, flag]) => {
+          if (flag) tyDocRows.push([ymk, residentNameOf(rid)]);
+        });
+      });
+      addSheet('提供表_書類読込済', tyDocRows);
+
       // ⑮ 勤務表（予定：4週28日パターン、午前・午後）
       const shiftStaffForExport = [
         ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
@@ -5345,6 +5406,8 @@
         ['連絡帳のカスタムプロンプト', db.customPromptRenrakucho || ''],
         ['リハビリ記録のカスタムプロンプト', db.customPromptRehabRecord || ''],
         ['モニタリングのカスタムプロンプト', db.customPromptMonitoring || ''],
+        ['会議録のカスタムプロンプト', db.customPromptMeeting || ''],
+        ['リハビリ会議録のカスタムプロンプト', db.customPromptRehaMeeting || ''],
         ['出力日時', new Date().toLocaleString('ja-JP')]
       ];
       addSheet('設定情報', setRows);
@@ -5503,15 +5566,19 @@
         };
       });
 
-      // ⑤ リハビリ計画書（本文項目のみ復元。心身機能・基本動作・ADLの評価表は再入力が必要）
+      // ⑤ リハビリ計画書（本文項目に加え、末尾のJSON列から心身機能・基本動作・ADLの評価表も復元）
       const rpFlatFields = [...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS];
+      const parseAssessJson = (val, fallback) => { try { const p = JSON.parse(val); return Array.isArray(p) ? p : fallback; } catch (e) { return fallback; } };
       getSheetRows(wb, 'リハビリ計画書').forEach(row => {
         const name = row[0];
         const id = findId(name); if (!id) return;
         const plan = {};
         rpFlatFields.forEach((f, i) => { plan[f] = row[i + 1] || ''; });
-        plan.mindBody = []; plan.basicMotion = []; plan.adl = [];
-        plan.updatedAt = row[1 + rpFlatFields.length + 3] || '';
+        const base = 1 + rpFlatFields.length; // base=心身機能構造(表示), base+1=基本動作(表示), base+2=ADL(表示), base+3=最終更新
+        plan.updatedAt = row[base + 3] || '';
+        plan.mindBody = parseAssessJson(row[base + 4], []);
+        plan.basicMotion = parseAssessJson(row[base + 5], []);
+        plan.adl = parseAssessJson(row[base + 6], []);
         newDb.rehabPlans[id] = plan;
       });
 
@@ -5655,6 +5722,64 @@
         newDb.mealIntakeLog[date][id] = { main: main || '', side: side || '' };
       });
 
+      // ⑭c 連絡帳チェック項目
+      getSheetRows(wb, '連絡帳チェック項目').forEach(row => {
+        const [date, name, ...rest] = row;
+        const id = findId(name); if (!id || !date) return;
+        const notes = rest[RC_CHECKLOG_GROUPS.length] || '';
+        const chips = {};
+        RC_CHECKLOG_GROUPS.forEach((g, i) => { if (rest[i]) chips[g] = rest[i]; });
+        if (!newDb.checkItemsLog[date]) newDb.checkItemsLog[date] = {};
+        newDb.checkItemsLog[date][id] = { chips, notes };
+      });
+
+      // ⑭d/⑭e 提供表（予定・実績）
+      const fillTeikyohyo = (sheetName, store) => {
+        getSheetRows(wb, sheetName).forEach(([ymk, name, day, val]) => {
+          const id = findId(name); if (!id || !ymk || !day || !val) return;
+          if (!store[ymk]) store[ymk] = {};
+          if (!store[ymk][id]) store[ymk][id] = {};
+          store[ymk][id][day] = val;
+        });
+      };
+      fillTeikyohyo('提供表(予定)', newDb.teikyohyoPlan);
+      fillTeikyohyo('提供表(実績)', newDb.teikyohyoActual);
+
+      // ⑭f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
+      getSheetRows(wb, '提供表_確定状況').forEach(([ymk, confirmed, confirmedAt]) => {
+        if (!ymk) return;
+        if (confirmed === 'はい') {
+          newDb.teikyohyoConfirmed[ymk] = true;
+          newDb.teikyohyoConfirmedAt[ymk] = confirmedAt || '';
+        }
+      });
+      getSheetRows(wb, '提供表_入院中設定').forEach(([ymk, name]) => {
+        const id = findId(name); if (!id || !ymk) return;
+        if (!newDb.teikyohyoHospitalized[ymk]) newDb.teikyohyoHospitalized[ymk] = {};
+        newDb.teikyohyoHospitalized[ymk][id] = true;
+      });
+      getSheetRows(wb, '提供表_書類読込済').forEach(([ymk, name]) => {
+        const id = findId(name); if (!id || !ymk) return;
+        if (!newDb.teikyohyoDocLoaded[ymk]) newDb.teikyohyoDocLoaded[ymk] = {};
+        newDb.teikyohyoDocLoaded[ymk][id] = true;
+      });
+
+      // ①-2b 利用者DB 基本動作・ADL評価（現況）：JSON列から完全復元
+      const dbAssessRows2 = getSheetRows(wb, '利用者DB評価(現況)');
+      dbAssessRows2.forEach(row => {
+        const name = row[0];
+        const rawJson = row[row.length - 1];
+        const id = findId(name); if (!id || !rawJson) return;
+        try {
+          const parsed = JSON.parse(rawJson);
+          const resident = newDb.residentDb.find(r => r.id === id);
+          if (resident && parsed) {
+            if (parsed.basicMotionAssess) resident.basicMotionAssess = parsed.basicMotionAssess;
+            if (parsed.adlAssess) resident.adlAssess = parsed.adlAssess;
+          }
+        } catch (e) { /* JSON解析に失敗した行は無視 */ }
+      });
+
       // ⑮ 設定情報
       const settingsRows = getSheetRows(wb, '設定情報');
       settingsRows.forEach(([key, val]) => {
@@ -5673,6 +5798,8 @@
         if (key === '連絡帳のカスタムプロンプト') newDb.customPromptRenrakucho = val || '';
         if (key === 'リハビリ記録のカスタムプロンプト') newDb.customPromptRehabRecord = val || '';
         if (key === 'モニタリングのカスタムプロンプト') newDb.customPromptMonitoring = val || '';
+        if (key === '会議録のカスタムプロンプト') newDb.customPromptMeeting = val || '';
+        if (key === 'リハビリ会議録のカスタムプロンプト') newDb.customPromptRehaMeeting = val || '';
       });
       if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
         newDb.rehabContentList = ['関節可動域訓練', '筋力増強訓練', '歩行訓練', '立位・座位訓練', 'バランス訓練', 'ADL訓練', '嚥下訓練', '言語訓練', '巧緻動作訓練', 'レクリエーション訓練'];

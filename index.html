@@ -6838,7 +6838,8 @@
       const start = appState.db.shiftCycleStart;
       if (!start) { appState.shift.cycleBlockIndex = 0; return; }
       const diff = daysBetweenYmd(start, todayStr());
-      appState.shift.cycleBlockIndex = Math.floor(diff / SHIFT_CYCLE_LEN);
+      // 起点日が未来の日付の場合、diffが負になり表示ブロックが「起点日より前」になってしまうため0に補正する
+      appState.shift.cycleBlockIndex = diff < 0 ? 0 : Math.floor(diff / SHIFT_CYCLE_LEN);
     }
 
     function getShiftBlockDates() {

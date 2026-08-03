@@ -3503,6 +3503,10 @@
 
           <div class="card" id="meetingByResidentBlock">
             <div class="card-title">👤 利用者</div>
+            <select id="meetingStaffFilterSelect" onchange="renderMeetingResidentSelector()"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px; margin-bottom:10px;">
+              <option value="">🔍 担当者で絞り込む（全員表示）</option>
+            </select>
             <div class="resident-selector" id="meetingResidentSelector"></div>
             <div id="meetingResidentHistory" style="margin-top:10px;"></div>
           </div>
@@ -3573,6 +3577,10 @@
 
           <div class="card">
             <div class="card-title">👤 利用者</div>
+            <select id="rehaMeetingStaffFilterSelect" onchange="renderRehaMeetingResidentSelector()"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px; margin-bottom:10px;">
+              <option value="">🔍 担当者で絞り込む（全員表示）</option>
+            </select>
             <div class="resident-selector" id="rehaMeetingResidentSelector"></div>
           </div>
 
@@ -11442,8 +11450,12 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     function renderMeetingResidentSelector() {
       const el = document.getElementById('meetingResidentSelector');
       if (!el) return;
+      populateStaffFilterSelect('meetingStaffFilterSelect');
+      const staffFilter = document.getElementById('meetingStaffFilterSelect')?.value || '';
+      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
-      el.innerHTML = appState.db.residentDb.map(r => {
+      if (!residents.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者がいません</div>`; return; }
+      el.innerHTML = residents.map(r => {
         const count = appState.db.meetings.filter(m => (m.residentIds || []).includes(r.id)).length;
         const selected = appState.meeting.selectedResidentId === r.id;
         return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectMeetingResident('${r.id}')">${escHtml(r.name)}${count ? ' (' + count + ')' : ''}</span>`;
@@ -11800,8 +11812,12 @@ ${ids.map((_, i) => `【利用者${i + 1}】\n（ここに文章）`).join('\n')
     function renderRehaMeetingResidentSelector() {
       const el = document.getElementById('rehaMeetingResidentSelector');
       if (!el) return;
+      populateStaffFilterSelect('rehaMeetingStaffFilterSelect');
+      const staffFilter = document.getElementById('rehaMeetingStaffFilterSelect')?.value || '';
+      const residents = appState.db.residentDb.filter(r => matchesStaffFilter(r, staffFilter));
       if (!appState.db.residentDb.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`; return; }
-      el.innerHTML = appState.db.residentDb.map(r => {
+      if (!residents.length) { el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者がいません</div>`; return; }
+      el.innerHTML = residents.map(r => {
         const hist = (appState.db.rehabPlans[r.id] && appState.db.rehabPlans[r.id].history) || [];
         const selected = appState.rehaMeeting.selectedResident?.id === r.id;
         return `<span class="res-chip ${selected ? 'selected' : ''}" onclick="selectRehaMeetingResident('${r.id}')">${escHtml(r.name)}${hist.length ? ' (' + hist.length + ')' : ''}</span>`;

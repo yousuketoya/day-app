@@ -1116,7 +1116,7 @@
     /* 送迎表専用：列数が多いため、できるだけ横スクロールなしで収まるよう調整 */
     .tp-table-transport {
       table-layout: fixed;
-      font-size: 10.5px;
+      font-size: 14px;
     }
 
     .tp-table-transport th,
@@ -1125,17 +1125,17 @@
     }
 
     .tp-table-transport th {
-      font-size: 9.5px;
+      font-size: 12.5px;
       line-height: 1.3;
       padding: 4px 2px;
     }
 
     .tp-table-transport col.tp-col-order {
-      width: 22px;
+      width: 20px;
     }
 
     .tp-table-transport col.tp-col-name {
-      width: 52px;
+      width: 50px;
     }
 
     .tp-table-transport col.tp-col-leg {
@@ -1143,7 +1143,7 @@
     }
 
     .tp-table-transport col.tp-col-time {
-      width: 42px;
+      width: 40px;
     }
 
     .tp-table-transport col.tp-col-select {
@@ -1155,7 +1155,7 @@
     }
 
     .tp-table-transport td.tp-name {
-      font-size: 10.5px;
+      font-size: 14px;
       white-space: normal;
       word-break: break-word;
     }
@@ -1192,7 +1192,7 @@
     .tp-table-transport select {
       width: 100%;
       padding: 2px 1px;
-      font-size: 9.5px;
+      font-size: 13px;
       border: 1px solid var(--border);
       border-radius: 4px;
       font-family: inherit;
@@ -1201,6 +1201,13 @@
     .tp-table-transport input[type="number"] {
       padding: 2px 0;
       text-align: center;
+      -moz-appearance: textfield;
+    }
+
+    .tp-table-transport input[type="number"]::-webkit-outer-spin-button,
+    .tp-table-transport input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
 
     .tp-table-transport input[type="time"] {
@@ -3967,10 +3974,6 @@
             <button class="btn btn-secondary btn-sm" onclick="teikyohyoNextMonth()">▶</button>
           </div>
           <div id="teikyohyoConfirmStatus" style="text-align:center; margin-bottom:8px; font-size:12.5px;"></div>
-          <div style="display:flex; gap:6px; justify-content:center; margin-bottom:10px;">
-            <button class="btn btn-primary btn-sm" id="teikyohyoSortBtn_kana" style="flex:1; max-width:160px;" onclick="setTeikyohyoSort('kana')">🔤 フリガナ順</button>
-            <button class="btn btn-secondary btn-sm" id="teikyohyoSortBtn_none" style="flex:1; max-width:160px;" onclick="setTeikyohyoSort(null)">📋 登録順</button>
-          </div>
           <div style="display:flex; gap:8px; justify-content:center; margin-bottom:12px; flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" id="teikyohyoConfirmBtn" onclick="confirmTeikyohyoPlan()">🔒
               この月の予定を確定する</button>
@@ -4850,7 +4853,6 @@
       vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null, showPausedResidents: false },
       mealIntake: { selectedResident: null },
       dbSort: { key: null, dir: 'asc' }, // 利用者DB一覧の並び替え（セッション限り。db配下ではないので保存されない＝再訪問時は登録順にリセット）
-      teikyohyo: { sortMode: 'kana' }, // 提供表の並び替え：'kana'（フリガナ順・デフォルト）／null（登録順）
       dbDisplayFilter: 'active', // 利用者DB一覧の表示フィルタ：'active'（利用中のみ）／'paused'（終了者のみ）／'all'（全利用者）
       // 終了者（バックナンバー）の記録・計画書：画面ごとに「今どの利用者IDの編集ロックを解除中か」を保持（対象者変更・画面遷移・日付変更で自動リセット）
       pausedUnlock: { renrakucho: null, rehab: null, rehabrecord: null, monitoring: null, assessment: null, meeting: null }
@@ -6261,20 +6263,18 @@
       const rehab = appState.db.rehabStaffList || [];
       const nurse = appState.db.nurseStaffList || [];
       const known = [...care, ...other, ...rehab, ...nurse];
-      const opt = (n) => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`;
-      let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`;
-      if (care.length) opts += `<optgroup label="介護職員">${care.map(opt).join('')}</optgroup>`;
-      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(opt).join('')}</optgroup>`;
-      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
-      if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
+      let opts = '<option value="">未設定</option>';
+      if (care.length) opts += `<optgroup label="介護職員">${care.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (other.length) opts += `<optgroup label="その他の職員">${other.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
 
     function buildVehicleOptions(currentVal) {
       const list = appState.db.vehicleList || [];
-      let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`
-        + list.map(n => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+      let opts = '<option value="">未設定</option>' + list.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
       if (currentVal && !list.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
@@ -8388,34 +8388,6 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       renderDbList();
     }
 
-    function sortTeikyohyoResidents(residents) {
-      if (appState.teikyohyo.sortMode !== 'kana') return; // 登録順（元の並びのまま）
-      residents.sort((a, b) => {
-        const ka = a.kana || '', kb = b.kana || '';
-        if (!ka && !kb) return 0;
-        if (!ka) return 1;  // フリガナ未入力は末尾へ
-        if (!kb) return -1;
-        return ka.localeCompare(kb, 'ja');
-      });
-    }
-
-    function setTeikyohyoSort(mode) {
-      appState.teikyohyo.sortMode = mode;
-      renderTeikyohyoSortButtons();
-      renderTeikyohyoPage();
-    }
-
-    function renderTeikyohyoSortButtons() {
-      const kanaBtn = document.getElementById('teikyohyoSortBtn_kana');
-      const noneBtn = document.getElementById('teikyohyoSortBtn_none');
-      if (!kanaBtn || !noneBtn) return;
-      const mode = appState.teikyohyo.sortMode;
-      kanaBtn.className = 'btn btn-sm ' + (mode === 'kana' ? 'btn-primary' : 'btn-secondary');
-      noneBtn.className = 'btn btn-sm ' + (mode !== 'kana' ? 'btn-primary' : 'btn-secondary');
-      kanaBtn.style.flex = '1'; kanaBtn.style.maxWidth = '160px';
-      noneBtn.style.flex = '1'; noneBtn.style.maxWidth = '160px';
-    }
-
     // ============================================================
     // 終了者（バックナンバー）の記録・計画書：編集ロック（共通処理）
     // ------------------------------------------------------------
@@ -10096,39 +10068,6 @@ ${SHORUI_COMMON_NOTE}`;
       return true;
     }
 
-    // ID内で使えない文字（. など）を避けるため単純な文字列連結にする（利用者IDは英数字・アンダースコアのみのため安全）
-    function teikyohyoCellId(kind, residentId, day) {
-      return `tkyc_${kind}_${residentId}_${day}`;
-    }
-
-    // セルをクリックした時に表全体を再描画すると、フォーカスを失ったクリック要素が
-    // まるごと入れ替わることでブラウザが画面を先頭にスクロールしてしまう（特にChromeで発生）。
-    // これを避けるため、クリックされたセル1つだけを直接書き換える。
-    function refreshTeikyohyoCellDom(kind, residentId, day) {
-      const { year, month } = appState.teikyohyoPage;
-      const ymk = ymKeyOf(year, month);
-      const locked = !!appState.db.teikyohyoConfirmed[ymk];
-      const dateStr = ymd(year, month - 1, day);
-      const bizFlag = isBusinessDayStr(dateStr);
-      const td = document.getElementById(teikyohyoCellId(kind, residentId, day));
-      if (!td) { renderTeikyohyoPage(); return; } // 見つからない場合のみ、保険として全体再描画にフォールバック
-
-      if (kind === 'plan') {
-        const v = getTeikyohyoCell('plan', ymk, residentId, day);
-        const isFallback = !!v && isTeikyohyoCellFallback('plan', ymk, residentId, day);
-        const cls = v ? teikyohyoCellClass(v) : (bizFlag ? '' : 'non-business');
-        td.className = `shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}`;
-        td.textContent = v;
-        if (isFallback) td.title = '通所曜日からの自動反映（未確定）'; else td.removeAttribute('title');
-        td.style.cursor = locked ? 'default' : '';
-      } else {
-        const v = getTeikyohyoCell('actual', ymk, residentId, day);
-        const cls = v ? teikyohyoCellClass(v) : (bizFlag ? '' : 'non-business');
-        td.className = `shift-cell ${cls} actual-row-cell`;
-        td.textContent = v;
-      }
-    }
-
     function toggleTeikyohyoCell(kind, residentId, day) {
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -10160,9 +10099,7 @@ ${SHORUI_COMMON_NOTE}`;
         }
       }
 
-      // 表全体を再描画するとクリックしたセルの位置ごと入れ替わり、画面が先頭に戻ってしまうため、
-      // クリックされたセルだけを直接書き換える（表全体の再描画はしない）
-      refreshTeikyohyoCellDom(kind, residentId, day);
+      renderTeikyohyoPage();
     }
 
     // 入院中ボタン：その利用者の通所曜日（利用者DB）に一致する、今表示中の月の営業日をまとめて「入」に設定／解除する
@@ -10315,21 +10252,6 @@ ${SHORUI_COMMON_NOTE}`;
     function renderTeikyohyoPage() {
       const el = document.getElementById('teikyohyoTableArea');
       if (!el) return;
-      // セルをクリックして再描画すると縦スクロール位置が先頭に戻ってしまうため、
-      // 描画の前後でスクロール位置を保存・復元する（利用者が増えて表が長くなった時の対策）
-      // ※ .container と window の両方を対象にする（環境によってどちらがスクロールしているか異なるため）
-      const scrollBox = document.querySelector('.container');
-      const savedScrollTop = scrollBox ? scrollBox.scrollTop : null;
-      const savedWinY = window.scrollY;
-      const restoreScroll = () => {
-        if (scrollBox && savedScrollTop !== null) scrollBox.scrollTop = savedScrollTop;
-        window.scrollTo(0, savedWinY);
-        requestAnimationFrame(() => {
-          if (scrollBox && savedScrollTop !== null) scrollBox.scrollTop = savedScrollTop;
-          window.scrollTo(0, savedWinY);
-        });
-      };
-
       if (!appState.teikyohyoPage) appState.teikyohyoPage = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -10338,14 +10260,11 @@ ${SHORUI_COMMON_NOTE}`;
 
       const labelEl = document.getElementById('teikyohyoMonthLabel');
       if (labelEl) labelEl.textContent = `${year}年${month}月`;
-      renderTeikyohyoSortButtons();
 
       const residents = getActiveResidentDb();
-      sortTeikyohyoResidents(residents);
       if (!residents.length) {
         el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください（利用中の方がいない場合、終了者は提供表に表示されません）</div>';
         renderTeikyohyoConfirmStatus();
-        restoreScroll();
         return;
       }
 
@@ -10377,12 +10296,12 @@ ${SHORUI_COMMON_NOTE}`;
           const clickAttr = locked ? '' : ` onclick="toggleTeikyohyoCell('plan', '${r.id}', ${d})"`;
           const lockedStyle = locked ? ' style="cursor:default;"' : '';
           const title = isFallback ? ' title="通所曜日からの自動反映（未確定）"' : '';
-          return `<td id="${teikyohyoCellId('plan', r.id, d)}" class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
+          return `<td class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
         }).join('');
         const actualCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('actual', ymk, r.id, d);
           const cls = v ? teikyohyoCellClass(v) : (bizFlags[i] ? '' : 'non-business');
-          return `<td id="${teikyohyoCellId('actual', r.id, d)}" class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
+          return `<td class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
         }).join('');
 
         const isHospitalized = !!(appState.db.teikyohyoHospitalized[ymk] && appState.db.teikyohyoHospitalized[ymk][r.id]);
@@ -10415,7 +10334,6 @@ ${SHORUI_COMMON_NOTE}`;
   </table></div>`;
 
       renderTeikyohyoConfirmStatus();
-      restoreScroll();
     }
 
     function renderExtractedFields(data) {

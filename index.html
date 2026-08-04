@@ -4167,6 +4167,16 @@
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
+          <div class="search-row" style="margin-bottom:8px;">
+            <input type="text" id="vitalsTrendSearchInput" placeholder="🔍 氏名・フリガナで検索..."
+              oninput="renderVitalsTrendResidentSelector()">
+          </div>
+          <div style="margin-bottom:10px;">
+            <select id="vitalsTrendStaffFilterSelect" onchange="renderVitalsTrendResidentSelector()"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
+              <option value="">🔍 担当者で絞り込む（全員表示）</option>
+            </select>
+          </div>
           <div class="resident-selector" id="vitalsTrendResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
@@ -4229,6 +4239,16 @@
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
+          <div class="search-row" style="margin-bottom:8px;">
+            <input type="text" id="mealIntakeSearchInput" placeholder="🔍 氏名・フリガナで検索..."
+              oninput="renderMealIntakeResidentSelector()">
+          </div>
+          <div style="margin-bottom:10px;">
+            <select id="mealIntakeStaffFilterSelect" onchange="renderMealIntakeResidentSelector()"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
+              <option value="">🔍 担当者で絞り込む（全員表示）</option>
+            </select>
+          </div>
           <div class="resident-selector" id="mealIntakeResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
@@ -12709,11 +12729,21 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
     function renderVitalsTrendResidentSelector() {
       const el = document.getElementById('vitalsTrendResidentSelector');
       if (!el) return;
+      populateStaffFilterSelect('vitalsTrendStaffFilterSelect');
       const showPaused = appState.vitalsTrend.showPausedResidents;
-      const residents = showPaused ? (appState.db.residentDb || []) : getActiveResidentDb();
-      if (!residents.length) {
+      const allResidents = showPaused ? (appState.db.residentDb || []) : getActiveResidentDb();
+      if (!allResidents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         document.getElementById('vitalsTrendFormArea').style.display = 'none';
+        return;
+      }
+      const query = (document.getElementById('vitalsTrendSearchInput')?.value || '').trim();
+      const staffFilter = document.getElementById('vitalsTrendStaffFilterSelect')?.value || '';
+      const residents = allResidents.filter(r =>
+        (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) && matchesStaffFilter(r, staffFilter)
+      );
+      if (!residents.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者が見つかりません</div>`;
         return;
       }
       el.innerHTML = residents.map(r => {
@@ -12937,10 +12967,20 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
     function renderMealIntakeResidentSelector() {
       const el = document.getElementById('mealIntakeResidentSelector');
       if (!el) return;
-      const residents = getActiveResidentDb();
-      if (!residents.length) {
+      populateStaffFilterSelect('mealIntakeStaffFilterSelect');
+      const allResidents = getActiveResidentDb();
+      if (!allResidents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         document.getElementById('mealIntakeFormArea').style.display = 'none';
+        return;
+      }
+      const query = (document.getElementById('mealIntakeSearchInput')?.value || '').trim();
+      const staffFilter = document.getElementById('mealIntakeStaffFilterSelect')?.value || '';
+      const residents = allResidents.filter(r =>
+        (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) && matchesStaffFilter(r, staffFilter)
+      );
+      if (!residents.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者が見つかりません</div>`;
         return;
       }
       el.innerHTML = residents.map(r => {

@@ -6263,18 +6263,19 @@
       const rehab = appState.db.rehabStaffList || [];
       const nurse = appState.db.nurseStaffList || [];
       const known = [...care, ...other, ...rehab, ...nurse];
-      let opts = '<option value="">未設定</option>';
-      if (care.length) opts += `<optgroup label="介護職員">${care.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
-      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
-      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
-      if (other.length) opts += `<optgroup label="その他の職員">${other.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('')}</optgroup>`;
+      const sel = (n) => n === currentVal ? ' selected' : '';
+      let opts = `<option value=""${sel('')}>未設定</option>`;
+      if (care.length) opts += `<optgroup label="介護職員">${care.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
+      if (other.length) opts += `<optgroup label="その他の職員">${other.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
 
     function buildVehicleOptions(currentVal) {
       const list = appState.db.vehicleList || [];
-      let opts = '<option value="">未設定</option>' + list.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
+      let opts = `<option value=""${currentVal ? '' : ' selected'}>未設定</option>` + list.map(n => `<option value="${escAttr(n)}"${n === currentVal ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
       if (currentVal && !list.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }

@@ -10278,6 +10278,17 @@ ${SHORUI_COMMON_NOTE}`;
     function renderTeikyohyoPage() {
       const el = document.getElementById('teikyohyoTableArea');
       if (!el) return;
+      // セルをクリックして再描画すると縦スクロール位置が先頭に戻ってしまうため、
+      // 描画の前後でスクロール位置を保存・復元する（利用者が増えて表が長くなった時の対策）
+      const scrollBox = document.querySelector('.container');
+      const savedScrollTop = scrollBox ? scrollBox.scrollTop : null;
+      const restoreScroll = () => {
+        if (scrollBox && savedScrollTop !== null) {
+          scrollBox.scrollTop = savedScrollTop;
+          requestAnimationFrame(() => { scrollBox.scrollTop = savedScrollTop; });
+        }
+      };
+
       if (!appState.teikyohyoPage) appState.teikyohyoPage = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -10293,6 +10304,7 @@ ${SHORUI_COMMON_NOTE}`;
       if (!residents.length) {
         el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください（利用中の方がいない場合、終了者は提供表に表示されません）</div>';
         renderTeikyohyoConfirmStatus();
+        restoreScroll();
         return;
       }
 
@@ -10362,6 +10374,7 @@ ${SHORUI_COMMON_NOTE}`;
   </table></div>`;
 
       renderTeikyohyoConfirmStatus();
+      restoreScroll();
     }
 
     function renderExtractedFields(data) {

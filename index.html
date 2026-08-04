@@ -4889,7 +4889,16 @@
 
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [], ...JSON.parse(saved) };
+      let parsedSaved = null;
+      if (saved) {
+        try {
+          parsedSaved = JSON.parse(saved);
+        } catch (e) {
+          console.error('保存データの読み込みに失敗しました（データが破損している可能性があります）:', e);
+          alert('⚠️ 保存データの読み込みに失敗しました。データが破損している可能性があります。\n初期状態で起動します（既存のブラウザ内データは上書きされません。設定画面からExcelバックアップの復元をお試しください）。');
+        }
+      }
+      if (parsedSaved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [], ...parsedSaved };
       // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
       if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
         appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;

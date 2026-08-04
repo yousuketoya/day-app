@@ -11388,8 +11388,21 @@ ${customInstructionsBlock('customPromptRenrakucho')}
         const rcLead = `本日の${r.name || 'ご利用者'}様の様子は、`;
         const rcClosing = '\n次回来所されるのをお待ちしてます。';
         let rcBody = rcRaw;
-        if (rcBody.startsWith('いつもお世話になっています。')) rcBody = rcBody.slice('いつもお世話になっています。'.length).replace(/^\n+/, '');
-        if (rcBody.startsWith(rcLead)) rcBody = rcBody.slice(rcLead.length);
+        // AIが指示に反してリード文・挨拶文を出力に含めてしまうことがあるため、先頭から繰り返し除去する。
+        // 氏名中の全角/半角スペースの違いなどで完全一致除去が効かない場合に備え、
+        // ①氏名の空白ゆれを許容した正規表現、②氏名部分を問わない汎用パターン、の順で二重にチェックする。
+        const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const flexibleNamePattern = escapeRegex(r.name || 'ご利用者').replace(/[\s　]+/g, '[\\s　]*');
+        const leadRegexExact = new RegExp('^本日の' + flexibleNamePattern + '様の様子は、');
+        const leadRegexGeneric = /^本日の[^\n]{0,30}様の様子は、/;
+        const greetingRegex = /^いつもお世話になっています。\s*/;
+        let prevBody;
+        do {
+          prevBody = rcBody;
+          rcBody = rcBody.replace(greetingRegex, '');
+          if (leadRegexExact.test(rcBody)) rcBody = rcBody.replace(leadRegexExact, '');
+          else rcBody = rcBody.replace(leadRegexGeneric, '');
+        } while (rcBody !== prevBody);
         rcBody = rcBody.replace(/次回来所されるのをお待ちしてます。\s*$/, '').trim();
         const text = rcGreeting + rcLead + rcBody + rcClosing;
         document.getElementById('outputText').textContent = text;

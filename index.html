@@ -229,6 +229,39 @@
       margin-left: 200px;
     }
 
+    /* 上へ戻るボタン：一覧・長い画面で下にスクロールした時に表示 */
+    .scroll-top-btn {
+      position: fixed;
+      right: 20px;
+      bottom: 24px;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      font-size: 20px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(8px);
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .scroll-top-btn.visible {
+      opacity: 0.9;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .scroll-top-btn:hover {
+      opacity: 1;
+    }
+
     .page {
       display: none;
     }
@@ -1083,13 +1116,6 @@
       font-size: 12.5px;
     }
 
-    .tp-table select.bath-select-none {
-      background: #FFEBEE;
-      color: #C62828;
-      font-weight: 700;
-      border-color: #EF9A9A;
-    }
-
     .tp-table input {
       width: 100%;
       padding: 5px 4px;
@@ -1123,7 +1149,7 @@
     /* 送迎表専用：列数が多いため、できるだけ横スクロールなしで収まるよう調整 */
     .tp-table-transport {
       table-layout: fixed;
-      font-size: 14px;
+      font-size: 10.5px;
     }
 
     .tp-table-transport th,
@@ -1132,17 +1158,17 @@
     }
 
     .tp-table-transport th {
-      font-size: 12.5px;
+      font-size: 9.5px;
       line-height: 1.3;
       padding: 4px 2px;
     }
 
     .tp-table-transport col.tp-col-order {
-      width: 20px;
+      width: 22px;
     }
 
     .tp-table-transport col.tp-col-name {
-      width: 50px;
+      width: 52px;
     }
 
     .tp-table-transport col.tp-col-leg {
@@ -1150,7 +1176,7 @@
     }
 
     .tp-table-transport col.tp-col-time {
-      width: 40px;
+      width: 42px;
     }
 
     .tp-table-transport col.tp-col-select {
@@ -1162,7 +1188,7 @@
     }
 
     .tp-table-transport td.tp-name {
-      font-size: 14px;
+      font-size: 10.5px;
       white-space: normal;
       word-break: break-word;
     }
@@ -1199,7 +1225,7 @@
     .tp-table-transport select {
       width: 100%;
       padding: 2px 1px;
-      font-size: 13px;
+      font-size: 9.5px;
       border: 1px solid var(--border);
       border-radius: 4px;
       font-family: inherit;
@@ -1208,13 +1234,6 @@
     .tp-table-transport input[type="number"] {
       padding: 2px 0;
       text-align: center;
-      -moz-appearance: textfield;
-    }
-
-    .tp-table-transport input[type="number"]::-webkit-outer-spin-button,
-    .tp-table-transport input[type="number"]::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
     }
 
     .tp-table-transport input[type="time"] {
@@ -2787,6 +2806,7 @@
 
     <!-- MAIN CONTAINER -->
     <div class="container">
+      <button class="scroll-top-btn" id="scrollTopBtn" onclick="scrollAppToTop()" title="上へ戻る">▲</button>
 
       <!-- ==================== DB PAGE ==================== -->
       <div class="page active" id="page-db">
@@ -3981,6 +4001,10 @@
             <button class="btn btn-secondary btn-sm" onclick="teikyohyoNextMonth()">▶</button>
           </div>
           <div id="teikyohyoConfirmStatus" style="text-align:center; margin-bottom:8px; font-size:12.5px;"></div>
+          <div style="display:flex; gap:6px; justify-content:center; margin-bottom:10px;">
+            <button class="btn btn-primary btn-sm" id="teikyohyoSortBtn_kana" style="flex:1; max-width:160px;" onclick="setTeikyohyoSort('kana')">🔤 フリガナ順</button>
+            <button class="btn btn-secondary btn-sm" id="teikyohyoSortBtn_none" style="flex:1; max-width:160px;" onclick="setTeikyohyoSort(null)">📋 登録順</button>
+          </div>
           <div style="display:flex; gap:8px; justify-content:center; margin-bottom:12px; flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" id="teikyohyoConfirmBtn" onclick="confirmTeikyohyoPlan()">🔒
               この月の予定を確定する</button>
@@ -4167,16 +4191,6 @@
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
-          <div class="search-row" style="margin-bottom:8px;">
-            <input type="text" id="vitalsTrendSearchInput" placeholder="🔍 氏名・フリガナで検索..."
-              oninput="renderVitalsTrendResidentSelector()">
-          </div>
-          <div style="margin-bottom:10px;">
-            <select id="vitalsTrendStaffFilterSelect" onchange="renderVitalsTrendResidentSelector()"
-              style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
-              <option value="">🔍 担当者で絞り込む（全員表示）</option>
-            </select>
-          </div>
           <div class="resident-selector" id="vitalsTrendResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
@@ -4239,16 +4253,6 @@
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
-          <div class="search-row" style="margin-bottom:8px;">
-            <input type="text" id="mealIntakeSearchInput" placeholder="🔍 氏名・フリガナで検索..."
-              oninput="renderMealIntakeResidentSelector()">
-          </div>
-          <div style="margin-bottom:10px;">
-            <select id="mealIntakeStaffFilterSelect" onchange="renderMealIntakeResidentSelector()"
-              style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:13px;">
-              <option value="">🔍 担当者で絞り込む（全員表示）</option>
-            </select>
-          </div>
           <div class="resident-selector" id="mealIntakeResidentSelector">
             <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
           </div>
@@ -4880,6 +4884,7 @@
       vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null, showPausedResidents: false },
       mealIntake: { selectedResident: null },
       dbSort: { key: null, dir: 'asc' }, // 利用者DB一覧の並び替え（セッション限り。db配下ではないので保存されない＝再訪問時は登録順にリセット）
+      teikyohyo: { sortMode: 'kana' }, // 提供表の並び替え：'kana'（フリガナ順・デフォルト）／null（登録順）
       dbDisplayFilter: 'active', // 利用者DB一覧の表示フィルタ：'active'（利用中のみ）／'paused'（終了者のみ）／'all'（全利用者）
       // 終了者（バックナンバー）の記録・計画書：画面ごとに「今どの利用者IDの編集ロックを解除中か」を保持（対象者変更・画面遷移・日付変更で自動リセット）
       pausedUnlock: { renrakucho: null, rehab: null, rehabrecord: null, monitoring: null, assessment: null, meeting: null }
@@ -4899,6 +4904,7 @@
       renderResidentSelector();
       renderRenrakuchoWeekMatrix();
       renderTodayRenrakuchoList();
+      setupScrollTopButton();
 
       const key = localStorage.getItem('deiservice_apikey');
       if (key) {
@@ -4907,18 +4913,31 @@
       }
     }
 
+    // 一覧・表が長くなった画面で下にスクロールした時、右下に「▲上へ」ボタンを表示する。
+    // スクロールしているのが .container の場合と、ウィンドウ全体の場合の両方に対応する。
+    function setupScrollTopButton() {
+      const btn = document.getElementById('scrollTopBtn');
+      const box = document.querySelector('.container');
+      if (!btn) return;
+      const THRESHOLD = 300;
+      const update = () => {
+        const y = Math.max(box ? box.scrollTop : 0, window.scrollY || 0);
+        btn.classList.toggle('visible', y > THRESHOLD);
+      };
+      if (box) box.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('scroll', update, { passive: true });
+      update();
+    }
+
+    function scrollAppToTop() {
+      const box = document.querySelector('.container');
+      if (box) box.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      let parsedSaved = null;
-      if (saved) {
-        try {
-          parsedSaved = JSON.parse(saved);
-        } catch (e) {
-          console.error('保存データの読み込みに失敗しました（データが破損している可能性があります）:', e);
-          alert('⚠️ 保存データの読み込みに失敗しました。データが破損している可能性があります。\n初期状態で起動します（既存のブラウザ内データは上書きされません。設定画面からExcelバックアップの復元をお試しください）。');
-        }
-      }
-      if (parsedSaved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [], ...parsedSaved };
+      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [], ...JSON.parse(saved) };
       // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
       if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
         appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -6299,19 +6318,20 @@
       const rehab = appState.db.rehabStaffList || [];
       const nurse = appState.db.nurseStaffList || [];
       const known = [...care, ...other, ...rehab, ...nurse];
-      const sel = (n) => n === currentVal ? ' selected' : '';
-      let opts = `<option value=""${sel('')}>未設定</option>`;
-      if (care.length) opts += `<optgroup label="介護職員">${care.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
-      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
-      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
-      if (other.length) opts += `<optgroup label="その他の職員">${other.map(n => `<option value="${escAttr(n)}"${sel(n)}>${escHtml(n)}</option>`).join('')}</optgroup>`;
+      const opt = (n) => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`;
+      let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`;
+      if (care.length) opts += `<optgroup label="介護職員">${care.map(opt).join('')}</optgroup>`;
+      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(opt).join('')}</optgroup>`;
+      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
+      if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
 
     function buildVehicleOptions(currentVal) {
       const list = appState.db.vehicleList || [];
-      let opts = `<option value=""${currentVal ? '' : ' selected'}>未設定</option>` + list.map(n => `<option value="${escAttr(n)}"${n === currentVal ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+      let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`
+        + list.map(n => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
       if (currentVal && !list.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
@@ -7475,14 +7495,13 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const isBathScheduled = bathDaysArr.includes(wd);
         const defaultBathing = computeEffectiveBathing(dateStr, r, u, checkLog);
         const bathSel = bathOptions.map(o => `<option value="${o}" ${defaultBathing === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
-        const bathClass = defaultBathing === 'なし' ? ' class="bath-select-none"' : '';
         // 保存済みの記録が無い場合のみ、送迎表の「迎え：到着」「送り：時刻」を自動表示（あくまで目安。その場で変更・保存可能）
         const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t, r);
         return `<tr>
       <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
       <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
-      <td><select${bathClass} onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
+      <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
       }).join('');
@@ -8424,6 +8443,34 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     function setDbDisplayFilter(val) {
       appState.dbDisplayFilter = val;
       renderDbList();
+    }
+
+    function sortTeikyohyoResidents(residents) {
+      if (appState.teikyohyo.sortMode !== 'kana') return; // 登録順（元の並びのまま）
+      residents.sort((a, b) => {
+        const ka = a.kana || '', kb = b.kana || '';
+        if (!ka && !kb) return 0;
+        if (!ka) return 1;  // フリガナ未入力は末尾へ
+        if (!kb) return -1;
+        return ka.localeCompare(kb, 'ja');
+      });
+    }
+
+    function setTeikyohyoSort(mode) {
+      appState.teikyohyo.sortMode = mode;
+      renderTeikyohyoSortButtons();
+      renderTeikyohyoPage();
+    }
+
+    function renderTeikyohyoSortButtons() {
+      const kanaBtn = document.getElementById('teikyohyoSortBtn_kana');
+      const noneBtn = document.getElementById('teikyohyoSortBtn_none');
+      if (!kanaBtn || !noneBtn) return;
+      const mode = appState.teikyohyo.sortMode;
+      kanaBtn.className = 'btn btn-sm ' + (mode === 'kana' ? 'btn-primary' : 'btn-secondary');
+      noneBtn.className = 'btn btn-sm ' + (mode !== 'kana' ? 'btn-primary' : 'btn-secondary');
+      kanaBtn.style.flex = '1'; kanaBtn.style.maxWidth = '160px';
+      noneBtn.style.flex = '1'; noneBtn.style.maxWidth = '160px';
     }
 
     // ============================================================
@@ -10106,6 +10153,39 @@ ${SHORUI_COMMON_NOTE}`;
       return true;
     }
 
+    // ID内で使えない文字（. など）を避けるため単純な文字列連結にする（利用者IDは英数字・アンダースコアのみのため安全）
+    function teikyohyoCellId(kind, residentId, day) {
+      return `tkyc_${kind}_${residentId}_${day}`;
+    }
+
+    // セルをクリックした時に表全体を再描画すると、フォーカスを失ったクリック要素が
+    // まるごと入れ替わることでブラウザが画面を先頭にスクロールしてしまう（特にChromeで発生）。
+    // これを避けるため、クリックされたセル1つだけを直接書き換える。
+    function refreshTeikyohyoCellDom(kind, residentId, day) {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      const locked = !!appState.db.teikyohyoConfirmed[ymk];
+      const dateStr = ymd(year, month - 1, day);
+      const bizFlag = isBusinessDayStr(dateStr);
+      const td = document.getElementById(teikyohyoCellId(kind, residentId, day));
+      if (!td) { renderTeikyohyoPage(); return; } // 見つからない場合のみ、保険として全体再描画にフォールバック
+
+      if (kind === 'plan') {
+        const v = getTeikyohyoCell('plan', ymk, residentId, day);
+        const isFallback = !!v && isTeikyohyoCellFallback('plan', ymk, residentId, day);
+        const cls = v ? teikyohyoCellClass(v) : (bizFlag ? '' : 'non-business');
+        td.className = `shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}`;
+        td.textContent = v;
+        if (isFallback) td.title = '通所曜日からの自動反映（未確定）'; else td.removeAttribute('title');
+        td.style.cursor = locked ? 'default' : '';
+      } else {
+        const v = getTeikyohyoCell('actual', ymk, residentId, day);
+        const cls = v ? teikyohyoCellClass(v) : (bizFlag ? '' : 'non-business');
+        td.className = `shift-cell ${cls} actual-row-cell`;
+        td.textContent = v;
+      }
+    }
+
     function toggleTeikyohyoCell(kind, residentId, day) {
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -10137,7 +10217,9 @@ ${SHORUI_COMMON_NOTE}`;
         }
       }
 
-      renderTeikyohyoPage();
+      // 表全体を再描画するとクリックしたセルの位置ごと入れ替わり、画面が先頭に戻ってしまうため、
+      // クリックされたセルだけを直接書き換える（表全体の再描画はしない）
+      refreshTeikyohyoCellDom(kind, residentId, day);
     }
 
     // 入院中ボタン：その利用者の通所曜日（利用者DB）に一致する、今表示中の月の営業日をまとめて「入」に設定／解除する
@@ -10290,6 +10372,21 @@ ${SHORUI_COMMON_NOTE}`;
     function renderTeikyohyoPage() {
       const el = document.getElementById('teikyohyoTableArea');
       if (!el) return;
+      // セルをクリックして再描画すると縦スクロール位置が先頭に戻ってしまうため、
+      // 描画の前後でスクロール位置を保存・復元する（利用者が増えて表が長くなった時の対策）
+      // ※ .container と window の両方を対象にする（環境によってどちらがスクロールしているか異なるため）
+      const scrollBox = document.querySelector('.container');
+      const savedScrollTop = scrollBox ? scrollBox.scrollTop : null;
+      const savedWinY = window.scrollY;
+      const restoreScroll = () => {
+        if (scrollBox && savedScrollTop !== null) scrollBox.scrollTop = savedScrollTop;
+        window.scrollTo(0, savedWinY);
+        requestAnimationFrame(() => {
+          if (scrollBox && savedScrollTop !== null) scrollBox.scrollTop = savedScrollTop;
+          window.scrollTo(0, savedWinY);
+        });
+      };
+
       if (!appState.teikyohyoPage) appState.teikyohyoPage = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -10298,11 +10395,14 @@ ${SHORUI_COMMON_NOTE}`;
 
       const labelEl = document.getElementById('teikyohyoMonthLabel');
       if (labelEl) labelEl.textContent = `${year}年${month}月`;
+      renderTeikyohyoSortButtons();
 
       const residents = getActiveResidentDb();
+      sortTeikyohyoResidents(residents);
       if (!residents.length) {
         el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください（利用中の方がいない場合、終了者は提供表に表示されません）</div>';
         renderTeikyohyoConfirmStatus();
+        restoreScroll();
         return;
       }
 
@@ -10334,12 +10434,12 @@ ${SHORUI_COMMON_NOTE}`;
           const clickAttr = locked ? '' : ` onclick="toggleTeikyohyoCell('plan', '${r.id}', ${d})"`;
           const lockedStyle = locked ? ' style="cursor:default;"' : '';
           const title = isFallback ? ' title="通所曜日からの自動反映（未確定）"' : '';
-          return `<td class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
+          return `<td id="${teikyohyoCellId('plan', r.id, d)}" class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
         }).join('');
         const actualCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('actual', ymk, r.id, d);
           const cls = v ? teikyohyoCellClass(v) : (bizFlags[i] ? '' : 'non-business');
-          return `<td class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
+          return `<td id="${teikyohyoCellId('actual', r.id, d)}" class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
         }).join('');
 
         const isHospitalized = !!(appState.db.teikyohyoHospitalized[ymk] && appState.db.teikyohyoHospitalized[ymk][r.id]);
@@ -10372,6 +10472,7 @@ ${SHORUI_COMMON_NOTE}`;
   </table></div>`;
 
       renderTeikyohyoConfirmStatus();
+      restoreScroll();
     }
 
     function renderExtractedFields(data) {
@@ -10619,8 +10720,7 @@ ${SHORUI_COMMON_NOTE}`;
       } else {
         document.getElementById('outputSection').style.display = 'none';
         showStatus('generateStatus', `「${escHtml(r.name)}」さん・${dateStr}分はまだ作成されていません。下のフォームから作成してください。`, 'info');
-        const residentCard = document.getElementById('residentSelector')?.closest('.card') || document.getElementById('residentSelector');
-        residentCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
 
@@ -10999,8 +11099,7 @@ ${SHORUI_COMMON_NOTE}`;
       document.getElementById('rrDateInput').value = dateStr;
       selectRehabRecordResident(residentId);
       renderTodayRehabRecordList();
-      const residentCard = document.getElementById('rehabRecordResidentSelector')?.closest('.card') || document.getElementById('rehabRecordResidentSelector');
-      residentCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }
 
     async function generateRehabRecordNote(btn) {
@@ -11410,21 +11509,8 @@ ${customInstructionsBlock('customPromptRenrakucho')}
         const rcLead = `本日の${r.name || 'ご利用者'}様の様子は、`;
         const rcClosing = '\n次回来所されるのをお待ちしてます。';
         let rcBody = rcRaw;
-        // AIが指示に反してリード文・挨拶文を出力に含めてしまうことがあるため、先頭から繰り返し除去する。
-        // 氏名中の全角/半角スペースの違いなどで完全一致除去が効かない場合に備え、
-        // ①氏名の空白ゆれを許容した正規表現、②氏名部分を問わない汎用パターン、の順で二重にチェックする。
-        const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const flexibleNamePattern = escapeRegex(r.name || 'ご利用者').replace(/[\s　]+/g, '[\\s　]*');
-        const leadRegexExact = new RegExp('^本日の' + flexibleNamePattern + '様の様子は、');
-        const leadRegexGeneric = /^本日の[^\n]{0,30}様の様子は、/;
-        const greetingRegex = /^いつもお世話になっています。\s*/;
-        let prevBody;
-        do {
-          prevBody = rcBody;
-          rcBody = rcBody.replace(greetingRegex, '');
-          if (leadRegexExact.test(rcBody)) rcBody = rcBody.replace(leadRegexExact, '');
-          else rcBody = rcBody.replace(leadRegexGeneric, '');
-        } while (rcBody !== prevBody);
+        if (rcBody.startsWith('いつもお世話になっています。')) rcBody = rcBody.slice('いつもお世話になっています。'.length).replace(/^\n+/, '');
+        if (rcBody.startsWith(rcLead)) rcBody = rcBody.slice(rcLead.length);
         rcBody = rcBody.replace(/次回来所されるのをお待ちしてます。\s*$/, '').trim();
         const text = rcGreeting + rcLead + rcBody + rcClosing;
         document.getElementById('outputText').textContent = text;
@@ -12731,21 +12817,11 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
     function renderVitalsTrendResidentSelector() {
       const el = document.getElementById('vitalsTrendResidentSelector');
       if (!el) return;
-      populateStaffFilterSelect('vitalsTrendStaffFilterSelect');
       const showPaused = appState.vitalsTrend.showPausedResidents;
-      const allResidents = showPaused ? (appState.db.residentDb || []) : getActiveResidentDb();
-      if (!allResidents.length) {
+      const residents = showPaused ? (appState.db.residentDb || []) : getActiveResidentDb();
+      if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         document.getElementById('vitalsTrendFormArea').style.display = 'none';
-        return;
-      }
-      const query = (document.getElementById('vitalsTrendSearchInput')?.value || '').trim();
-      const staffFilter = document.getElementById('vitalsTrendStaffFilterSelect')?.value || '';
-      const residents = allResidents.filter(r =>
-        (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) && matchesStaffFilter(r, staffFilter)
-      );
-      if (!residents.length) {
-        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者が見つかりません</div>`;
         return;
       }
       el.innerHTML = residents.map(r => {
@@ -12969,20 +13045,10 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
     function renderMealIntakeResidentSelector() {
       const el = document.getElementById('mealIntakeResidentSelector');
       if (!el) return;
-      populateStaffFilterSelect('mealIntakeStaffFilterSelect');
-      const allResidents = getActiveResidentDb();
-      if (!allResidents.length) {
+      const residents = getActiveResidentDb();
+      if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
         document.getElementById('mealIntakeFormArea').style.display = 'none';
-        return;
-      }
-      const query = (document.getElementById('mealIntakeSearchInput')?.value || '').trim();
-      const staffFilter = document.getElementById('mealIntakeStaffFilterSelect')?.value || '';
-      const residents = allResidents.filter(r =>
-        (!query || r.name.includes(query) || (r.kana && r.kana.includes(query))) && matchesStaffFilter(r, staffFilter)
-      );
-      if (!residents.length) {
-        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">該当する利用者が見つかりません</div>`;
         return;
       }
       el.innerHTML = residents.map(r => {

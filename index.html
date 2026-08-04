@@ -10619,7 +10619,8 @@ ${SHORUI_COMMON_NOTE}`;
       } else {
         document.getElementById('outputSection').style.display = 'none';
         showStatus('generateStatus', `「${escHtml(r.name)}」さん・${dateStr}分はまだ作成されていません。下のフォームから作成してください。`, 'info');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const residentCard = document.getElementById('residentSelector')?.closest('.card') || document.getElementById('residentSelector');
+        residentCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
 

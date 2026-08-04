@@ -10094,6 +10094,39 @@ ${SHORUI_COMMON_NOTE}`;
       return true;
     }
 
+    // ID内で使えない文字（. など）を避けるため単純な文字列連結にする（利用者IDは英数字・アンダースコアのみのため安全）
+    function teikyohyoCellId(kind, residentId, day) {
+      return `tkyc_${kind}_${residentId}_${day}`;
+    }
+
+    // セルをクリックした時に表全体を再描画すると、フォーカスを失ったクリック要素が
+    // まるごと入れ替わることでブラウザが画面を先頭にスクロールしてしまう（特にChromeで発生）。
+    // これを避けるため、クリックされたセル1つだけを直接書き換える。
+    function refreshTeikyohyoCellDom(kind, residentId, day) {
+      const { year, month } = appState.teikyohyoPage;
+      const ymk = ymKeyOf(year, month);
+      const locked = !!appState.db.teikyohyoConfirmed[ymk];
+      const dateStr = ymd(year, month - 1, day);
+      const bizFlag = isBusinessDayStr(dateStr);
+      const td = document.getElementById(teikyohyoCellId(kind, residentId, day));
+      if (!td) { renderTeikyohyoPage(); return; } // 見つからない場合のみ、保険として全体再描画にフォールバック
+
+      if (kind === 'plan') {
+        const v = getTeikyohyoCell('plan', ymk, residentId, day);
+        const isFallback = !!v && isTeikyohyoCellFallback('plan', ymk, residentId, day);
+        const cls = v ? teikyohyoCellClass(v) : (bizFlag ? '' : 'non-business');
+        td.className = `shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}`;
+        td.textContent = v;
+        if (isFallback) td.title = '通所曜日からの自動反映（未確定）'; else td.removeAttribute('title');
+        td.style.cursor = locked ? 'default' : '';
+      } else {
+        const v = getTeikyohyoCell('actual', ymk, residentId, day);
+        const cls = v ? teikyohyoCellClass(v) : (bizFlag ? '' : 'non-business');
+        td.className = `shift-cell ${cls} actual-row-cell`;
+        td.textContent = v;
+      }
+    }
+
     function toggleTeikyohyoCell(kind, residentId, day) {
       const { year, month } = appState.teikyohyoPage;
       const ymk = ymKeyOf(year, month);
@@ -10125,7 +10158,9 @@ ${SHORUI_COMMON_NOTE}`;
         }
       }
 
-      renderTeikyohyoPage();
+      // 表全体を再描画するとクリックしたセルの位置ごと入れ替わり、画面が先頭に戻ってしまうため、
+      // クリックされたセルだけを直接書き換える（表全体の再描画はしない）
+      refreshTeikyohyoCellDom(kind, residentId, day);
     }
 
     // 入院中ボタン：その利用者の通所曜日（利用者DB）に一致する、今表示中の月の営業日をまとめて「入」に設定／解除する
@@ -10280,13 +10315,17 @@ ${SHORUI_COMMON_NOTE}`;
       if (!el) return;
       // セルをクリックして再描画すると縦スクロール位置が先頭に戻ってしまうため、
       // 描画の前後でスクロール位置を保存・復元する（利用者が増えて表が長くなった時の対策）
+      // ※ .container と window の両方を対象にする（環境によってどちらがスクロールしているか異なるため）
       const scrollBox = document.querySelector('.container');
       const savedScrollTop = scrollBox ? scrollBox.scrollTop : null;
+      const savedWinY = window.scrollY;
       const restoreScroll = () => {
-        if (scrollBox && savedScrollTop !== null) {
-          scrollBox.scrollTop = savedScrollTop;
-          requestAnimationFrame(() => { scrollBox.scrollTop = savedScrollTop; });
-        }
+        if (scrollBox && savedScrollTop !== null) scrollBox.scrollTop = savedScrollTop;
+        window.scrollTo(0, savedWinY);
+        requestAnimationFrame(() => {
+          if (scrollBox && savedScrollTop !== null) scrollBox.scrollTop = savedScrollTop;
+          window.scrollTo(0, savedWinY);
+        });
       };
 
       if (!appState.teikyohyoPage) appState.teikyohyoPage = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
@@ -10336,12 +10375,12 @@ ${SHORUI_COMMON_NOTE}`;
           const clickAttr = locked ? '' : ` onclick="toggleTeikyohyoCell('plan', '${r.id}', ${d})"`;
           const lockedStyle = locked ? ' style="cursor:default;"' : '';
           const title = isFallback ? ' title="通所曜日からの自動反映（未確定）"' : '';
-          return `<td class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
+          return `<td id="${teikyohyoCellId('plan', r.id, d)}" class="shift-cell ${cls}${isFallback ? ' teikyohyo-auto' : ''}"${clickAttr}${lockedStyle}${title}>${v}</td>`;
         }).join('');
         const actualCells = dayNums.map((d, i) => {
           const v = getTeikyohyoCell('actual', ymk, r.id, d);
           const cls = v ? teikyohyoCellClass(v) : (bizFlags[i] ? '' : 'non-business');
-          return `<td class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
+          return `<td id="${teikyohyoCellId('actual', r.id, d)}" class="shift-cell ${cls} actual-row-cell" onclick="toggleTeikyohyoCell('actual', '${r.id}', ${d})">${v}</td>`;
         }).join('');
 
         const isHospitalized = !!(appState.db.teikyohyoHospitalized[ymk] && appState.db.teikyohyoHospitalized[ymk][r.id]);

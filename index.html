@@ -10999,7 +10999,8 @@ ${SHORUI_COMMON_NOTE}`;
       document.getElementById('rrDateInput').value = dateStr;
       selectRehabRecordResident(residentId);
       renderTodayRehabRecordList();
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      const residentCard = document.getElementById('rehabRecordResidentSelector')?.closest('.card') || document.getElementById('rehabRecordResidentSelector');
+      residentCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function generateRehabRecordNote(btn) {

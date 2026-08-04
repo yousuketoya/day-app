@@ -3967,6 +3967,10 @@
             <button class="btn btn-secondary btn-sm" onclick="teikyohyoNextMonth()">▶</button>
           </div>
           <div id="teikyohyoConfirmStatus" style="text-align:center; margin-bottom:8px; font-size:12.5px;"></div>
+          <div style="display:flex; gap:6px; justify-content:center; margin-bottom:10px;">
+            <button class="btn btn-primary btn-sm" id="teikyohyoSortBtn_kana" style="flex:1; max-width:160px;" onclick="setTeikyohyoSort('kana')">🔤 フリガナ順</button>
+            <button class="btn btn-secondary btn-sm" id="teikyohyoSortBtn_none" style="flex:1; max-width:160px;" onclick="setTeikyohyoSort(null)">📋 登録順</button>
+          </div>
           <div style="display:flex; gap:8px; justify-content:center; margin-bottom:12px; flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" id="teikyohyoConfirmBtn" onclick="confirmTeikyohyoPlan()">🔒
               この月の予定を確定する</button>
@@ -4846,6 +4850,7 @@
       vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null, showPausedResidents: false },
       mealIntake: { selectedResident: null },
       dbSort: { key: null, dir: 'asc' }, // 利用者DB一覧の並び替え（セッション限り。db配下ではないので保存されない＝再訪問時は登録順にリセット）
+      teikyohyo: { sortMode: 'kana' }, // 提供表の並び替え：'kana'（フリガナ順・デフォルト）／null（登録順）
       dbDisplayFilter: 'active', // 利用者DB一覧の表示フィルタ：'active'（利用中のみ）／'paused'（終了者のみ）／'all'（全利用者）
       // 終了者（バックナンバー）の記録・計画書：画面ごとに「今どの利用者IDの編集ロックを解除中か」を保持（対象者変更・画面遷移・日付変更で自動リセット）
       pausedUnlock: { renrakucho: null, rehab: null, rehabrecord: null, monitoring: null, assessment: null, meeting: null }
@@ -8381,6 +8386,34 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       renderDbList();
     }
 
+    function sortTeikyohyoResidents(residents) {
+      if (appState.teikyohyo.sortMode !== 'kana') return; // 登録順（元の並びのまま）
+      residents.sort((a, b) => {
+        const ka = a.kana || '', kb = b.kana || '';
+        if (!ka && !kb) return 0;
+        if (!ka) return 1;  // フリガナ未入力は末尾へ
+        if (!kb) return -1;
+        return ka.localeCompare(kb, 'ja');
+      });
+    }
+
+    function setTeikyohyoSort(mode) {
+      appState.teikyohyo.sortMode = mode;
+      renderTeikyohyoSortButtons();
+      renderTeikyohyoPage();
+    }
+
+    function renderTeikyohyoSortButtons() {
+      const kanaBtn = document.getElementById('teikyohyoSortBtn_kana');
+      const noneBtn = document.getElementById('teikyohyoSortBtn_none');
+      if (!kanaBtn || !noneBtn) return;
+      const mode = appState.teikyohyo.sortMode;
+      kanaBtn.className = 'btn btn-sm ' + (mode === 'kana' ? 'btn-primary' : 'btn-secondary');
+      noneBtn.className = 'btn btn-sm ' + (mode !== 'kana' ? 'btn-primary' : 'btn-secondary');
+      kanaBtn.style.flex = '1'; kanaBtn.style.maxWidth = '160px';
+      noneBtn.style.flex = '1'; noneBtn.style.maxWidth = '160px';
+    }
+
     // ============================================================
     // 終了者（バックナンバー）の記録・計画書：編集ロック（共通処理）
     // ------------------------------------------------------------
@@ -10253,8 +10286,10 @@ ${SHORUI_COMMON_NOTE}`;
 
       const labelEl = document.getElementById('teikyohyoMonthLabel');
       if (labelEl) labelEl.textContent = `${year}年${month}月`;
+      renderTeikyohyoSortButtons();
 
       const residents = getActiveResidentDb();
+      sortTeikyohyoResidents(residents);
       if (!residents.length) {
         el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:16px;">利用者DBに登録してください（利用中の方がいない場合、終了者は提供表に表示されません）</div>';
         renderTeikyohyoConfirmStatus();

@@ -1130,14 +1130,6 @@
       -webkit-overflow-scrolling: touch;
     }
 
-    /* 利用者別 利用時間・入浴状況：入浴「なし」選択時に目立たせる */
-    .bath-none-select {
-      background: #ffe1e1 !important;
-      border: 1.5px solid #e05555 !important;
-      color: #b30000 !important;
-      font-weight: 700 !important;
-    }
-
     /* 送迎表：見出し行（順・利用者名・時刻…）を縦スクロール時も固定表示するための専用ラッパー */
     .tp-table-scroll-wrap {
       overflow: auto;
@@ -3213,6 +3205,17 @@
                 <span class="chip" data-group="training" data-value="実施" onclick="selectChip(this)">実施</span>
                 <span class="chip warn" data-group="training" data-value="一部実施" onclick="selectChip(this)">一部実施</span>
                 <span class="chip" data-group="training" data-value="本日は実施なし" onclick="selectChip(this)">なし</span>
+              </div>
+            </div>
+            <div class="check-item">
+              <div class="check-label">活動内容（複数選択可）</div>
+              <div class="chip-row">
+                <span class="chip" data-group="activities" data-value="脳トレ" onclick="toggleChipMulti(this)">脳トレ</span>
+                <span class="chip" data-group="activities" data-value="色塗り" onclick="toggleChipMulti(this)">色塗り</span>
+                <span class="chip" data-group="activities" data-value="作品作り" onclick="toggleChipMulti(this)">作品作り</span>
+                <span class="chip" data-group="activities" data-value="嚥下体操" onclick="toggleChipMulti(this)">嚥下体操</span>
+                <span class="chip" data-group="activities" data-value="口腔体操" onclick="toggleChipMulti(this)">口腔体操</span>
+                <span class="chip" data-group="activities" data-value="集団体操" onclick="toggleChipMulti(this)">集団体操</span>
               </div>
             </div>
           </div>
@@ -7509,7 +7512,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
       <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
-      <td><select class="${defaultBathing === 'なし' ? 'bath-none-select' : ''}" onchange="this.className=(this.value==='なし'?'bath-none-select':''); saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
+      <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
       }).join('');
@@ -11302,7 +11305,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       if (notesEl) notesEl.value = '';
     }
 
-    const RC_CHECKLOG_GROUPS = ['condition', 'mood', 'water', 'bath', 'toilet', 'rec', 'training', 'safety', 'medicine'];
+    const RC_CHECKLOG_GROUPS = ['condition', 'mood', 'water', 'bath', 'toilet', 'rec', 'training', 'activities', 'safety', 'medicine'];
 
     function applyCheckItemsIfAvailable() {
       const r = appState.renrakucho.selectedResident;
@@ -11313,9 +11316,16 @@ ${customInstructionsBlock('customPromptRehabRecord')}
 
       Object.entries(entry.chips || {}).forEach(([group, value]) => {
         appState.renrakucho.chips[group] = value;
-        document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
-          el.classList.toggle('selected', el.dataset.value === value);
-        });
+        if (RC_MULTI_SELECT_GROUPS.includes(group)) {
+          const values = value.split('、');
+          document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
+            el.classList.toggle('selected', values.includes(el.dataset.value));
+          });
+        } else {
+          document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
+            el.classList.toggle('selected', el.dataset.value === value);
+          });
+        }
       });
 
       const notesEl = document.getElementById('notes');
@@ -11374,6 +11384,25 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       }
     }
 
+    const RC_MULTI_SELECT_GROUPS = ['activities'];
+
+    function toggleChipMulti(el) {
+      const group = el.dataset.group;
+      const val = el.dataset.value;
+      el.classList.toggle('selected');
+      let current = appState.renrakucho.chips[group] ? appState.renrakucho.chips[group].split('、') : [];
+      if (el.classList.contains('selected')) {
+        if (!current.includes(val)) current.push(val);
+      } else {
+        current = current.filter(v => v !== val);
+      }
+      if (current.length) {
+        appState.renrakucho.chips[group] = current.join('、');
+      } else {
+        delete appState.renrakucho.chips[group];
+      }
+    }
+
     function onMealIntakeChange(group, el) {
       if (el.value) {
         appState.renrakucho.chips[group] = el.value;
@@ -11394,7 +11423,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       };
     }
 
-    const RC_CHECK_GROUP_LABELS = { condition: '体調', mood: '気分・表情', lunchMain: '昼食摂取量（主食）', lunchSide: '昼食摂取量（副食）', water: '水分補給', bath: '入浴', toilet: '排泄', rec: 'レク参加', training: '訓練', safety: '安全', medicine: '服薬' };
+    const RC_CHECK_GROUP_LABELS = { condition: '体調', mood: '気分・表情', lunchMain: '昼食摂取量（主食）', lunchSide: '昼食摂取量（副食）', water: '水分補給', bath: '入浴', toilet: '排泄', rec: 'レク参加', training: '訓練', activities: '活動内容', safety: '安全', medicine: '服薬' };
     const RC_REQUIRED_VITAL_FIELDS = [{ field: 'temp', label: '体温' }, { field: 'bpSys', label: '血圧（収縮期）' }, { field: 'bpDia', label: '血圧（拡張期）' }, { field: 'pulse', label: '脈拍' }];
 
     function getMissingRenrakuchoFields() {
@@ -11404,6 +11433,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
         if (val === undefined || val === null || val === '') missing.push(v.label);
       });
       Object.keys(RC_CHECK_GROUP_LABELS).forEach(g => {
+        if (RC_MULTI_SELECT_GROUPS.includes(g)) return;
         const val = appState.renrakucho.chips[g];
         if (val === undefined || val === '') missing.push(RC_CHECK_GROUP_LABELS[g]);
       });

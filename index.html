@@ -3071,26 +3071,26 @@
             緑＝作成済み／オレンジ＝未作成（通所日のみ表示）。丸をタップすると内容を確認・編集できます。</div>
         </div>
 
-        <div class="card">
-          <div class="card-title">👤 利用者</div>
-          <label
-            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
-            <input type="checkbox" id="rcShowAllResidentsCheck" onchange="toggleRenrakuchoShowAll(this.checked)">
-            本日の予定にない利用者も表示する
-          </label>
-          <label
-            style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
-            <input type="checkbox" id="rcShowPausedResidentsCheck" onchange="toggleRenrakuchoShowPaused(this.checked)">
-            🗄️ 終了者（バックナンバー）も表示する
-          </label>
-          <div class="resident-selector" id="residentSelector">
-            <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
-          </div>
-          <div id="residentInfoBox" style="display:none;"></div>
-        </div>
-
         <div class="record-input-zone">
           <div class="record-input-zone-badge">✍️ ここから今日の記録を入力します</div>
+
+          <div class="card">
+            <div class="card-title">👤 利用者</div>
+            <label
+              style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+              <input type="checkbox" id="rcShowAllResidentsCheck" onchange="toggleRenrakuchoShowAll(this.checked)">
+              本日の予定にない利用者も表示する
+            </label>
+            <label
+              style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:8px; cursor:pointer;">
+              <input type="checkbox" id="rcShowPausedResidentsCheck" onchange="toggleRenrakuchoShowPaused(this.checked)">
+              🗄️ 終了者（バックナンバー）も表示する
+            </label>
+            <div class="resident-selector" id="residentSelector">
+              <div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>
+            </div>
+            <div id="residentInfoBox" style="display:none;"></div>
+          </div>
 
           <div class="card">
             <div class="card-title">🖊️ 記録者</div>

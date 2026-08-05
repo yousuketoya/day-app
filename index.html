@@ -7541,10 +7541,17 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const bathSel = bathOptions.map(o => `<option value="${o}" ${defaultBathing === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
         // 保存済みの記録が無い場合のみ、送迎表の「迎え：到着」「送り：時刻」を自動表示（あくまで目安。その場で変更・保存可能）
         const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t, r);
+        // 一度でも手入力・保存された欄には「自動計算に戻す」ボタンを表示する（押すと送迎表・標準時間ベースの自動計算に戻る）
+        const startCell = u.startTime !== undefined
+          ? `<td><div class="tp-time-wrap"><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"><button type="button" class="tp-lock-btn individual" title="手入力を解除して、送迎表・標準時間ベースの自動計算に戻します" onclick="resetUsageTimeField('${dateStr}','${r.id}','startTime')">🔄自動に戻す</button></div></td>`
+          : `<td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>`;
+        const endCell = u.endTime !== undefined
+          ? `<td><div class="tp-time-wrap"><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"><button type="button" class="tp-lock-btn individual" title="手入力を解除して、送迎表・標準時間ベースの自動計算に戻します" onclick="resetUsageTimeField('${dateStr}','${r.id}','endTime')">🔄自動に戻す</button></div></td>`
+          : `<td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>`;
         return `<tr>
       <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
-      <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
-      <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
+      ${startCell}
+      ${endCell}
       <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
@@ -7570,6 +7577,15 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       if (!appState.db.usageLog[dateStr][residentId]) appState.db.usageLog[dateStr][residentId] = {};
       appState.db.usageLog[dateStr][residentId][field] = value;
       saveDb();
+      renderUsageTable();
+    }
+
+    // 「利用開始」「利用終了」の手入力・保存値を解除し、送迎表・標準利用時間ベースの自動計算表示に戻す
+    function resetUsageTimeField(dateStr, residentId, field) {
+      if (appState.db.usageLog[dateStr] && appState.db.usageLog[dateStr][residentId]) {
+        delete appState.db.usageLog[dateStr][residentId][field];
+        saveDb();
+      }
       renderUsageTable();
     }
 

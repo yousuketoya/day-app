@@ -304,6 +304,45 @@
       letter-spacing: 0.06em;
     }
 
+    /* 連絡帳 - 入力エリア（記録者〜AI作成ボタンまでをひとつのゾーンとして囲む） */
+    .record-input-zone {
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius);
+      background: var(--accent-light);
+      padding: 16px 14px 14px;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .record-input-zone-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #8a5a00;
+      background: #ffffff;
+      border: 1.5px solid var(--accent);
+      border-radius: 999px;
+      padding: 5px 14px;
+      margin-bottom: 12px;
+    }
+
+    .record-input-zone .card {
+      margin-bottom: 12px;
+    }
+
+    .record-input-zone .card:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .record-input-zone-footer {
+      text-align: center;
+      font-size: 11.5px;
+      color: #8a5a00;
+      margin-top: 4px;
+    }
+
     /* ===== DB PAGE ===== */
     .db-summary {
       display: grid;
@@ -3050,11 +3089,14 @@
           <div id="residentInfoBox" style="display:none;"></div>
         </div>
 
-        <div class="card">
-          <div class="card-title">🖊️ 記録者</div>
-          <div class="weekday-chip-row" id="rcStaffChipRow" style="flex-wrap:wrap;"></div>
-          <input type="hidden" id="rc_staff">
-        </div>
+        <div class="record-input-zone">
+          <div class="record-input-zone-badge">✍️ ここから今日の記録を入力します</div>
+
+          <div class="card">
+            <div class="card-title">🖊️ 記録者</div>
+            <div class="weekday-chip-row" id="rcStaffChipRow" style="flex-wrap:wrap;"></div>
+            <input type="hidden" id="rc_staff">
+          </div>
 
         <div class="card">
           <div class="card-title">🌡️ バイタル</div>
@@ -3207,17 +3249,6 @@
                 <span class="chip" data-group="training" data-value="本日は実施なし" onclick="selectChip(this)">なし</span>
               </div>
             </div>
-            <div class="check-item">
-              <div class="check-label">活動内容（複数選択可）</div>
-              <div class="chip-row">
-                <span class="chip" data-group="activities" data-value="脳トレ" onclick="toggleChipMulti(this)">脳トレ</span>
-                <span class="chip" data-group="activities" data-value="色塗り" onclick="toggleChipMulti(this)">色塗り</span>
-                <span class="chip" data-group="activities" data-value="作品作り" onclick="toggleChipMulti(this)">作品作り</span>
-                <span class="chip" data-group="activities" data-value="嚥下体操" onclick="toggleChipMulti(this)">嚥下体操</span>
-                <span class="chip" data-group="activities" data-value="口腔体操" onclick="toggleChipMulti(this)">口腔体操</span>
-                <span class="chip" data-group="activities" data-value="集団体操" onclick="toggleChipMulti(this)">集団体操</span>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -3251,8 +3282,10 @@
             placeholder="気になった様子・会話・家族への伝達事項など&#10;⚠️ 氏名・住所など個人を特定できる情報は書かないでください"></textarea>
         </div>
 
-        <button class="btn btn-primary" id="generateBtn" onclick="generateText()">✨ AIで連絡帳・経過記録を作成する</button>
-        <div id="generateStatus"></div>
+          <div class="record-input-zone-footer">↑ 入力が終わったら下のボタンを押してください</div>
+          <button class="btn btn-primary" id="generateBtn" onclick="generateText()">✨ AIで連絡帳・経過記録を作成する</button>
+          <div id="generateStatus"></div>
+        </div>
 
         <div id="outputSection" style="display:none; margin-top:14px;">
           <div
@@ -11305,7 +11338,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       if (notesEl) notesEl.value = '';
     }
 
-    const RC_CHECKLOG_GROUPS = ['condition', 'mood', 'water', 'bath', 'toilet', 'rec', 'training', 'activities', 'safety', 'medicine'];
+    const RC_CHECKLOG_GROUPS = ['condition', 'mood', 'water', 'bath', 'toilet', 'rec', 'training', 'safety', 'medicine'];
 
     function applyCheckItemsIfAvailable() {
       const r = appState.renrakucho.selectedResident;
@@ -11316,16 +11349,9 @@ ${customInstructionsBlock('customPromptRehabRecord')}
 
       Object.entries(entry.chips || {}).forEach(([group, value]) => {
         appState.renrakucho.chips[group] = value;
-        if (RC_MULTI_SELECT_GROUPS.includes(group)) {
-          const values = value.split('、');
-          document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
-            el.classList.toggle('selected', values.includes(el.dataset.value));
-          });
-        } else {
-          document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
-            el.classList.toggle('selected', el.dataset.value === value);
-          });
-        }
+        document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
+          el.classList.toggle('selected', el.dataset.value === value);
+        });
       });
 
       const notesEl = document.getElementById('notes');
@@ -11384,25 +11410,6 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       }
     }
 
-    const RC_MULTI_SELECT_GROUPS = ['activities'];
-
-    function toggleChipMulti(el) {
-      const group = el.dataset.group;
-      const val = el.dataset.value;
-      el.classList.toggle('selected');
-      let current = appState.renrakucho.chips[group] ? appState.renrakucho.chips[group].split('、') : [];
-      if (el.classList.contains('selected')) {
-        if (!current.includes(val)) current.push(val);
-      } else {
-        current = current.filter(v => v !== val);
-      }
-      if (current.length) {
-        appState.renrakucho.chips[group] = current.join('、');
-      } else {
-        delete appState.renrakucho.chips[group];
-      }
-    }
-
     function onMealIntakeChange(group, el) {
       if (el.value) {
         appState.renrakucho.chips[group] = el.value;
@@ -11423,7 +11430,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       };
     }
 
-    const RC_CHECK_GROUP_LABELS = { condition: '体調', mood: '気分・表情', lunchMain: '昼食摂取量（主食）', lunchSide: '昼食摂取量（副食）', water: '水分補給', bath: '入浴', toilet: '排泄', rec: 'レク参加', training: '訓練', activities: '活動内容', safety: '安全', medicine: '服薬' };
+    const RC_CHECK_GROUP_LABELS = { condition: '体調', mood: '気分・表情', lunchMain: '昼食摂取量（主食）', lunchSide: '昼食摂取量（副食）', water: '水分補給', bath: '入浴', toilet: '排泄', rec: 'レク参加', training: '訓練', safety: '安全', medicine: '服薬' };
     const RC_REQUIRED_VITAL_FIELDS = [{ field: 'temp', label: '体温' }, { field: 'bpSys', label: '血圧（収縮期）' }, { field: 'bpDia', label: '血圧（拡張期）' }, { field: 'pulse', label: '脈拍' }];
 
     function getMissingRenrakuchoFields() {
@@ -11433,7 +11440,6 @@ ${customInstructionsBlock('customPromptRehabRecord')}
         if (val === undefined || val === null || val === '') missing.push(v.label);
       });
       Object.keys(RC_CHECK_GROUP_LABELS).forEach(g => {
-        if (RC_MULTI_SELECT_GROUPS.includes(g)) return;
         const val = appState.renrakucho.chips[g];
         if (val === undefined || val === '') missing.push(RC_CHECK_GROUP_LABELS[g]);
       });

@@ -1130,6 +1130,14 @@
       -webkit-overflow-scrolling: touch;
     }
 
+    /* 利用者別 利用時間・入浴状況：入浴「なし」選択時に目立たせる */
+    .bath-none-select {
+      background: #ffe1e1 !important;
+      border: 1.5px solid #e05555 !important;
+      color: #b30000 !important;
+      font-weight: 700 !important;
+    }
+
     /* 送迎表：見出し行（順・利用者名・時刻…）を縦スクロール時も固定表示するための専用ラッパー */
     .tp-table-scroll-wrap {
       overflow: auto;
@@ -7501,7 +7509,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
       <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
-      <td><select onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
+      <td><select class="${defaultBathing === 'なし' ? 'bath-none-select' : ''}" onchange="this.className=(this.value==='なし'?'bath-none-select':''); saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
       }).join('');

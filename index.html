@@ -7857,12 +7857,13 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           const category = getEffectiveUsageDurationCategory(dateStr, r, usage[r.id], t) || '未登録';
           const careLevel = r.careLevel || '未設定';
           const bathingVal = computeEffectiveBathing(dateStr, r, usage[r.id], checkLog);
-          const bathingLabel = ['あり', 'シャワーのみ', '清拭'].includes(bathingVal) ? 'あり' : 'なし';
+          const bathingMark = ['あり', 'シャワーのみ', '清拭'].includes(bathingVal) ? '〇' : '×';
           const pickupLabel = `迎え${t && t.pickupTime ? '〇' : '×'}`;
           const dropoffLabel = `送り${t && t.dropoffTime ? '〇' : '×'}`;
-          const rehabLabel = getEffectiveRehabDone(dateStr, r, usage[r.id]);
+          const rehabMark = getEffectiveRehabDone(dateStr, r, usage[r.id]) === 'あり' ? '〇' : '×';
+          const mealMark = getEffectiveMealDone(dateStr, r, usage[r.id]) === 'あり' ? '〇' : '×';
 
-          lines.push(`・${r.name}様　${category}／${careLevel}／入浴：${bathingLabel}／${pickupLabel}／${dropoffLabel}／リハビリ：${rehabLabel}／利用時間：${timeStr}`);
+          lines.push(`・${r.name}様　${category}／${careLevel}／入浴${bathingMark}／${pickupLabel}／${dropoffLabel}／リハビリ${rehabMark}／食事${mealMark}／利用時間：${timeStr}`);
         });
       }
 

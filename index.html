@@ -1152,6 +1152,15 @@
       -webkit-overflow-scrolling: touch;
     }
 
+    /* 業務日誌「利用者別 利用時間・入浴状況」表：文字サイズをまとめて14pxに（他の表には影響させない） */
+    #usageTableArea table,
+    #usageTableArea th,
+    #usageTableArea td,
+    #usageTableArea input,
+    #usageTableArea select {
+      font-size: 14px;
+    }
+
     /* 送迎表：見出し行（順・利用者名・時刻…）を縦スクロール時も固定表示するための専用ラッパー */
     .tp-table-scroll-wrap {
       overflow: auto;
@@ -5504,11 +5513,11 @@
       addSheet('業務日誌', dlRows);
 
       // ⑭ 利用時間・入浴状況
-      // ※「区分(手動確定)」列は後から追加した項目のため、既存の並び順を崩さないよう末尾に追加している
-      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考', '区分(手動確定)']];
+      // ※「区分(手動確定)」「リハビリ(手動確定)」「食事(手動確定)」列は後から追加した項目のため、既存の並び順を崩さないよう末尾に追加している
+      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考', '区分(手動確定)', 'リハビリ(手動確定)', '食事(手動確定)']];
       Object.keys(db.usageLog).sort().forEach(date => {
         Object.entries(db.usageLog[date]).forEach(([rid, u]) => {
-          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '', u.durationCategory || '']);
+          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '', u.durationCategory || '', u.rehabDone || '', u.mealDone || '']);
         });
       });
       addSheet('利用時間・入浴状況', usRows);
@@ -5943,12 +5952,14 @@
         };
       });
 
-      // ⑭ 利用時間・入浴状況（「区分(手動確定)」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ未設定のまま＝自動計算に任せる）
-      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note, durationCategory]) => {
+      // ⑭ 利用時間・入浴状況（「区分/リハビリ/食事(手動確定)」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ未設定のまま＝自動計算に任せる）
+      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note, durationCategory, rehabDone, mealDone]) => {
         const id = findId(name); if (!id || !date) return;
         if (!newDb.usageLog[date]) newDb.usageLog[date] = {};
         const entry = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
         if (durationCategory) entry.durationCategory = durationCategory;
+        if (rehabDone) entry.rehabDone = rehabDone;
+        if (mealDone) entry.mealDone = mealDone;
         newDb.usageLog[date][id] = entry;
       });
 
@@ -6510,8 +6521,8 @@
       <td class="tp-leg-label">迎え</td>
       ${pickupTimeCell}
       ${facilityArrivalCell}
-      ${pickupVehicleCell}
       ${pickupDriverCell}
+      ${pickupVehicleCell}
       ${pickupAttendantCell}
       ${noteCell}
     </tr>
@@ -6519,8 +6530,8 @@
       <td class="tp-leg-label">送り</td>
       ${dropoffTimeCell}
       ${homeArrivalCell}
-      ${dropoffVehicleCell}
       ${dropoffDriverCell}
+      ${dropoffVehicleCell}
       ${dropoffAttendantCell}
     </tr>`;
       }).join('');
@@ -6532,7 +6543,7 @@
       <col class="tp-col-select"><col class="tp-col-select"><col class="tp-col-select">
       <col class="tp-col-note">
     </colgroup>
-    <tr><th>順</th><th>利用者名</th><th></th><th>時刻</th><th>到着</th><th>車両</th><th>運転手</th><th>添乗</th><th>備考</th></tr>
+    <tr><th>順</th><th>利用者名</th><th></th><th>時刻</th><th>到着</th><th>運転手</th><th>車両</th><th>添乗</th><th>備考</th></tr>
     ${rows}
   </table></div>
   <div style="font-size:11px; color:var(--muted); margin-top:8px;">「順」の数字を変えて確定すると並び順が変わります。入力内容は自動保存されます。車両・運転手は設定 ⚙️ から登録できます。${tpSortMode !== 'order' ? '車両順・運転手順は「迎え」の担当でグループ化しています（送りの担当が異なる場合があります）。' : ''}<br>
@@ -6684,9 +6695,9 @@
 
         return `${groupHeaderRow}<tr><td>${t.order ?? (i + 1)}</td><td>${escHtml(r.name)}</td><td>${typeLabel}</td>
       <td>${naPickup ? '－' : (t.pickupTime || '')}</td><td>${t.facilityArrivalTime || ''}</td>
-      <td>${naPickup ? '－' : escHtml(pickupVehicle)}</td><td>${naPickup ? '－' : escHtml(pickupDriver)}</td><td>${naPickup ? '－' : escHtml(t.pickupAttendant || '')}</td>
+      <td>${naPickup ? '－' : escHtml(pickupDriver)}</td><td>${naPickup ? '－' : escHtml(pickupVehicle)}</td><td>${naPickup ? '－' : escHtml(t.pickupAttendant || '')}</td>
       <td>${t.dropoffTime || ''}</td><td>${isFamilyDefault ? '－' : (t.homeArrivalTime || '')}</td>
-      <td>${naDropoff ? '－' : escHtml(dropoffVehicle)}</td><td>${naDropoff ? '－' : escHtml(dropoffDriver)}</td><td>${naDropoff ? '－' : escHtml(t.dropoffAttendant || '')}</td>
+      <td>${naDropoff ? '－' : escHtml(dropoffDriver)}</td><td>${naDropoff ? '－' : escHtml(dropoffVehicle)}</td><td>${naDropoff ? '－' : escHtml(t.dropoffAttendant || '')}</td>
       <td>${escHtml(t.note || '')}</td></tr>`;
       }).join('');
 
@@ -6701,7 +6712,7 @@
       th { background: #f0f0f0; }
     </style></head><body>
     <h1>送迎表　${escHtml(appState.db.facility || '')}　${dateStr}${sortModeLabel}</h1>
-    <table><tr><th>順</th><th>利用者名</th><th>送迎区分</th><th>迎え時刻</th><th>到着(施設)</th><th>迎え車両</th><th>迎え運転手</th><th>迎え添乗</th><th>送り時刻</th><th>到着(自宅)</th><th>送り車両</th><th>送り運転手</th><th>送り添乗</th><th>備考</th></tr>${rows}</table>
+    <table><tr><th>順</th><th>利用者名</th><th>送迎区分</th><th>迎え時刻</th><th>到着(施設)</th><th>迎え運転手</th><th>迎え車両</th><th>迎え添乗</th><th>送り時刻</th><th>到着(自宅)</th><th>送り運転手</th><th>送り車両</th><th>送り添乗</th><th>備考</th></tr>${rows}</table>
     </body></html>`);
       win.document.close();
       win.print();
@@ -7509,6 +7520,23 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       return computeEffectiveUsageBucket(dateStr, r, usageEntry, transportEntry);
     }
 
+    // 業務日誌テーブルに表示する「リハビリ」の確定値（あり／なし）
+    // 優先順位：①職員がプルダウンで確定した値（手動。リハビリ記録の入力が間に合わない時用） → ②リハビリ記録ログの有無から自動判定
+    function getEffectiveRehabDone(dateStr, r, usageEntry) {
+      if (usageEntry && usageEntry.rehabDone !== undefined) return usageEntry.rehabDone;
+      const hasRehab = !!(appState.db.rehabRecordLog[dateStr] && appState.db.rehabRecordLog[dateStr][r.id]);
+      return hasRehab ? 'あり' : 'なし';
+    }
+
+    // 業務日誌テーブルに表示する「食事」の確定値（あり／なし）
+    // 優先順位：①職員がプルダウンで確定した値（手動。連絡帳の入力が間に合わない時用） → ②連絡帳の食事摂取量ログの有無から自動判定
+    function getEffectiveMealDone(dateStr, r, usageEntry) {
+      if (usageEntry && usageEntry.mealDone !== undefined) return usageEntry.mealDone;
+      const mealEntry = appState.db.mealIntakeLog[dateStr] && appState.db.mealIntakeLog[dateStr][r.id];
+      const hasMeal = !!(mealEntry && (mealEntry.main || mealEntry.side));
+      return hasMeal ? 'あり' : 'なし';
+    }
+
     // 利用者リストから、利用時間の長さ別の人数集計を行う（区分外・時間未登録は「その他」に集計）
     function computeUsageDurationBreakdown(dateStr, residents) {
       const usage = appState.db.usageLog[dateStr] || {};
@@ -7564,12 +7592,24 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const categoryWarnStyle = categoryMismatch ? 'background:#fdecea; border-color:var(--danger); color:var(--danger); font-weight:700;' : '';
         const categoryTitle = categoryMismatch ? `⚠️ 登録上の区分「${escAttr(normalCategory)}」と異なります。内容を確認し、区分を確定してください。` : '';
 
+        // リハビリ・食事：通常は記録の有無から自動判定するが、記録の入力が間に合わない時のために
+        // プルダウンで職員が直接「あり／なし」を確定できるようにする（優先順位は他の項目と同じ：手動 > 自動）
+        const rehabVal = getEffectiveRehabDone(dateStr, r, u);
+        const isRehabManual = u.rehabDone !== undefined;
+        const rehabSel = ['あり', 'なし'].map(o => `<option value="${o}" ${rehabVal === o ? 'selected' : ''}>${o}</option>`).join('');
+
+        const mealVal = getEffectiveMealDone(dateStr, r, u);
+        const isMealManual = u.mealDone !== undefined;
+        const mealSel = ['あり', 'なし'].map(o => `<option value="${o}" ${mealVal === o ? 'selected' : ''}>${o}</option>`).join('');
+
         return `<tr>
       <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
       <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
       <td><select style="${categoryWarnStyle}" title="${categoryTitle}" onchange="saveUsageField('${dateStr}','${r.id}','durationCategory', this.value)">${categorySel}</select>${categoryMismatch ? '<div style="font-size:9.5px; color:var(--danger); font-weight:700; margin-top:2px; white-space:nowrap;">⚠️要確認</div>' : ''}</td>
       <td><select style="${(defaultBathing === 'なし' || defaultBathing === '') ? 'background:#fdecea; border-color:var(--danger); color:var(--danger); font-weight:700;' : ''}" onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
+      <td><select title="${isRehabManual ? '職員が手動で確定した値です' : 'リハビリ記録の有無から自動判定（未入力ならこちらで確定できます）'}" style="${rehabVal === 'なし' ? 'background:#fdecea; border-color:var(--danger); color:var(--danger); font-weight:700;' : ''}" onchange="saveUsageField('${dateStr}','${r.id}','rehabDone', this.value)">${rehabSel}</select></td>
+      <td><select title="${isMealManual ? '職員が手動で確定した値です' : '連絡帳の食事摂取量の記録有無から自動判定（未入力ならこちらで確定できます）'}" style="${mealVal === 'なし' ? 'background:#fdecea; border-color:var(--danger); color:var(--danger); font-weight:700;' : ''}" onchange="saveUsageField('${dateStr}','${r.id}','mealDone', this.value)">${mealSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
       }).join('');
@@ -7579,10 +7619,10 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         + (otherCount ? `<span class="tag" style="display:inline-block; margin:2px 6px 2px 0; padding:3px 8px; border:1px solid var(--border); border-radius:12px; font-size:11.5px; color:var(--muted);">上記区分外・時間未登録：<b>${otherCount}名</b></span>` : '');
 
       el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table">
-    <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>区分</th><th>入浴</th><th>備考</th></tr>
+    <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>区分</th><th>入浴</th><th>リハビリ</th><th>食事</th><th>備考</th></tr>
     ${rows}
   </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は、利用者DBの「標準利用時間」を基準に、送迎表の実績（迎えの遅れ・送りの早退分）で自動調整して表示します（標準利用時間が未設定の場合は送迎表の「迎え：到着」「送り：時刻」をそのまま使用）。区分は利用者DBの「所要時間区分」をもとに自動計算され、送迎の実績等でいつもと異なる区分になった場合は赤枠で警告します。内容を確認のうえプルダウンで区分を確定してください（確定後は警告が消えます）。入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します。いずれも未記録の場合のみの自動表示で、その場で変更・保存も可能です。</div>
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は、利用者DBの「標準利用時間」を基準に、送迎表の実績（迎えの遅れ・送りの早退分）で自動調整して表示します（標準利用時間が未設定の場合は送迎表の「迎え：到着」「送り：時刻」をそのまま使用）。区分は利用者DBの「所要時間区分」をもとに自動計算され、送迎の実績等でいつもと異なる区分になった場合は赤枠で警告します。内容を確認のうえプルダウンで区分を確定してください（確定後は警告が消えます）。入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します。リハビリは「リハビリ記録」、食事は「連絡帳」の食事摂取量の記録有無から自動で「あり／なし」を判定して表示しますが、記録の入力が間に合っていない場合はこのプルダウンで直接確定することもできます。入浴・利用開始・利用終了・区分・リハビリ・食事はいずれも未記録の場合のみの自動表示で、その場で変更・保存も可能です。</div>
   <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border);">
     <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:4px;">⏱ 利用時間帯別 人数</div>
     ${breakdownHtml}
@@ -7611,7 +7651,13 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const { startTime, endTime } = computeEffectiveUsageTimes(u, t, r);
         const bathing = computeEffectiveBathing(dateStr, r, u, checkLog);
         const category = getEffectiveUsageDurationCategory(dateStr, r, u, t) || '';
-        return `<tr><td>${escHtml(r.name)}</td><td>${startTime}</td><td>${endTime}</td><td>${escHtml(category)}</td><td>${escHtml(bathing)}</td><td>${escHtml(u.note || '')}</td></tr>`;
+        const hasRehab = getEffectiveRehabDone(dateStr, r, u) === 'あり';
+        const mealDone = getEffectiveMealDone(dateStr, r, u);
+        const mealEntry = appState.db.mealIntakeLog[dateStr] && appState.db.mealIntakeLog[dateStr][r.id];
+        const mealText = mealDone === 'あり'
+          ? ((mealEntry && (mealEntry.main || mealEntry.side)) ? `主${mealEntry.main || '－'}／副${mealEntry.side || '－'}` : 'あり')
+          : 'なし';
+        return `<tr><td>${escHtml(r.name)}</td><td>${startTime}</td><td>${endTime}</td><td>${escHtml(category)}</td><td>${escHtml(bathing)}</td><td>${hasRehab ? 'あり' : 'なし'}</td><td>${escHtml(mealText)}</td><td>${escHtml(u.note || '')}</td></tr>`;
       }).join('');
 
       const win = window.open('', '_blank');
@@ -7625,7 +7671,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       th { background: #f0f0f0; }
     </style></head><body>
     <h1>利用時間・入浴状況　${escHtml(appState.db.facility || '')}　${dateStr}</h1>
-    <table><tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>区分</th><th>入浴</th><th>備考</th></tr>${rows}</table>
+    <table><tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>区分</th><th>入浴</th><th>リハビリ</th><th>食事</th><th>備考</th></tr>${rows}</table>
     </body></html>`);
       win.document.close();
       win.print();
@@ -7791,7 +7837,6 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
       if (attending.length) {
         lines.push('【本日の利用者・時間】');
-        const rehabLog = appState.db.rehabRecordLog[dateStr] || {};
         attending.forEach(r => {
           const t = transport[r.id];
           // 送迎の迎え・送り時刻ではなく、実際の利用時間（標準時間＋送迎実績で調整済み。上の「利用時間帯別 人数」と同じ算出方法）を表示する
@@ -7804,7 +7849,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           const bathingLabel = ['あり', 'シャワーのみ', '清拭'].includes(bathingVal) ? 'あり' : 'なし';
           const pickupLabel = `迎え${t && t.pickupTime ? '〇' : '×'}`;
           const dropoffLabel = `送り${t && t.dropoffTime ? '〇' : '×'}`;
-          const rehabLabel = rehabLog[r.id] ? 'あり' : 'なし';
+          const rehabLabel = getEffectiveRehabDone(dateStr, r, usage[r.id]);
 
           lines.push(`・${r.name}様　${category}／${careLevel}／入浴：${bathingLabel}／${pickupLabel}／${dropoffLabel}／リハビリ：${rehabLabel}／利用時間：${timeStr}`);
         });

@@ -7781,12 +7781,21 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
       if (attending.length) {
         lines.push('【本日の利用者・時間】');
+        const rehabLog = appState.db.rehabRecordLog[dateStr] || {};
         attending.forEach(r => {
           const t = transport[r.id];
           // 送迎の迎え・送り時刻ではなく、実際の利用時間（標準時間＋送迎実績で調整済み。上の「利用時間帯別 人数」と同じ算出方法）を表示する
           const { startTime, endTime } = computeEffectiveUsageTimes(usage[r.id], t, r);
           const timeStr = (startTime && endTime) ? `${startTime}〜${endTime}` : '（利用時間未登録）';
-          lines.push(`・${r.name}様　${timeStr}`);
+
+          const category = getEffectiveUsageDurationCategory(dateStr, r, usage[r.id], t) || '未登録';
+          const careLevel = r.careLevel || '未設定';
+          const bathingVal = computeEffectiveBathing(dateStr, r, usage[r.id], checkLog);
+          const bathingLabel = ['あり', 'シャワーのみ', '清拭'].includes(bathingVal) ? 'あり' : 'なし';
+          const transportLabel = `迎え${t && t.pickupTime ? '〇' : '×'} 送り${t && t.dropoffTime ? '〇' : '×'}`;
+          const rehabLabel = rehabLog[r.id] ? 'あり' : 'なし';
+
+          lines.push(`・${r.name}様　区分：${category}／要介護：${careLevel}／入浴：${bathingLabel}／送迎：${transportLabel}／リハビリ：${rehabLabel}／利用時間：${timeStr}`);
         });
       }
 

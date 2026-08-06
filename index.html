@@ -3277,6 +3277,7 @@
         </div>
 
         <button class="btn btn-primary" id="generateBtn" onclick="generateText()">✨ AIで連絡帳・経過記録を作成する</button>
+        <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:8px;" onclick="manualCreateText()">✏️ 手入力で作成する（AIがうまくいかない時はこちら）</button>
         <div id="generateStatus"></div>
 
         </div><!-- /rc-record-zone -->
@@ -5355,13 +5356,13 @@
         XLSX.utils.book_append_sheet(wb, ws, name);
       };
 
-      // ① 利用者DB
+      // 1. 利用者DB
       addSheet('利用者DB', [
         ['ID', ...RF_FIELDS.map(f => FIELD_LABELS[f] || f), '状態（利用中／終了者）', '中止・再開履歴(JSON)'],
         ...db.residentDb.map(r => [r.id, ...RF_FIELDS.map(f => r[f] || ''), isResidentPaused(r) ? '終了者' : '利用中', JSON.stringify(r.resumeHistory || [])])
       ]);
 
-      // ①-2 利用者DB 基本動作・ADL評価（現況）
+      // 2. 利用者DB 基本動作・ADL評価（現況）
       // 末尾の「データ(JSON)」列は復元用の完全データ（表示列は目視確認用）
       const dbAssessRows = [['利用者名', ...BASIC_MOTION_ITEMS.map(t => '基本動作:' + t), ...ADL_ITEMS.map(t => 'ADL:' + t), 'データ(JSON)']];
       db.residentDb.forEach(r => {
@@ -5372,188 +5373,43 @@
       });
       addSheet('利用者DB評価(現況)', dbAssessRows);
 
-      // ② 連絡帳
-      const rcRows = [['日付', '利用者名', '記録者', '記録文']];
-      Object.keys(db.renrakuchoLog).sort().forEach(date => {
-        Object.entries(db.renrakuchoLog[date]).forEach(([rid, text]) => {
-          const staff = (db.renrakuchoStaffLog[date] && db.renrakuchoStaffLog[date][rid]) || '';
-          rcRows.push([date, residentNameOf(rid), staff, text]);
+      // 3. 勤務表（予定：4週28日パターン、午前・午後）
+      const shiftStaffForExport = [
+        ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
+        ...(db.nurseStaffList || []).map(n => ({ name: n, group: '看護' })),
+        ...(db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
+        ...(db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
+      ];
+      const shiftRows = [['スタッフ名', '職種', '時間帯', ...Array.from({ length: 28 }, (_, i) => `Day${i + 1}`)]];
+      shiftStaffForExport.forEach(s => {
+        const rawPattern = (db.shiftPattern && db.shiftPattern[s.name]) || {};
+        // 旧形式（配列）と新形式（{am,pm}オブジェクト）の両方に対応
+        const pattern = Array.isArray(rawPattern)
+          ? { am: Array(28).fill('work'), pm: rawPattern }
+          : { am: rawPattern.am || Array(28).fill('work'), pm: rawPattern.pm || Array(28).fill('work') };
+        const amCells = Array.from({ length: 28 }, (_, i) => shiftCodeLabel(pattern.am[i] || 'work'));
+        const pmCells = Array.from({ length: 28 }, (_, i) => shiftCodeLabel(pattern.pm[i] || 'work'));
+        shiftRows.push([s.name, s.group, '午前', ...amCells]);
+        shiftRows.push(['', '', '午後', ...pmCells]);
+      });
+      addSheet('勤務表（予定）', shiftRows);
+
+      // 4. b 勤務表（実績：予定から変更があった日のみ、午前・午後）
+      const shiftActualRows = [['日付', 'スタッフ名', '時間帯', '実績']];
+      Object.keys(db.shiftActual || {}).sort().forEach(date => {
+        Object.entries(db.shiftActual[date]).forEach(([name, data]) => {
+          // 旧形式（文字列）と新形式（{am,pm}オブジェクト）の両方に対応
+          if (typeof data === 'string') {
+            shiftActualRows.push([date, name, '午後', shiftCodeLabel(data)]);
+          } else {
+            if (data.am) shiftActualRows.push([date, name, '午前', shiftCodeLabel(data.am)]);
+            if (data.pm) shiftActualRows.push([date, name, '午後', shiftCodeLabel(data.pm)]);
+          }
         });
       });
-      addSheet('連絡帳', rcRows);
+      addSheet('勤務表（実績）', shiftActualRows);
 
-      // ③ 経過記録
-      const krRows = [['日付', '利用者名', '経過記録文']];
-      Object.keys(db.keirokaLog).sort().forEach(date => {
-        Object.entries(db.keirokaLog[date]).forEach(([rid, text]) => {
-          krRows.push([date, residentNameOf(rid), text]);
-        });
-      });
-      addSheet('経過記録', krRows);
-
-      // ④ リハビリ記録
-      const rrRows = [['日付', '利用者名', '開始時刻', '終了時刻', '実施者', '実施内容', '内容補足', '体調', '反応・様子', '特記事項', '最終更新']];
-      Object.keys(db.rehabRecordLog).sort().forEach(date => {
-        Object.entries(db.rehabRecordLog[date]).forEach(([rid, rec]) => {
-          rrRows.push([date, residentNameOf(rid), rec.startTime || '', computeEndTime(rec.startTime, rec.durationMin) || '',
-            rec.staff || '', rec.content || '', rec.contentOther || '', rec.condition || '', rec.reaction || '', rec.notes || '', rec.updatedAt || '']);
-        });
-      });
-      addSheet('リハビリ記録', rrRows);
-
-      // ⑤ リハビリ計画書
-      // 末尾の3列（*データ(JSON)）は復元用の完全データ（表示列は目視確認用で、復元には使用しない）
-      const rpHeader = ['利用者名', ...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS, '心身機能構造', '基本動作', 'ADL', '最終更新', '心身機能構造データ(JSON)', '基本動作データ(JSON)', 'ADLデータ(JSON)'];
-      const rpRows = [rpHeader];
-      Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
-        const mb = (plan.mindBody || []).map((d, i) => `${MIND_BODY_ITEMS[i]}:${[d.status, d.impact, d.note].filter(Boolean).join('/')}`).join('；');
-        const bm = (plan.basicMotion || []).map((d, i) => `${BASIC_MOTION_ITEMS[i]}:${[d.start, d.now, d.note].filter(Boolean).join('/')}`).join('；');
-        const adl = (plan.adl || []).map((d, i) => `${ADL_ITEMS[i]}:${[d.start, d.now, d.note].filter(Boolean).join('/')}`).join('；');
-        rpRows.push([
-          residentNameOf(rid),
-          ...RP_TEXT_FIELDS.map(f => plan[f] || ''),
-          ...RP_DATE_FIELDS.map(f => plan[f] || ''),
-          ...RP_CHIP_FIELDS.map(f => plan[f] || ''),
-          mb, bm, adl, plan.updatedAt || '',
-          JSON.stringify(plan.mindBody || []), JSON.stringify(plan.basicMotion || []), JSON.stringify(plan.adl || [])
-        ]);
-      });
-      addSheet('リハビリ計画書', rpRows);
-
-      // ⑤-2 会議録（担当者会議）：会議×対象利用者ごとに1行
-      const mtRows = [['会議ID', '日付', '種別', '開催場所', '出席者（スタッフ）', '出席者（その他）', '利用者名', '個別の検討内容', '会議全体の検討事項・結論', '次回会議予定日', '最終更新']];
-      db.meetings.forEach(m => {
-        const staffLabel = (m.attendees || '').split(',').filter(Boolean).join('・');
-        (m.residentIds && m.residentIds.length ? m.residentIds : ['']).forEach(rid => {
-          const content = (m.perResident && m.perResident[rid] && m.perResident[rid].content) || '';
-          mtRows.push([m.id, m.date || '', m.kind || '', m.place || '', staffLabel, m.attendeesOther || '', rid ? residentNameOf(rid) : '', content, m.sharedContent || '', m.nextDate || '', m.updatedAt || '']);
-        });
-      });
-      addSheet('会議録(担当者会議)', mtRows);
-
-      // ⑤-3 リハビリ会議録（リハビリ計画書の改定履歴）
-      const rmRows = [['利用者名', '開催日', '開催場所', '出席者', '検討内容', '計画書の変更点', '次回評価予定日', '最終更新', '出席者(その他)']];
-      Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
-        (plan.history || []).forEach(h => {
-          const attendeesLabel = (h.attendees || '').split(',').filter(Boolean).join('・');
-          rmRows.push([residentNameOf(rid), h.date || '', h.place || '', attendeesLabel, h.content || '', h.changes || '', h.nextReviewDate || '', h.updatedAt || '', h.attendeesOther || '']);
-        });
-      });
-      addSheet('会議録(リハビリ会議)', rmRows);
-
-      // ⑥ スケジュール（予定）
-      const evRows = [['日付', '種別', 'タイトル', '時間', '出席者', 'メモ']];
-      Object.keys(db.scheduleEvents).sort().forEach(date => {
-        (db.scheduleEvents[date] || []).forEach(ev => {
-          evRows.push([date, EVENT_TYPE_LABELS[ev.type] || ev.type, ev.title, ev.time || '', (ev.attendees || '').split(',').filter(Boolean).join('、'), ev.memo || '']);
-        });
-      });
-      addSheet('スケジュール', evRows);
-
-      // ⑦ 出欠ステータス（休み・欠席・ショートステイ利用・入院中）
-      const dsRows = [['日付', '利用者名', 'ステータス']];
-      Object.keys(db.dayStatusOverrides).sort().forEach(date => {
-        Object.entries(db.dayStatusOverrides[date]).forEach(([rid, status]) => {
-          dsRows.push([date, residentNameOf(rid), status]);
-        });
-      });
-      addSheet('出欠ステータス', dsRows);
-
-      // ⑧ 臨時の通所追加・除外
-      const ovRows = [['日付', '利用者名', '種別']];
-      Object.keys(db.attendanceOverrides).sort().forEach(date => {
-        const ov = db.attendanceOverrides[date] || {};
-        (ov.add || []).forEach(rid => ovRows.push([date, residentNameOf(rid), '臨時追加']));
-        (ov.remove || []).forEach(rid => ovRows.push([date, residentNameOf(rid), '除外（休み等）']));
-      });
-      addSheet('通所の臨時変更', ovRows);
-
-      // ⑨ バイタル
-      const vRows = [['日付', '利用者名', '体温', '血圧上', '血圧下', '脈拍', 'SpO2', '体重']];
-      Object.keys(db.vitalsLog).sort().forEach(date => {
-        Object.entries(db.vitalsLog[date]).forEach(([rid, v]) => {
-          vRows.push([date, residentNameOf(rid), v.temp ?? '', v.bpSys ?? '', v.bpDia ?? '', v.pulse ?? '', v.spo2 ?? '', v.weight ?? '']);
-        });
-      });
-      addSheet('バイタル', vRows);
-
-      // ⑩ アセスメント（基本チェックリスト）
-      const asHeader = ['利用者名', '実施日', '身長', '体重', 'BMI', ...CHECKLIST_ITEMS.map(it => `Q${it.n}`), '生活機能全般', '運動機能', '低栄養', '口腔機能', '閉じこもり', '認知機能', 'うつ', '最終更新'];
-      const asRows = [asHeader];
-      Object.entries(db.assessments).forEach(([rid, a]) => {
-        asRows.push([
-          residentNameOf(rid), a.date || '', a.height || '', a.weight || '', a.result?.bmi || '',
-          ...CHECKLIST_ITEMS.map(it => a.answers?.[it.n] === 'yes' ? 'はい' : a.answers?.[it.n] === 'no' ? 'いいえ' : ''),
-          a.result?.overall?.flag ? '該当' : '', a.result?.motor?.flag ? '該当' : '', a.result?.nutrition?.flag ? '該当' : '',
-          a.result?.oral?.flag ? '該当' : '', a.result?.seclusion?.flag ? '該当' : '', a.result?.cognitive?.flag ? '該当' : '', a.result?.depression?.flag ? '該当' : '',
-          a.updatedAt || ''
-        ]);
-      });
-      addSheet('アセスメント', asRows);
-
-      // ⑪ 送迎表
-      const tpRows = [['日付', '順', '利用者名', '迎え時刻', '到着時刻（施設）', '送り時刻', '到着時刻（自宅）', '車両', '運転手', '備考', '送迎区分', '本日家族迎え', '本日家族送り', '迎え車両', '迎え運転手', '迎え添乗員', '送り車両', '送り運転手', '送り添乗員', '迎え個別設定', '送り個別設定']];
-      Object.keys(db.transportLog).sort().forEach(date => {
-        Object.entries(db.transportLog[date]).forEach(([rid, t]) => {
-          const r = db.residentDb.find(x => x.id === rid);
-          const typeLabel = r?.transportType === '家族送迎' ? '家族送迎' : '事業所';
-          tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '', typeLabel, t.familyPickupToday ? 'はい' : '', t.familyDropoffToday ? 'はい' : '',
-            t.pickupVehicle ?? t.vehicle ?? '', t.pickupDriver ?? t.driver ?? '', t.pickupAttendant || '', t.dropoffVehicle ?? t.vehicle ?? '', t.dropoffDriver ?? t.driver ?? '', t.dropoffAttendant || '', t.pickupIndividual ? 'はい' : '', t.dropoffIndividual ? 'はい' : '']);
-        });
-      });
-      addSheet('送迎表', tpRows);
-
-
-      // ⑫ モニタリング
-      const moRows = [['種別', '対象月', '利用者名', '内容', '最終更新']];
-      Object.entries(db.rehabMonitoring).forEach(([rid, months]) => {
-        Object.entries(months).forEach(([ym, m]) => moRows.push(['リハビリ', ym, residentNameOf(rid), m.text || '', m.updatedAt || '']));
-      });
-      Object.entries(db.careMonitoring).forEach(([rid, months]) => {
-        Object.entries(months).forEach(([ym, m]) => moRows.push(['介護', ym, residentNameOf(rid), m.text || '', m.updatedAt || '']));
-      });
-      addSheet('モニタリング', moRows);
-
-      // ⑬ 業務日誌
-      const dlRows = [['日付', '曜日', '天候', '気温', '出勤職員', '利用予定人数', '利用実績人数', '実施状況サマリー', '予定・行事', 'ヒヤリハット・事故', '事故内容', 'その他特記事項', '管理者確認', '最終更新']];
-      Object.keys(db.dailyLog).sort().forEach(date => {
-        const log = db.dailyLog[date];
-        dlRows.push([date, weekdayLabelOf(date), log.weather || '', log.temp || '', (log.staff || '').split(',').filter(Boolean).join('、'),
-          log.plannedCount ?? '', log.actualCount ?? '', log.summaryNote || '', log.eventsNote || '', log.incidentFlag || '', log.incidentNote || '', log.generalNote || '', log.managerConfirm || '', log.updatedAt || '']);
-      });
-      addSheet('業務日誌', dlRows);
-
-      // ⑭ 利用時間・入浴状況
-      // ※「区分(手動確定)」「リハビリ(手動確定)」「食事(手動確定)」列は後から追加した項目のため、既存の並び順を崩さないよう末尾に追加している
-      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考', '区分(手動確定)', 'リハビリ(手動確定)', '食事(手動確定)']];
-      Object.keys(db.usageLog).sort().forEach(date => {
-        Object.entries(db.usageLog[date]).forEach(([rid, u]) => {
-          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '', u.durationCategory || '', u.rehabDone || '', u.mealDone || '']);
-        });
-      });
-      addSheet('利用時間・入浴状況', usRows);
-
-      // ⑭b 食事摂取量（主食・副食）
-      const miRows = [['日付', '利用者名', '主食', '副食']];
-      Object.keys(db.mealIntakeLog || {}).sort().forEach(date => {
-        Object.entries(db.mealIntakeLog[date]).forEach(([rid, m]) => {
-          miRows.push([date, residentNameOf(rid), m.main || '', m.side || '']);
-        });
-      });
-      addSheet('食事摂取量', miRows);
-
-      // ⑭c 連絡帳チェック項目（体調・気分・水分・入浴・排泄・レク・訓練・安全・服薬の選択と特記事項）
-      // ※「活動」列は後から追加した項目のため、既存の並び順を崩さないよう末尾（特記事項の後）に追加している
-      const ciRows = [['日付', '利用者名', ...RC_CHECKLOG_GROUPS.map(g => RC_CHECK_GROUP_LABELS[g] || g), '特記事項', '活動']];
-      Object.keys(db.checkItemsLog || {}).sort().forEach(date => {
-        Object.entries(db.checkItemsLog[date]).forEach(([rid, entry]) => {
-          const chips = entry.chips || {};
-          ciRows.push([date, residentNameOf(rid), ...RC_CHECKLOG_GROUPS.map(g => chips[g] || ''), entry.notes || '', chips.activity || '']);
-        });
-      });
-      addSheet('連絡帳チェック項目', ciRows);
-
-      // ⑭d 提供表（予定）
+      // 5. d 提供表（予定）
       const tyPlanRows = [['年月', '利用者名', '日', '値']];
       Object.keys(db.teikyohyoPlan || {}).sort().forEach(ymk => {
         Object.entries(db.teikyohyoPlan[ymk]).forEach(([rid, days]) => {
@@ -5564,7 +5420,7 @@
       });
       addSheet('提供表(予定)', tyPlanRows);
 
-      // ⑭e 提供表（実績）
+      // 6. e 提供表（実績）
       const tyActualRows = [['年月', '利用者名', '日', '値']];
       Object.keys(db.teikyohyoActual || {}).sort().forEach(ymk => {
         Object.entries(db.teikyohyoActual[ymk]).forEach(([rid, days]) => {
@@ -5575,7 +5431,7 @@
       });
       addSheet('提供表(実績)', tyActualRows);
 
-      // ⑭f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
+      // 7. f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
       const tySettingRows = [['年月', '確定', '確定日時']];
       Object.keys(db.teikyohyoConfirmed || {}).sort().forEach(ymk => {
         if (db.teikyohyoConfirmed[ymk]) {
@@ -5600,43 +5456,188 @@
       });
       addSheet('提供表_書類読込済', tyDocRows);
 
-      // ⑮ 勤務表（予定：4週28日パターン、午前・午後）
-      const shiftStaffForExport = [
-        ...(db.rehabStaffList || []).map(n => ({ name: n, group: 'リハビリ' })),
-        ...(db.nurseStaffList || []).map(n => ({ name: n, group: '看護' })),
-        ...(db.careStaffList || []).map(n => ({ name: n, group: '介護' })),
-        ...(db.otherStaffList || []).map(n => ({ name: n, group: 'その他' })),
-      ];
-      const shiftRows = [['スタッフ名', '職種', '時間帯', ...Array.from({ length: 28 }, (_, i) => `Day${i + 1}`)]];
-      shiftStaffForExport.forEach(s => {
-        const rawPattern = (db.shiftPattern && db.shiftPattern[s.name]) || {};
-        // 旧形式（配列）と新形式（{am,pm}オブジェクト）の両方に対応
-        const pattern = Array.isArray(rawPattern)
-          ? { am: Array(28).fill('work'), pm: rawPattern }
-          : { am: rawPattern.am || Array(28).fill('work'), pm: rawPattern.pm || Array(28).fill('work') };
-        const amCells = Array.from({ length: 28 }, (_, i) => shiftCodeLabel(pattern.am[i] || 'work'));
-        const pmCells = Array.from({ length: 28 }, (_, i) => shiftCodeLabel(pattern.pm[i] || 'work'));
-        shiftRows.push([s.name, s.group, '午前', ...amCells]);
-        shiftRows.push(['', '', '午後', ...pmCells]);
-      });
-      addSheet('勤務表（予定）', shiftRows);
-
-      // ⑮b 勤務表（実績：予定から変更があった日のみ、午前・午後）
-      const shiftActualRows = [['日付', 'スタッフ名', '時間帯', '実績']];
-      Object.keys(db.shiftActual || {}).sort().forEach(date => {
-        Object.entries(db.shiftActual[date]).forEach(([name, data]) => {
-          // 旧形式（文字列）と新形式（{am,pm}オブジェクト）の両方に対応
-          if (typeof data === 'string') {
-            shiftActualRows.push([date, name, '午後', shiftCodeLabel(data)]);
-          } else {
-            if (data.am) shiftActualRows.push([date, name, '午前', shiftCodeLabel(data.am)]);
-            if (data.pm) shiftActualRows.push([date, name, '午後', shiftCodeLabel(data.pm)]);
-          }
+      // 8. スケジュール（予定）
+      const evRows = [['日付', '種別', 'タイトル', '時間', '出席者', 'メモ']];
+      Object.keys(db.scheduleEvents).sort().forEach(date => {
+        (db.scheduleEvents[date] || []).forEach(ev => {
+          evRows.push([date, EVENT_TYPE_LABELS[ev.type] || ev.type, ev.title, ev.time || '', (ev.attendees || '').split(',').filter(Boolean).join('、'), ev.memo || '']);
         });
       });
-      addSheet('勤務表（実績）', shiftActualRows);
+      addSheet('スケジュール', evRows);
 
-      // ⑯ 設定・マスタ情報
+      // 9. 出欠ステータス（休み・欠席・ショートステイ利用・入院中）
+      const dsRows = [['日付', '利用者名', 'ステータス']];
+      Object.keys(db.dayStatusOverrides).sort().forEach(date => {
+        Object.entries(db.dayStatusOverrides[date]).forEach(([rid, status]) => {
+          dsRows.push([date, residentNameOf(rid), status]);
+        });
+      });
+      addSheet('出欠ステータス', dsRows);
+
+      // 10. 臨時の通所追加・除外
+      const ovRows = [['日付', '利用者名', '種別']];
+      Object.keys(db.attendanceOverrides).sort().forEach(date => {
+        const ov = db.attendanceOverrides[date] || {};
+        (ov.add || []).forEach(rid => ovRows.push([date, residentNameOf(rid), '臨時追加']));
+        (ov.remove || []).forEach(rid => ovRows.push([date, residentNameOf(rid), '除外（休み等）']));
+      });
+      addSheet('通所の臨時変更', ovRows);
+
+      // 11. 送迎表
+      const tpRows = [['日付', '順', '利用者名', '迎え時刻', '到着時刻（施設）', '送り時刻', '到着時刻（自宅）', '車両', '運転手', '備考', '送迎区分', '本日家族迎え', '本日家族送り', '迎え車両', '迎え運転手', '迎え添乗員', '送り車両', '送り運転手', '送り添乗員', '迎え個別設定', '送り個別設定']];
+      Object.keys(db.transportLog).sort().forEach(date => {
+        Object.entries(db.transportLog[date]).forEach(([rid, t]) => {
+          const r = db.residentDb.find(x => x.id === rid);
+          const typeLabel = r?.transportType === '家族送迎' ? '家族送迎' : '事業所';
+          tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '', typeLabel, t.familyPickupToday ? 'はい' : '', t.familyDropoffToday ? 'はい' : '',
+            t.pickupVehicle ?? t.vehicle ?? '', t.pickupDriver ?? t.driver ?? '', t.pickupAttendant || '', t.dropoffVehicle ?? t.vehicle ?? '', t.dropoffDriver ?? t.driver ?? '', t.dropoffAttendant || '', t.pickupIndividual ? 'はい' : '', t.dropoffIndividual ? 'はい' : '']);
+        });
+      });
+      addSheet('送迎表', tpRows);
+
+
+      // 12. 連絡帳
+      const rcRows = [['日付', '利用者名', '記録者', '記録文']];
+      Object.keys(db.renrakuchoLog).sort().forEach(date => {
+        Object.entries(db.renrakuchoLog[date]).forEach(([rid, text]) => {
+          const staff = (db.renrakuchoStaffLog[date] && db.renrakuchoStaffLog[date][rid]) || '';
+          rcRows.push([date, residentNameOf(rid), staff, text]);
+        });
+      });
+      addSheet('連絡帳', rcRows);
+
+      // 13. c 連絡帳チェック項目（体調・気分・水分・入浴・排泄・レク・訓練・安全・服薬の選択と特記事項）
+      // ※「活動」列は後から追加した項目のため、既存の並び順を崩さないよう末尾（特記事項の後）に追加している
+      const ciRows = [['日付', '利用者名', ...RC_CHECKLOG_GROUPS.map(g => RC_CHECK_GROUP_LABELS[g] || g), '特記事項', '活動']];
+      Object.keys(db.checkItemsLog || {}).sort().forEach(date => {
+        Object.entries(db.checkItemsLog[date]).forEach(([rid, entry]) => {
+          const chips = entry.chips || {};
+          ciRows.push([date, residentNameOf(rid), ...RC_CHECKLOG_GROUPS.map(g => chips[g] || ''), entry.notes || '', chips.activity || '']);
+        });
+      });
+      addSheet('連絡帳チェック項目', ciRows);
+
+      // 14. 経過記録
+      const krRows = [['日付', '利用者名', '経過記録文']];
+      Object.keys(db.keirokaLog).sort().forEach(date => {
+        Object.entries(db.keirokaLog[date]).forEach(([rid, text]) => {
+          krRows.push([date, residentNameOf(rid), text]);
+        });
+      });
+      addSheet('経過記録', krRows);
+
+      // 15. バイタル
+      const vRows = [['日付', '利用者名', '体温', '血圧上', '血圧下', '脈拍', 'SpO2', '体重']];
+      Object.keys(db.vitalsLog).sort().forEach(date => {
+        Object.entries(db.vitalsLog[date]).forEach(([rid, v]) => {
+          vRows.push([date, residentNameOf(rid), v.temp ?? '', v.bpSys ?? '', v.bpDia ?? '', v.pulse ?? '', v.spo2 ?? '', v.weight ?? '']);
+        });
+      });
+      addSheet('バイタル', vRows);
+
+      // 16. b 食事摂取量（主食・副食）
+      const miRows = [['日付', '利用者名', '主食', '副食']];
+      Object.keys(db.mealIntakeLog || {}).sort().forEach(date => {
+        Object.entries(db.mealIntakeLog[date]).forEach(([rid, m]) => {
+          miRows.push([date, residentNameOf(rid), m.main || '', m.side || '']);
+        });
+      });
+      addSheet('食事摂取量', miRows);
+
+      // 17. リハビリ記録
+      const rrRows = [['日付', '利用者名', '開始時刻', '終了時刻', '実施者', '実施内容', '内容補足', '体調', '反応・様子', '特記事項', '最終更新']];
+      Object.keys(db.rehabRecordLog).sort().forEach(date => {
+        Object.entries(db.rehabRecordLog[date]).forEach(([rid, rec]) => {
+          rrRows.push([date, residentNameOf(rid), rec.startTime || '', computeEndTime(rec.startTime, rec.durationMin) || '',
+            rec.staff || '', rec.content || '', rec.contentOther || '', rec.condition || '', rec.reaction || '', rec.notes || '', rec.updatedAt || '']);
+        });
+      });
+      addSheet('リハビリ記録', rrRows);
+
+      // 18. 業務日誌
+      const dlRows = [['日付', '曜日', '天候', '気温', '出勤職員', '利用予定人数', '利用実績人数', '実施状況サマリー', '予定・行事', 'ヒヤリハット・事故', '事故内容', 'その他特記事項', '管理者確認', '最終更新']];
+      Object.keys(db.dailyLog).sort().forEach(date => {
+        const log = db.dailyLog[date];
+        dlRows.push([date, weekdayLabelOf(date), log.weather || '', log.temp || '', (log.staff || '').split(',').filter(Boolean).join('、'),
+          log.plannedCount ?? '', log.actualCount ?? '', log.summaryNote || '', log.eventsNote || '', log.incidentFlag || '', log.incidentNote || '', log.generalNote || '', log.managerConfirm || '', log.updatedAt || '']);
+      });
+      addSheet('業務日誌', dlRows);
+
+      // 19. 利用時間・入浴状況
+      // ※「区分(手動確定)」「リハビリ(手動確定)」「食事(手動確定)」列は後から追加した項目のため、既存の並び順を崩さないよう末尾に追加している
+      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考', '区分(手動確定)', 'リハビリ(手動確定)', '食事(手動確定)']];
+      Object.keys(db.usageLog).sort().forEach(date => {
+        Object.entries(db.usageLog[date]).forEach(([rid, u]) => {
+          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '', u.durationCategory || '', u.rehabDone || '', u.mealDone || '']);
+        });
+      });
+      addSheet('利用時間・入浴状況', usRows);
+
+      // 20. リハビリ計画書
+      // 末尾の3列（*データ(JSON)）は復元用の完全データ（表示列は目視確認用で、復元には使用しない）
+      const rpHeader = ['利用者名', ...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS, '心身機能構造', '基本動作', 'ADL', '最終更新', '心身機能構造データ(JSON)', '基本動作データ(JSON)', 'ADLデータ(JSON)'];
+      const rpRows = [rpHeader];
+      Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
+        const mb = (plan.mindBody || []).map((d, i) => `${MIND_BODY_ITEMS[i]}:${[d.status, d.impact, d.note].filter(Boolean).join('/')}`).join('；');
+        const bm = (plan.basicMotion || []).map((d, i) => `${BASIC_MOTION_ITEMS[i]}:${[d.start, d.now, d.note].filter(Boolean).join('/')}`).join('；');
+        const adl = (plan.adl || []).map((d, i) => `${ADL_ITEMS[i]}:${[d.start, d.now, d.note].filter(Boolean).join('/')}`).join('；');
+        rpRows.push([
+          residentNameOf(rid),
+          ...RP_TEXT_FIELDS.map(f => plan[f] || ''),
+          ...RP_DATE_FIELDS.map(f => plan[f] || ''),
+          ...RP_CHIP_FIELDS.map(f => plan[f] || ''),
+          mb, bm, adl, plan.updatedAt || '',
+          JSON.stringify(plan.mindBody || []), JSON.stringify(plan.basicMotion || []), JSON.stringify(plan.adl || [])
+        ]);
+      });
+      addSheet('リハビリ計画書', rpRows);
+
+      // 21. 会議録（担当者会議）：会議×対象利用者ごとに1行
+      const mtRows = [['会議ID', '日付', '種別', '開催場所', '出席者（スタッフ）', '出席者（その他）', '利用者名', '個別の検討内容', '会議全体の検討事項・結論', '次回会議予定日', '最終更新']];
+      db.meetings.forEach(m => {
+        const staffLabel = (m.attendees || '').split(',').filter(Boolean).join('・');
+        (m.residentIds && m.residentIds.length ? m.residentIds : ['']).forEach(rid => {
+          const content = (m.perResident && m.perResident[rid] && m.perResident[rid].content) || '';
+          mtRows.push([m.id, m.date || '', m.kind || '', m.place || '', staffLabel, m.attendeesOther || '', rid ? residentNameOf(rid) : '', content, m.sharedContent || '', m.nextDate || '', m.updatedAt || '']);
+        });
+      });
+      addSheet('会議録(担当者会議)', mtRows);
+
+      // 22. リハビリ会議録（リハビリ計画書の改定履歴）
+      const rmRows = [['利用者名', '開催日', '開催場所', '出席者', '検討内容', '計画書の変更点', '次回評価予定日', '最終更新', '出席者(その他)']];
+      Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
+        (plan.history || []).forEach(h => {
+          const attendeesLabel = (h.attendees || '').split(',').filter(Boolean).join('・');
+          rmRows.push([residentNameOf(rid), h.date || '', h.place || '', attendeesLabel, h.content || '', h.changes || '', h.nextReviewDate || '', h.updatedAt || '', h.attendeesOther || '']);
+        });
+      });
+      addSheet('会議録(リハビリ会議)', rmRows);
+
+      // 23. アセスメント（基本チェックリスト）
+      const asHeader = ['利用者名', '実施日', '身長', '体重', 'BMI', ...CHECKLIST_ITEMS.map(it => `Q${it.n}`), '生活機能全般', '運動機能', '低栄養', '口腔機能', '閉じこもり', '認知機能', 'うつ', '最終更新'];
+      const asRows = [asHeader];
+      Object.entries(db.assessments).forEach(([rid, a]) => {
+        asRows.push([
+          residentNameOf(rid), a.date || '', a.height || '', a.weight || '', a.result?.bmi || '',
+          ...CHECKLIST_ITEMS.map(it => a.answers?.[it.n] === 'yes' ? 'はい' : a.answers?.[it.n] === 'no' ? 'いいえ' : ''),
+          a.result?.overall?.flag ? '該当' : '', a.result?.motor?.flag ? '該当' : '', a.result?.nutrition?.flag ? '該当' : '',
+          a.result?.oral?.flag ? '該当' : '', a.result?.seclusion?.flag ? '該当' : '', a.result?.cognitive?.flag ? '該当' : '', a.result?.depression?.flag ? '該当' : '',
+          a.updatedAt || ''
+        ]);
+      });
+      addSheet('アセスメント', asRows);
+
+      // 24. モニタリング
+      const moRows = [['種別', '対象月', '利用者名', '内容', '最終更新']];
+      Object.entries(db.rehabMonitoring).forEach(([rid, months]) => {
+        Object.entries(months).forEach(([ym, m]) => moRows.push(['リハビリ', ym, residentNameOf(rid), m.text || '', m.updatedAt || '']));
+      });
+      Object.entries(db.careMonitoring).forEach(([rid, months]) => {
+        Object.entries(months).forEach(([ym, m]) => moRows.push(['介護', ym, residentNameOf(rid), m.text || '', m.updatedAt || '']));
+      });
+      addSheet('モニタリング', moRows);
+
+      // 25. 設定・マスタ情報
       const setRows = [
         ['項目', '内容'],
         ['施設名', db.facility || ''],
@@ -5767,7 +5768,7 @@
         meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: []
       };
 
-      // ① 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
+      // 1. 利用者DB（IDを新規採番し、氏名→ID対応表を作る）
       const nameToId = {};
       getSheetRows(wb, '利用者DB').forEach((row, idx) => {
         const id = 'r_' + Date.now() + '_' + idx;
@@ -5785,247 +5786,7 @@
       });
       const findId = (name) => nameToId[name];
 
-      // ② 連絡帳（旧バックアップの「記録」シートも読み込み可）
-      getSheetRows(wb, ['連絡帳', '記録']).forEach(([date, name, staff, text]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.renrakuchoLog[date]) newDb.renrakuchoLog[date] = {};
-        newDb.renrakuchoLog[date][id] = text || '';
-        if (staff) {
-          if (!newDb.renrakuchoStaffLog[date]) newDb.renrakuchoStaffLog[date] = {};
-          newDb.renrakuchoStaffLog[date][id] = staff;
-        }
-      });
-
-      // ③ 経過記録
-      getSheetRows(wb, '経過記録').forEach(([date, name, text]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.keirokaLog[date]) newDb.keirokaLog[date] = {};
-        newDb.keirokaLog[date][id] = text || '';
-      });
-
-      // ④ リハビリ記録
-      getSheetRows(wb, 'リハビリ記録').forEach(([date, name, startTime, endTime, staff, content, contentOther, condition, reaction, notes, updatedAt]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.rehabRecordLog[date]) newDb.rehabRecordLog[date] = {};
-        let durationMin = 20;
-        if (startTime && endTime) {
-          const [sh, sm] = String(startTime).split(':').map(Number);
-          const [eh, em] = String(endTime).split(':').map(Number);
-          const diff = (eh * 60 + em) - (sh * 60 + sm);
-          if (diff > 0) durationMin = diff;
-        }
-        newDb.rehabRecordLog[date][id] = {
-          startTime: startTime || '', durationMin, staff: staff || '',
-          content: content || '', contentOther: contentOther || '', condition: condition || '',
-          reaction: reaction || '', notes: notes || '', updatedAt: updatedAt || ''
-        };
-      });
-
-      // ⑤ リハビリ計画書（本文項目に加え、末尾のJSON列から心身機能・基本動作・ADLの評価表も復元）
-      const rpFlatFields = [...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS];
-      const parseAssessJson = (val, fallback) => { try { const p = JSON.parse(val); return Array.isArray(p) ? p : fallback; } catch (e) { return fallback; } };
-      getSheetRows(wb, 'リハビリ計画書').forEach(row => {
-        const name = row[0];
-        const id = findId(name); if (!id) return;
-        const plan = {};
-        rpFlatFields.forEach((f, i) => { plan[f] = row[i + 1] || ''; });
-        const base = 1 + rpFlatFields.length; // base=心身機能構造(表示), base+1=基本動作(表示), base+2=ADL(表示), base+3=最終更新
-        plan.updatedAt = row[base + 3] || '';
-        plan.mindBody = parseAssessJson(row[base + 4], []);
-        plan.basicMotion = parseAssessJson(row[base + 5], []);
-        plan.adl = parseAssessJson(row[base + 6], []);
-        newDb.rehabPlans[id] = plan;
-      });
-
-      // ⑤-2 会議録（担当者会議）：同じ会議IDの行をまとめて1件の会議録に復元
-      const mtGroups = {};
-      getSheetRows(wb, '会議録(担当者会議)').forEach(([mid, date, kind, place, staffLabel, attendeesOther, name, content, sharedContent, nextDate, updatedAt]) => {
-        if (!mid || !date) return;
-        if (!mtGroups[mid]) {
-          mtGroups[mid] = {
-            id: String(mid), date, kind: kind || '', place: place || '',
-            attendees: (staffLabel || '').split('・').filter(Boolean).join(','),
-            attendeesOther: attendeesOther || '', residentIds: [], perResident: {},
-            sharedContent: sharedContent || '', nextDate: nextDate || '', updatedAt: updatedAt || ''
-          };
-        }
-        const rid = findId(name);
-        if (rid) {
-          mtGroups[mid].residentIds.push(rid);
-          mtGroups[mid].perResident[rid] = { bullets: '', content: content || '' };
-        }
-      });
-      newDb.meetings = Object.values(mtGroups);
-
-      // ⑤-3 リハビリ会議録（リハビリ計画書の改定履歴として復元）
-      getSheetRows(wb, '会議録(リハビリ会議)').forEach(([name, date, place, attendeesLabel, content, changes, nextReviewDate, updatedAt, attendeesOther]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.rehabPlans[id]) newDb.rehabPlans[id] = {};
-        if (!newDb.rehabPlans[id].history) newDb.rehabPlans[id].history = [];
-        newDb.rehabPlans[id].history.push({
-          id: 'rm_' + Date.now() + Math.random(),
-          date, place: place || '',
-          attendees: (attendeesLabel || '').split('・').filter(Boolean).join(','),
-          attendeesOther: attendeesOther || '',
-          bullets: '', content: content || '', changes: changes || '',
-          nextReviewDate: nextReviewDate || '', updatedAt: updatedAt || ''
-        });
-      });
-
-      // ⑥ スケジュール
-      const reverseEventType = {};
-      Object.entries(EVENT_TYPE_LABELS).forEach(([k, v]) => reverseEventType[v] = k);
-      getSheetRows(wb, 'スケジュール').forEach(([date, typeLabel, title, time, attendees, memo]) => {
-        if (!date || !title) return;
-        if (!newDb.scheduleEvents[date]) newDb.scheduleEvents[date] = [];
-        newDb.scheduleEvents[date].push({ id: 'ev_' + Date.now() + Math.random(), type: reverseEventType[typeLabel] || 'other', title, time: time || '', attendees: (attendees || '').split('、').filter(Boolean).join(','), memo: memo || '' });
-      });
-
-      // ⑦ 出欠ステータス
-      getSheetRows(wb, '出欠ステータス').forEach(([date, name, status]) => {
-        const id = findId(name); if (!id || !date || !status) return;
-        if (!newDb.dayStatusOverrides[date]) newDb.dayStatusOverrides[date] = {};
-        newDb.dayStatusOverrides[date][id] = status;
-      });
-
-      // ⑧ 通所の臨時変更
-      getSheetRows(wb, '通所の臨時変更').forEach(([date, name, kind]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.attendanceOverrides[date]) newDb.attendanceOverrides[date] = { add: [], remove: [] };
-        if (kind === '臨時追加') newDb.attendanceOverrides[date].add.push(id);
-        else newDb.attendanceOverrides[date].remove.push(id);
-      });
-
-      // ⑨ バイタル
-      getSheetRows(wb, 'バイタル').forEach(([date, name, temp, bpSys, bpDia, pulse, spo2, weight]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.vitalsLog[date]) newDb.vitalsLog[date] = {};
-        newDb.vitalsLog[date][id] = { temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia), pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight) };
-      });
-
-      // ⑩ アセスメント
-      getSheetRows(wb, 'アセスメント').forEach(row => {
-        const [name, date, height, weight, bmi] = row;
-        const id = findId(name); if (!id) return;
-        const answers = {};
-        CHECKLIST_ITEMS.forEach((it, i) => {
-          const v = row[5 + i];
-          answers[it.n] = v === 'はい' ? 'yes' : v === 'いいえ' ? 'no' : '';
-        });
-        const flagsStart = 5 + CHECKLIST_ITEMS.length;
-        const isRisk = n => { const it = CHECKLIST_ITEMS.find(x => x.n === n); return it && answers[n] === it.riskAnswer; };
-        const countRisk = nums => nums.filter(isRisk).length;
-        const bmiRisk = bmi !== '' && parseFloat(bmi) < 18.5;
-        const range1to20 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20];
-        newDb.assessments[id] = {
-          date: date || '', height: height || '', weight: weight || '', answers,
-          result: {
-            bmi: bmi || '',
-            overall: { flag: countRisk(range1to20) + (bmiRisk ? 1 : 0) >= 10, count: countRisk(range1to20) + (bmiRisk ? 1 : 0), total: 20 },
-            motor: { flag: countRisk([6, 7, 8, 9, 10]) >= 3, count: countRisk([6, 7, 8, 9, 10]), total: 5 },
-            nutrition: { flag: isRisk(11) && bmiRisk },
-            oral: { flag: countRisk([13, 14, 15]) >= 2, count: countRisk([13, 14, 15]), total: 3 },
-            seclusion: { flag: isRisk(16) },
-            cognitive: { flag: countRisk([18, 19, 20]) >= 1, count: countRisk([18, 19, 20]), total: 3 },
-            depression: { flag: countRisk([21, 22, 23, 24, 25]) >= 2, count: countRisk([21, 22, 23, 24, 25]), total: 5 },
-          },
-          updatedAt: row[flagsStart + 7] || ''
-        };
-      });
-
-      // ⑪ 送迎表
-      getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note, typeLabel, familyToday, familyDropoffToday, pickupVehicle, pickupDriver, pickupAttendant, dropoffVehicle, dropoffDriver, dropoffAttendant, pickupIndividual, dropoffIndividual]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.transportLog[date]) newDb.transportLog[date] = {};
-        newDb.transportLog[date][id] = {
-          order: order || '', pickupTime: pickupTime || '', facilityArrivalTime: facilityArrivalTime || '', dropoffTime: dropoffTime || '', homeArrivalTime: homeArrivalTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '', familyPickupToday: familyToday === 'はい', familyDropoffToday: familyDropoffToday === 'はい',
-          pickupVehicle: pickupVehicle || '', pickupDriver: pickupDriver || '', pickupAttendant: pickupAttendant || '', dropoffVehicle: dropoffVehicle || '', dropoffDriver: dropoffDriver || '', dropoffAttendant: dropoffAttendant || '',
-          pickupIndividual: pickupIndividual === 'はい', dropoffIndividual: dropoffIndividual === 'はい'
-        };
-      });
-
-      // ⑫ モニタリング
-      getSheetRows(wb, 'モニタリング').forEach(([kind, ym, name, text, updatedAt]) => {
-        const id = findId(name); if (!id || !ym) return;
-        const store = kind === 'リハビリ' ? newDb.rehabMonitoring : newDb.careMonitoring;
-        if (!store[id]) store[id] = {};
-        store[id][ym] = { text: text || '', updatedAt: updatedAt || '' };
-      });
-
-      // ⑬ 業務日誌
-      getSheetRows(wb, '業務日誌').forEach(([date, , weather, temp, staffNames, plannedCount, actualCount, summaryNote, eventsNote, incidentFlag, incidentNote, generalNote, managerConfirm, updatedAt]) => {
-        if (!date) return;
-        newDb.dailyLog[date] = {
-          weather: weather || '', temp: temp || '', staff: (staffNames || '').split('、').filter(Boolean).join(','),
-          plannedCount: plannedCount || '', actualCount: actualCount || '', summaryNote: summaryNote || '', eventsNote: eventsNote || '',
-          incidentFlag: incidentFlag || '', incidentNote: incidentNote || '', generalNote: generalNote || '',
-          managerConfirm: managerConfirm || '', updatedAt: updatedAt || ''
-        };
-      });
-
-      // ⑭ 利用時間・入浴状況（「区分/リハビリ/食事(手動確定)」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ未設定のまま＝自動計算に任せる）
-      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note, durationCategory, rehabDone, mealDone]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.usageLog[date]) newDb.usageLog[date] = {};
-        const entry = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
-        if (durationCategory) entry.durationCategory = durationCategory;
-        if (rehabDone) entry.rehabDone = rehabDone;
-        if (mealDone) entry.mealDone = mealDone;
-        newDb.usageLog[date][id] = entry;
-      });
-
-      // ⑭b 食事摂取量（主食・副食）
-      getSheetRows(wb, '食事摂取量').forEach(([date, name, main, side]) => {
-        const id = findId(name); if (!id || !date) return;
-        if (!newDb.mealIntakeLog[date]) newDb.mealIntakeLog[date] = {};
-        newDb.mealIntakeLog[date][id] = { main: main || '', side: side || '' };
-      });
-
-      // ⑭c 連絡帳チェック項目（「活動」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ単に未設定のまま）
-      getSheetRows(wb, '連絡帳チェック項目').forEach(row => {
-        const [date, name, ...rest] = row;
-        const id = findId(name); if (!id || !date) return;
-        const notes = rest[RC_CHECKLOG_GROUPS.length] || '';
-        const activityVal = rest[RC_CHECKLOG_GROUPS.length + 1] || '';
-        const chips = {};
-        RC_CHECKLOG_GROUPS.forEach((g, i) => { if (rest[i]) chips[g] = rest[i]; });
-        if (activityVal) chips.activity = activityVal;
-        if (!newDb.checkItemsLog[date]) newDb.checkItemsLog[date] = {};
-        newDb.checkItemsLog[date][id] = { chips, notes };
-      });
-
-      // ⑭d/⑭e 提供表（予定・実績）
-      const fillTeikyohyo = (sheetName, store) => {
-        getSheetRows(wb, sheetName).forEach(([ymk, name, day, val]) => {
-          const id = findId(name); if (!id || !ymk || !day || !val) return;
-          if (!store[ymk]) store[ymk] = {};
-          if (!store[ymk][id]) store[ymk][id] = {};
-          store[ymk][id][day] = val;
-        });
-      };
-      fillTeikyohyo('提供表(予定)', newDb.teikyohyoPlan);
-      fillTeikyohyo('提供表(実績)', newDb.teikyohyoActual);
-
-      // ⑭f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
-      getSheetRows(wb, '提供表_確定状況').forEach(([ymk, confirmed, confirmedAt]) => {
-        if (!ymk) return;
-        if (confirmed === 'はい') {
-          newDb.teikyohyoConfirmed[ymk] = true;
-          newDb.teikyohyoConfirmedAt[ymk] = confirmedAt || '';
-        }
-      });
-      getSheetRows(wb, '提供表_入院中設定').forEach(([ymk, name]) => {
-        const id = findId(name); if (!id || !ymk) return;
-        if (!newDb.teikyohyoHospitalized[ymk]) newDb.teikyohyoHospitalized[ymk] = {};
-        newDb.teikyohyoHospitalized[ymk][id] = true;
-      });
-      getSheetRows(wb, '提供表_書類読込済').forEach(([ymk, name]) => {
-        const id = findId(name); if (!id || !ymk) return;
-        if (!newDb.teikyohyoDocLoaded[ymk]) newDb.teikyohyoDocLoaded[ymk] = {};
-        newDb.teikyohyoDocLoaded[ymk][id] = true;
-      });
-
-      // ①-2b 利用者DB 基本動作・ADL評価（現況）：JSON列から完全復元
+      // 2. 利用者DB 基本動作・ADL評価（現況）：JSON列から完全復元
       const dbAssessRows2 = getSheetRows(wb, '利用者DB評価(現況)');
       dbAssessRows2.forEach(row => {
         const name = row[0];
@@ -6041,32 +5802,7 @@
         } catch (e) { /* JSON解析に失敗した行は無視 */ }
       });
 
-      // ⑮ 設定情報
-      const settingsRows = getSheetRows(wb, '設定情報');
-      settingsRows.forEach(([key, val]) => {
-        if (key === '施設名') newDb.facility = val || '';
-        if (key === '記録の文体' || key === '連絡帳の文体') newDb.style = val || 'warm';
-        if (key === '営業曜日') newDb.businessDays = val || '月,火,水,木,金,土';
-        if (key === 'リハビリスタッフ') newDb.rehabStaffList = (val || '').split('、').filter(Boolean);
-        if (key === '看護スタッフ') newDb.nurseStaffList = (val || '').split('、').filter(Boolean);
-        if (key === '介護スタッフ') newDb.careStaffList = (val || '').split('、').filter(Boolean);
-        if (key === 'その他の職員') newDb.otherStaffList = (val || '').split('、').filter(Boolean);
-        if (key === '車両') newDb.vehicleList = (val || '').split('、').filter(Boolean);
-        if (key === 'リハビリ実施内容の選択肢') newDb.rehabContentList = (val || '').split('、').filter(Boolean);
-        if (key === '勤務表起点日' || key === '出勤表起点日') newDb.shiftCycleStart = val || '';
-        if (key === '勤務表予定確定') newDb.shiftPlanConfirmed = (val === 'はい');
-        if (key === '勤務表予定確定日時') newDb.shiftPlanConfirmedAt = val || '';
-        if (key === '連絡帳のカスタムプロンプト') newDb.customPromptRenrakucho = val || '';
-        if (key === 'リハビリ記録のカスタムプロンプト') newDb.customPromptRehabRecord = val || '';
-        if (key === 'モニタリングのカスタムプロンプト') newDb.customPromptMonitoring = val || '';
-        if (key === '会議録のカスタムプロンプト') newDb.customPromptMeeting = val || '';
-        if (key === 'リハビリ会議録のカスタムプロンプト') newDb.customPromptRehaMeeting = val || '';
-      });
-      if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
-        newDb.rehabContentList = ['関節可動域訓練', '筋力増強訓練', '歩行訓練', '立位・座位訓練', 'バランス訓練', 'ADL訓練', '嚥下訓練', '言語訓練', '巧緻動作訓練', 'レクリエーション訓練'];
-      }
-
-      // ⑯ 勤務表パターン（予定：午前・午後対応、旧形式もサポート）
+      // 3. 勤務表パターン（予定：午前・午後対応、旧形式もサポート）
       const SHIFT_LABEL_TO_CODE = { '出': 'work', '休': 'off', '有': '有', '記': '記', '2H有': '2H有', '1H有': '1H有', 'P': 'work', 'A': 'work', 'P有': '有', 'A有': '有' };
       const shiftPlanRows = getSheetRows(wb, ['勤務表（予定）', '出勤表']);
       // 新形式判定：3列目に「午前」「午後」があるかチェック
@@ -6096,7 +5832,7 @@
         });
       }
 
-      // ⑯b 勤務表（実績：午前・午後対応、旧形式もサポート）
+      // 4. b 勤務表（実績：午前・午後対応、旧形式もサポート）
       const shiftActualRows = getSheetRows(wb, '勤務表（実績）');
       const hasNewActualFormat = shiftActualRows.some(row => row[2] === '午前' || row[2] === '午後');
 
@@ -6120,6 +5856,271 @@
           if (!newDb.shiftActual[date]) newDb.shiftActual[date] = {};
           newDb.shiftActual[date][name] = { am: null, pm: code };
         });
+      }
+
+      // 5. d/⑭e 提供表（予定・実績）
+      const fillTeikyohyo = (sheetName, store) => {
+        getSheetRows(wb, sheetName).forEach(([ymk, name, day, val]) => {
+          const id = findId(name); if (!id || !ymk || !day || !val) return;
+          if (!store[ymk]) store[ymk] = {};
+          if (!store[ymk][id]) store[ymk][id] = {};
+          store[ymk][id][day] = val;
+        });
+      };
+      fillTeikyohyo('提供表(予定)', newDb.teikyohyoPlan);
+      fillTeikyohyo('提供表(実績)', newDb.teikyohyoActual);
+
+      // 6. f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
+      getSheetRows(wb, '提供表_確定状況').forEach(([ymk, confirmed, confirmedAt]) => {
+        if (!ymk) return;
+        if (confirmed === 'はい') {
+          newDb.teikyohyoConfirmed[ymk] = true;
+          newDb.teikyohyoConfirmedAt[ymk] = confirmedAt || '';
+        }
+      });
+      getSheetRows(wb, '提供表_入院中設定').forEach(([ymk, name]) => {
+        const id = findId(name); if (!id || !ymk) return;
+        if (!newDb.teikyohyoHospitalized[ymk]) newDb.teikyohyoHospitalized[ymk] = {};
+        newDb.teikyohyoHospitalized[ymk][id] = true;
+      });
+      getSheetRows(wb, '提供表_書類読込済').forEach(([ymk, name]) => {
+        const id = findId(name); if (!id || !ymk) return;
+        if (!newDb.teikyohyoDocLoaded[ymk]) newDb.teikyohyoDocLoaded[ymk] = {};
+        newDb.teikyohyoDocLoaded[ymk][id] = true;
+      });
+
+      // 7. スケジュール
+      const reverseEventType = {};
+      Object.entries(EVENT_TYPE_LABELS).forEach(([k, v]) => reverseEventType[v] = k);
+      getSheetRows(wb, 'スケジュール').forEach(([date, typeLabel, title, time, attendees, memo]) => {
+        if (!date || !title) return;
+        if (!newDb.scheduleEvents[date]) newDb.scheduleEvents[date] = [];
+        newDb.scheduleEvents[date].push({ id: 'ev_' + Date.now() + Math.random(), type: reverseEventType[typeLabel] || 'other', title, time: time || '', attendees: (attendees || '').split('、').filter(Boolean).join(','), memo: memo || '' });
+      });
+
+      // 8. 出欠ステータス
+      getSheetRows(wb, '出欠ステータス').forEach(([date, name, status]) => {
+        const id = findId(name); if (!id || !date || !status) return;
+        if (!newDb.dayStatusOverrides[date]) newDb.dayStatusOverrides[date] = {};
+        newDb.dayStatusOverrides[date][id] = status;
+      });
+
+      // 9. 通所の臨時変更
+      getSheetRows(wb, '通所の臨時変更').forEach(([date, name, kind]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.attendanceOverrides[date]) newDb.attendanceOverrides[date] = { add: [], remove: [] };
+        if (kind === '臨時追加') newDb.attendanceOverrides[date].add.push(id);
+        else newDb.attendanceOverrides[date].remove.push(id);
+      });
+
+      // 10. 送迎表
+      getSheetRows(wb, '送迎表').forEach(([date, order, name, pickupTime, facilityArrivalTime, dropoffTime, homeArrivalTime, vehicle, driver, note, typeLabel, familyToday, familyDropoffToday, pickupVehicle, pickupDriver, pickupAttendant, dropoffVehicle, dropoffDriver, dropoffAttendant, pickupIndividual, dropoffIndividual]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.transportLog[date]) newDb.transportLog[date] = {};
+        newDb.transportLog[date][id] = {
+          order: order || '', pickupTime: pickupTime || '', facilityArrivalTime: facilityArrivalTime || '', dropoffTime: dropoffTime || '', homeArrivalTime: homeArrivalTime || '', vehicle: vehicle || '', driver: driver || '', note: note || '', familyPickupToday: familyToday === 'はい', familyDropoffToday: familyDropoffToday === 'はい',
+          pickupVehicle: pickupVehicle || '', pickupDriver: pickupDriver || '', pickupAttendant: pickupAttendant || '', dropoffVehicle: dropoffVehicle || '', dropoffDriver: dropoffDriver || '', dropoffAttendant: dropoffAttendant || '',
+          pickupIndividual: pickupIndividual === 'はい', dropoffIndividual: dropoffIndividual === 'はい'
+        };
+      });
+
+      // 11. 連絡帳（旧バックアップの「記録」シートも読み込み可）
+      getSheetRows(wb, ['連絡帳', '記録']).forEach(([date, name, staff, text]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.renrakuchoLog[date]) newDb.renrakuchoLog[date] = {};
+        newDb.renrakuchoLog[date][id] = text || '';
+        if (staff) {
+          if (!newDb.renrakuchoStaffLog[date]) newDb.renrakuchoStaffLog[date] = {};
+          newDb.renrakuchoStaffLog[date][id] = staff;
+        }
+      });
+
+      // 12. c 連絡帳チェック項目（「活動」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ単に未設定のまま）
+      getSheetRows(wb, '連絡帳チェック項目').forEach(row => {
+        const [date, name, ...rest] = row;
+        const id = findId(name); if (!id || !date) return;
+        const notes = rest[RC_CHECKLOG_GROUPS.length] || '';
+        const activityVal = rest[RC_CHECKLOG_GROUPS.length + 1] || '';
+        const chips = {};
+        RC_CHECKLOG_GROUPS.forEach((g, i) => { if (rest[i]) chips[g] = rest[i]; });
+        if (activityVal) chips.activity = activityVal;
+        if (!newDb.checkItemsLog[date]) newDb.checkItemsLog[date] = {};
+        newDb.checkItemsLog[date][id] = { chips, notes };
+      });
+
+      // 13. 経過記録
+      getSheetRows(wb, '経過記録').forEach(([date, name, text]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.keirokaLog[date]) newDb.keirokaLog[date] = {};
+        newDb.keirokaLog[date][id] = text || '';
+      });
+
+      // 14. バイタル
+      getSheetRows(wb, 'バイタル').forEach(([date, name, temp, bpSys, bpDia, pulse, spo2, weight]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.vitalsLog[date]) newDb.vitalsLog[date] = {};
+        newDb.vitalsLog[date][id] = { temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia), pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight) };
+      });
+
+      // 15. b 食事摂取量（主食・副食）
+      getSheetRows(wb, '食事摂取量').forEach(([date, name, main, side]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.mealIntakeLog[date]) newDb.mealIntakeLog[date] = {};
+        newDb.mealIntakeLog[date][id] = { main: main || '', side: side || '' };
+      });
+
+      // 16. リハビリ記録
+      getSheetRows(wb, 'リハビリ記録').forEach(([date, name, startTime, endTime, staff, content, contentOther, condition, reaction, notes, updatedAt]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.rehabRecordLog[date]) newDb.rehabRecordLog[date] = {};
+        let durationMin = 20;
+        if (startTime && endTime) {
+          const [sh, sm] = String(startTime).split(':').map(Number);
+          const [eh, em] = String(endTime).split(':').map(Number);
+          const diff = (eh * 60 + em) - (sh * 60 + sm);
+          if (diff > 0) durationMin = diff;
+        }
+        newDb.rehabRecordLog[date][id] = {
+          startTime: startTime || '', durationMin, staff: staff || '',
+          content: content || '', contentOther: contentOther || '', condition: condition || '',
+          reaction: reaction || '', notes: notes || '', updatedAt: updatedAt || ''
+        };
+      });
+
+      // 17. 業務日誌
+      getSheetRows(wb, '業務日誌').forEach(([date, , weather, temp, staffNames, plannedCount, actualCount, summaryNote, eventsNote, incidentFlag, incidentNote, generalNote, managerConfirm, updatedAt]) => {
+        if (!date) return;
+        newDb.dailyLog[date] = {
+          weather: weather || '', temp: temp || '', staff: (staffNames || '').split('、').filter(Boolean).join(','),
+          plannedCount: plannedCount || '', actualCount: actualCount || '', summaryNote: summaryNote || '', eventsNote: eventsNote || '',
+          incidentFlag: incidentFlag || '', incidentNote: incidentNote || '', generalNote: generalNote || '',
+          managerConfirm: managerConfirm || '', updatedAt: updatedAt || ''
+        };
+      });
+
+      // 18. 利用時間・入浴状況（「区分/リハビリ/食事(手動確定)」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ未設定のまま＝自動計算に任せる）
+      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note, durationCategory, rehabDone, mealDone]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.usageLog[date]) newDb.usageLog[date] = {};
+        const entry = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
+        if (durationCategory) entry.durationCategory = durationCategory;
+        if (rehabDone) entry.rehabDone = rehabDone;
+        if (mealDone) entry.mealDone = mealDone;
+        newDb.usageLog[date][id] = entry;
+      });
+
+      // 19. リハビリ計画書（本文項目に加え、末尾のJSON列から心身機能・基本動作・ADLの評価表も復元）
+      const rpFlatFields = [...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS];
+      const parseAssessJson = (val, fallback) => { try { const p = JSON.parse(val); return Array.isArray(p) ? p : fallback; } catch (e) { return fallback; } };
+      getSheetRows(wb, 'リハビリ計画書').forEach(row => {
+        const name = row[0];
+        const id = findId(name); if (!id) return;
+        const plan = {};
+        rpFlatFields.forEach((f, i) => { plan[f] = row[i + 1] || ''; });
+        const base = 1 + rpFlatFields.length; // base=心身機能構造(表示), base+1=基本動作(表示), base+2=ADL(表示), base+3=最終更新
+        plan.updatedAt = row[base + 3] || '';
+        plan.mindBody = parseAssessJson(row[base + 4], []);
+        plan.basicMotion = parseAssessJson(row[base + 5], []);
+        plan.adl = parseAssessJson(row[base + 6], []);
+        newDb.rehabPlans[id] = plan;
+      });
+
+      // 20. 会議録（担当者会議）：同じ会議IDの行をまとめて1件の会議録に復元
+      const mtGroups = {};
+      getSheetRows(wb, '会議録(担当者会議)').forEach(([mid, date, kind, place, staffLabel, attendeesOther, name, content, sharedContent, nextDate, updatedAt]) => {
+        if (!mid || !date) return;
+        if (!mtGroups[mid]) {
+          mtGroups[mid] = {
+            id: String(mid), date, kind: kind || '', place: place || '',
+            attendees: (staffLabel || '').split('・').filter(Boolean).join(','),
+            attendeesOther: attendeesOther || '', residentIds: [], perResident: {},
+            sharedContent: sharedContent || '', nextDate: nextDate || '', updatedAt: updatedAt || ''
+          };
+        }
+        const rid = findId(name);
+        if (rid) {
+          mtGroups[mid].residentIds.push(rid);
+          mtGroups[mid].perResident[rid] = { bullets: '', content: content || '' };
+        }
+      });
+      newDb.meetings = Object.values(mtGroups);
+
+      // 21. リハビリ会議録（リハビリ計画書の改定履歴として復元）
+      getSheetRows(wb, '会議録(リハビリ会議)').forEach(([name, date, place, attendeesLabel, content, changes, nextReviewDate, updatedAt, attendeesOther]) => {
+        const id = findId(name); if (!id || !date) return;
+        if (!newDb.rehabPlans[id]) newDb.rehabPlans[id] = {};
+        if (!newDb.rehabPlans[id].history) newDb.rehabPlans[id].history = [];
+        newDb.rehabPlans[id].history.push({
+          id: 'rm_' + Date.now() + Math.random(),
+          date, place: place || '',
+          attendees: (attendeesLabel || '').split('・').filter(Boolean).join(','),
+          attendeesOther: attendeesOther || '',
+          bullets: '', content: content || '', changes: changes || '',
+          nextReviewDate: nextReviewDate || '', updatedAt: updatedAt || ''
+        });
+      });
+
+      // 22. アセスメント
+      getSheetRows(wb, 'アセスメント').forEach(row => {
+        const [name, date, height, weight, bmi] = row;
+        const id = findId(name); if (!id) return;
+        const answers = {};
+        CHECKLIST_ITEMS.forEach((it, i) => {
+          const v = row[5 + i];
+          answers[it.n] = v === 'はい' ? 'yes' : v === 'いいえ' ? 'no' : '';
+        });
+        const flagsStart = 5 + CHECKLIST_ITEMS.length;
+        const isRisk = n => { const it = CHECKLIST_ITEMS.find(x => x.n === n); return it && answers[n] === it.riskAnswer; };
+        const countRisk = nums => nums.filter(isRisk).length;
+        const bmiRisk = bmi !== '' && parseFloat(bmi) < 18.5;
+        const range1to20 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20];
+        newDb.assessments[id] = {
+          date: date || '', height: height || '', weight: weight || '', answers,
+          result: {
+            bmi: bmi || '',
+            overall: { flag: countRisk(range1to20) + (bmiRisk ? 1 : 0) >= 10, count: countRisk(range1to20) + (bmiRisk ? 1 : 0), total: 20 },
+            motor: { flag: countRisk([6, 7, 8, 9, 10]) >= 3, count: countRisk([6, 7, 8, 9, 10]), total: 5 },
+            nutrition: { flag: isRisk(11) && bmiRisk },
+            oral: { flag: countRisk([13, 14, 15]) >= 2, count: countRisk([13, 14, 15]), total: 3 },
+            seclusion: { flag: isRisk(16) },
+            cognitive: { flag: countRisk([18, 19, 20]) >= 1, count: countRisk([18, 19, 20]), total: 3 },
+            depression: { flag: countRisk([21, 22, 23, 24, 25]) >= 2, count: countRisk([21, 22, 23, 24, 25]), total: 5 },
+          },
+          updatedAt: row[flagsStart + 7] || ''
+        };
+      });
+
+      // 23. モニタリング
+      getSheetRows(wb, 'モニタリング').forEach(([kind, ym, name, text, updatedAt]) => {
+        const id = findId(name); if (!id || !ym) return;
+        const store = kind === 'リハビリ' ? newDb.rehabMonitoring : newDb.careMonitoring;
+        if (!store[id]) store[id] = {};
+        store[id][ym] = { text: text || '', updatedAt: updatedAt || '' };
+      });
+
+      // 24. 設定情報
+      const settingsRows = getSheetRows(wb, '設定情報');
+      settingsRows.forEach(([key, val]) => {
+        if (key === '施設名') newDb.facility = val || '';
+        if (key === '記録の文体' || key === '連絡帳の文体') newDb.style = val || 'warm';
+        if (key === '営業曜日') newDb.businessDays = val || '月,火,水,木,金,土';
+        if (key === 'リハビリスタッフ') newDb.rehabStaffList = (val || '').split('、').filter(Boolean);
+        if (key === '看護スタッフ') newDb.nurseStaffList = (val || '').split('、').filter(Boolean);
+        if (key === '介護スタッフ') newDb.careStaffList = (val || '').split('、').filter(Boolean);
+        if (key === 'その他の職員') newDb.otherStaffList = (val || '').split('、').filter(Boolean);
+        if (key === '車両') newDb.vehicleList = (val || '').split('、').filter(Boolean);
+        if (key === 'リハビリ実施内容の選択肢') newDb.rehabContentList = (val || '').split('、').filter(Boolean);
+        if (key === '勤務表起点日' || key === '出勤表起点日') newDb.shiftCycleStart = val || '';
+        if (key === '勤務表予定確定') newDb.shiftPlanConfirmed = (val === 'はい');
+        if (key === '勤務表予定確定日時') newDb.shiftPlanConfirmedAt = val || '';
+        if (key === '連絡帳のカスタムプロンプト') newDb.customPromptRenrakucho = val || '';
+        if (key === 'リハビリ記録のカスタムプロンプト') newDb.customPromptRehabRecord = val || '';
+        if (key === 'モニタリングのカスタムプロンプト') newDb.customPromptMonitoring = val || '';
+        if (key === '会議録のカスタムプロンプト') newDb.customPromptMeeting = val || '';
+        if (key === 'リハビリ会議録のカスタムプロンプト') newDb.customPromptRehaMeeting = val || '';
+      });
+      if (!newDb.rehabContentList || !newDb.rehabContentList.length) {
+        newDb.rehabContentList = ['関節可動域訓練', '筋力増強訓練', '歩行訓練', '立位・座位訓練', 'バランス訓練', 'ADL訓練', '嚥下訓練', '言語訓練', '巧緻動作訓練', 'レクリエーション訓練'];
       }
 
       appState.db = newDb;
@@ -7136,7 +7137,7 @@
       const label = `${dates[0]}〜${dates[dates.length - 1]}`;
 
       const aoa = [];
-      aoa.push([`勤務表　${escHtml(facility)}　${label}（起点日を第1列とする4週間）`]);
+      aoa.push([`勤務表　${facility}　${label}（起点日を第1列とする4週間）`]);
       aoa.push(['凡例：出／休／有／記／2H有／1H有（実績は予定と異なる日のみ入ります。空欄＝予定通り）']);
       aoa.push([]);
       aoa.push(['スタッフ', '時間帯', '区分', ...dates.map(d => { const [, mo, da] = d.split('-'); return `${Number(mo)}/${Number(da)}`; })]);
@@ -8243,11 +8244,10 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // ============================================================
     // DB - 利用者登録・編集・削除
     // ============================================================
-    const RF_FIELDS = ['name', 'kana', 'careLevel', 'dob', 'attendanceDays', 'bathDays', 'meal', 'bath', 'allergy', 'medicine', 'notes', 'cm', 'family',
-      'age', 'gender', 'address', 'phone', 'cmOffice', 'doctor', 'hospital', 'emergencyRelation', 'emergencyPhone',
-      'mealRestriction', 'fluidRestriction', 'medicineTiming', 'history', 'currentDisease', 'adl', 'dementia', 'communication', 'extraInfo',
-      'rehabStaffInCharge', 'careStaffInCharge', 'transportType', 'standardStartTime', 'standardEndTime', 'usageDurationCategory', 'nurseStaffInCharge',
-      'fluidForm'];
+    const RF_FIELDS = ['name', 'kana', 'gender', 'careLevel', 'dob', 'attendanceDays', 'standardStartTime', 'standardEndTime', 'usageDurationCategory', 'transportType',
+      'bathDays', 'meal', 'fluidForm', 'bath', 'allergy', 'medicine', 'notes', 'cm', 'cmOffice', 'phone', 'age', 'family', 'emergencyRelation', 'emergencyPhone',
+      'rehabStaffInCharge', 'nurseStaffInCharge', 'careStaffInCharge', 'address', 'doctor', 'hospital', 'mealRestriction', 'fluidRestriction', 'medicineTiming',
+      'history', 'currentDisease', 'adl', 'dementia', 'communication', 'extraInfo'];
 
     function buildDbAssessTables() {
       const bm = document.getElementById('dbBasicMotionTable');
@@ -10871,6 +10871,15 @@ ${SHORUI_COMMON_NOTE}`;
     // ============================================================
     // RENRAKUCHO - この日の一覧
     // ============================================================
+    // 休み・欠席・ショートステイ利用・入院中等の日に、経過記録の下書きとして挿入できる定型文
+    const ABSENCE_KEIROKA_TEMPLATES = {
+      '休み': '本日は都合により休みのため、利用なし。',
+      '欠席': '本日は欠席のため、利用なし。',
+      'ショートステイ利用': '本日はショートステイ利用のため、当施設の利用なし。',
+      '入院中': '本日は入院中のため、利用なし。',
+      '予定なし（提供表）': '本日は利用予定なし。'
+    };
+
     function renderTodayRenrakuchoList() {
       const el = document.getElementById('todayRenrakuchoList');
       if (!el) return;
@@ -10883,8 +10892,30 @@ ${SHORUI_COMMON_NOTE}`;
       }
 
       el.innerHTML = residents.map(r => {
-        const text = appState.db.renrakuchoLog[dateStr] && appState.db.renrakuchoLog[dateStr][r.id];
         const krText = appState.db.keirokaLog[dateStr] && appState.db.keirokaLog[dateStr][r.id];
+
+        // 休み・欠席・ショートステイ利用・入院中等の日は連絡帳の対象外。経過記録だけ、理由がわかる形で残せるようにする。
+        if (r._dayStatus) {
+          return `<div class="rc-today-item">
+      <div class="rc-today-item-header" onclick="toggleTodayItem('${r.id}')">
+        <span class="rc-today-item-name">${escHtml(r.name)}</span>
+        <span style="display:flex; gap:6px; flex-shrink:0;">
+          <span class="rc-today-badge pending" style="background:#eee; color:#888;">${escHtml(r._dayStatus)}</span>
+          <span class="rc-today-badge ${krText ? 'done' : 'pending'}">経過記録 ${krText ? '✓' : '未'}</span>
+        </span>
+      </div>
+      <div class="rc-today-item-body" id="rcTodayBody_${r.id}" style="display:none;">
+        <div style="font-size:12px; color:var(--muted); margin-bottom:8px;">本日は「${escHtml(r._dayStatus)}」のため、連絡帳の対象外です。経過記録にのみ理由を残せます。</div>
+        <textarea id="rcAbsenceKeiroka_${r.id}" style="width:100%; min-height:70px; padding:8px 10px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:13px; font-family:inherit; resize:vertical;" placeholder="例：${escAttr(ABSENCE_KEIROKA_TEMPLATES[r._dayStatus] || '本日は利用なし。')}">${escHtml(krText || '')}</textarea>
+        <div class="rc-today-item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); insertAbsenceKeirokaTemplate('${r.id}','${escAttr(r._dayStatus)}')">📝 定型文を挿入</button>
+          <button class="btn btn-accent btn-sm" onclick="event.stopPropagation(); saveAbsenceKeiroka('${dateStr}','${r.id}')">💾 経過記録を保存</button>
+        </div>
+      </div>
+    </div>`;
+        }
+
+        const text = appState.db.renrakuchoLog[dateStr] && appState.db.renrakuchoLog[dateStr][r.id];
         const staff = appState.db.renrakuchoStaffLog[dateStr] && appState.db.renrakuchoStaffLog[dateStr][r.id];
         return `<div class="rc-today-item">
       <div class="rc-today-item-header" onclick="toggleTodayItem('${r.id}')">
@@ -10904,6 +10935,28 @@ ${SHORUI_COMMON_NOTE}`;
     </div>`;
       }).join('');
     }
+
+    function insertAbsenceKeirokaTemplate(residentId, status) {
+      const el = document.getElementById('rcAbsenceKeiroka_' + residentId);
+      if (!el) return;
+      const template = ABSENCE_KEIROKA_TEMPLATES[status] || '本日は利用なし。';
+      el.value = el.value ? `${el.value}\n${template}` : template;
+    }
+
+    function saveAbsenceKeiroka(dateStr, residentId) {
+      const el = document.getElementById('rcAbsenceKeiroka_' + residentId);
+      if (!el) return;
+      const text = el.value.trim();
+      if (!appState.db.keirokaLog[dateStr]) appState.db.keirokaLog[dateStr] = {};
+      if (text) {
+        appState.db.keirokaLog[dateStr][residentId] = text;
+      } else {
+        delete appState.db.keirokaLog[dateStr][residentId];
+      }
+      saveDb();
+      renderTodayRenrakuchoList();
+    }
+
 
     function toggleTodayItem(residentId) {
       const body = document.getElementById('rcTodayBody_' + residentId);
@@ -11714,6 +11767,64 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     }
 
     function copyKeiroka() { navigator.clipboard.writeText(document.getElementById('keirokaText').textContent).then(() => alert('コピーしました！')); }
+
+    // AIでの作成に失敗した時・AIを使わず直接書きたい時のための手入力モード。
+    // バイタル・チェック項目・食事摂取量は通常の作成と同様に保存し、連絡帳・経過記録の文章だけ空欄から手入力で編集できるようにする。
+    function manualCreateText() {
+      const r = appState.renrakucho.selectedResident;
+      if (!r) { showStatus('generateStatus', '⚠️ 利用者を選択してください', 'info'); return; }
+      const date = document.getElementById('dateInput').value;
+
+      const temp = document.getElementById('temp').value;
+      const bpSys = document.getElementById('bpSys').value;
+      const bpDia = document.getElementById('bpDia').value;
+      const pulse = document.getElementById('pulse').value;
+      const spo2 = document.getElementById('spo2').value;
+      const weight = document.getElementById('weight').value;
+      const notes = document.getElementById('notes').value;
+
+      if (!appState.db.vitalsLog[date]) appState.db.vitalsLog[date] = {};
+      appState.db.vitalsLog[date][r.id] = {
+        temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia),
+        pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight)
+      };
+
+      if (!appState.db.checkItemsLog[date]) appState.db.checkItemsLog[date] = {};
+      const chipsToSave = {};
+      RC_CHECKLOG_GROUPS.forEach(g => { if (appState.renrakucho.chips[g] !== undefined) chipsToSave[g] = appState.renrakucho.chips[g]; });
+      if (appState.renrakucho.chips.activity !== undefined) chipsToSave.activity = appState.renrakucho.chips.activity;
+      appState.db.checkItemsLog[date][r.id] = { chips: chipsToSave, notes };
+
+      const rcStaff = document.getElementById('rc_staff')?.value;
+      if (rcStaff) {
+        if (!appState.db.renrakuchoStaffLog[date]) appState.db.renrakuchoStaffLog[date] = {};
+        appState.db.renrakuchoStaffLog[date][r.id] = rcStaff;
+      }
+      saveMealIntake(date, r.id);
+      saveDb();
+      renderRenrakuchoWeekMatrix();
+      renderTodayRenrakuchoList();
+
+      // 既に保存済みの文章があればそれを引き継ぎ、無ければ空欄から書き始められるようにする
+      const existingText = (appState.db.renrakuchoLog[date] && appState.db.renrakuchoLog[date][r.id]) || '';
+      const existingKeiroka = (appState.db.keirokaLog[date] && appState.db.keirokaLog[date][r.id]) || '';
+
+      document.getElementById('outputText').textContent = existingText || '（まだ入力されていません。下の入力欄に記入し「反映」を押してください）';
+      document.getElementById('outputEdit').value = existingText;
+      document.getElementById('keirokaText').textContent = existingKeiroka || '（まだ入力されていません。下の入力欄に記入し「反映」を押してください）';
+      document.getElementById('keirokaEdit').value = existingKeiroka;
+      document.getElementById('outputDateLabel').textContent = formatDateJp(date);
+      document.getElementById('outputSection').style.display = 'block';
+
+      // 手入力なので、最初から編集欄を開いた状態にしておく
+      document.getElementById('outputEdit').style.display = 'block';
+      document.getElementById('applyEditBtn').style.display = 'inline-flex';
+      document.getElementById('keirokaEdit').style.display = 'block';
+      document.getElementById('applyKeirokaEditBtn').style.display = 'inline-flex';
+
+      showStatus('generateStatus', '✏️ 手入力モードにしました。下の入力欄に記入し、それぞれ「反映」を押すと保存されます。', 'info');
+      setTimeout(() => document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+    }
 
     function editKeiroka() {
       const e = document.getElementById('keirokaEdit');

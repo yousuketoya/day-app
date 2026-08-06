@@ -1161,6 +1161,17 @@
       font-size: 14px;
     }
 
+    /* 送迎表：文字サイズをまとめて14pxに（他の表には影響させない） */
+    #transportTableArea table,
+    #transportTableArea th,
+    #transportTableArea td,
+    #transportTableArea input,
+    #transportTableArea select,
+    #transportTableArea span,
+    #transportTableArea label {
+      font-size: 14px;
+    }
+
     /* 送迎表：見出し行（順・利用者名・時刻…）を縦スクロール時も固定表示するための専用ラッパー */
     .tp-table-scroll-wrap {
       overflow: auto;
@@ -6510,8 +6521,8 @@
           : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','dropoffAttendant', this.value)">${buildDriverOptions(t.dropoffAttendant)}</select></td>`;
 
         const noteCell = `<td rowspan="2">
-        <label class="tp-family-check"><input type="checkbox" ${isFamilyToday ? 'checked' : ''} onchange="toggleFamilyPickupToday('${dateStr}','${r.id}', this.checked)">本日家族迎え</label>
         <label class="tp-family-check"><input type="checkbox" ${isFamilyDropoffToday ? 'checked' : ''} onchange="toggleFamilyDropoffToday('${dateStr}','${r.id}', this.checked)">本日家族送り</label>
+        <label class="tp-family-check"><input type="checkbox" ${isFamilyToday ? 'checked' : ''} onchange="toggleFamilyPickupToday('${dateStr}','${r.id}', this.checked)">本日家族迎え</label>
         <input type="text" value="${escAttr(t.note || '')}" placeholder="備考" onchange="saveTransportField('${dateStr}','${r.id}','note', this.value)">
       </td>`;
 

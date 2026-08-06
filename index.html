@@ -791,6 +791,28 @@
       color: var(--muted);
     }
 
+    /* 連絡帳 - ここから記録入力エリア（利用者選択～AI作成ボタンまで）だとひと目でわかるように囲む */
+    .rc-record-zone {
+      border: 2px dashed var(--green);
+      border-radius: var(--radius);
+      padding: 16px 12px 6px;
+      margin-bottom: 16px;
+      background: rgba(45, 125, 90, 0.03);
+    }
+
+    .rc-record-zone-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--green);
+      color: #fff;
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
     /* 連絡帳 - 今日の一覧 */
     .rc-today-item {
       border: 1.5px solid var(--border);
@@ -1516,29 +1538,9 @@
       cursor: default;
     }
 
-    .shift-cell.code-yu {
-      background: #FFF9C4;
-      color: #F57F17;
-    }
-
-    .shift-cell.code-p {
-      background: #E3F2FD;
-      color: #1565C0;
-    }
-
     .shift-cell.code-a {
       background: #FFF3E0;
       color: #E65100;
-    }
-
-    .shift-cell.code-pyu {
-      background: #E1F5FE;
-      color: #0277BD;
-    }
-
-    .shift-cell.code-ayu {
-      background: #FFE0B2;
-      color: #BF360C;
     }
 
     .shift-cell.code-2h {
@@ -3032,6 +3034,9 @@
             緑＝作成済み／オレンジ＝未作成（通所日のみ表示）。丸をタップすると内容を確認・編集できます。</div>
         </div>
 
+        <div class="rc-record-zone">
+        <div class="rc-record-zone-badge">📝 ここから下が本日の記録入力エリアです</div>
+
         <div class="card">
           <div class="card-title">👤 利用者</div>
           <label
@@ -3189,6 +3194,17 @@
         <div class="card">
           <div class="card-title">🎮 活動・レク</div>
           <div class="check-grid">
+            <div class="check-item" style="grid-column:1 / -1;">
+              <div class="check-label">活動（複数選択可）</div>
+              <div class="chip-row" id="rcActivityChipRow">
+                <span class="chip" data-group="activity" data-value="脳トレ" onclick="toggleActivityChip(this)">脳トレ</span>
+                <span class="chip" data-group="activity" data-value="色塗り" onclick="toggleActivityChip(this)">色塗り</span>
+                <span class="chip" data-group="activity" data-value="作品制作" onclick="toggleActivityChip(this)">作品制作</span>
+                <span class="chip" data-group="activity" data-value="口腔体操" onclick="toggleActivityChip(this)">口腔体操</span>
+                <span class="chip" data-group="activity" data-value="嚥下体操" onclick="toggleActivityChip(this)">嚥下体操</span>
+                <span class="chip" data-group="activity" data-value="集団体操" onclick="toggleActivityChip(this)">集団体操</span>
+              </div>
+            </div>
             <div class="check-item">
               <div class="check-label">レク参加</div>
               <div class="chip-row">
@@ -3242,6 +3258,8 @@
 
         <button class="btn btn-primary" id="generateBtn" onclick="generateText()">✨ AIで連絡帳・経過記録を作成する</button>
         <div id="generateStatus"></div>
+
+        </div><!-- /rc-record-zone -->
 
         <div id="outputSection" style="display:none; margin-top:14px;">
           <div
@@ -5494,11 +5512,12 @@
       addSheet('食事摂取量', miRows);
 
       // ⑭c 連絡帳チェック項目（体調・気分・水分・入浴・排泄・レク・訓練・安全・服薬の選択と特記事項）
-      const ciRows = [['日付', '利用者名', ...RC_CHECKLOG_GROUPS.map(g => RC_CHECK_GROUP_LABELS[g] || g), '特記事項']];
+      // ※「活動」列は後から追加した項目のため、既存の並び順を崩さないよう末尾（特記事項の後）に追加している
+      const ciRows = [['日付', '利用者名', ...RC_CHECKLOG_GROUPS.map(g => RC_CHECK_GROUP_LABELS[g] || g), '特記事項', '活動']];
       Object.keys(db.checkItemsLog || {}).sort().forEach(date => {
         Object.entries(db.checkItemsLog[date]).forEach(([rid, entry]) => {
           const chips = entry.chips || {};
-          ciRows.push([date, residentNameOf(rid), ...RC_CHECKLOG_GROUPS.map(g => chips[g] || ''), entry.notes || '']);
+          ciRows.push([date, residentNameOf(rid), ...RC_CHECKLOG_GROUPS.map(g => chips[g] || ''), entry.notes || '', chips.activity || '']);
         });
       });
       addSheet('連絡帳チェック項目', ciRows);
@@ -5927,13 +5946,15 @@
         newDb.mealIntakeLog[date][id] = { main: main || '', side: side || '' };
       });
 
-      // ⑭c 連絡帳チェック項目
+      // ⑭c 連絡帳チェック項目（「活動」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ単に未設定のまま）
       getSheetRows(wb, '連絡帳チェック項目').forEach(row => {
         const [date, name, ...rest] = row;
         const id = findId(name); if (!id || !date) return;
         const notes = rest[RC_CHECKLOG_GROUPS.length] || '';
+        const activityVal = rest[RC_CHECKLOG_GROUPS.length + 1] || '';
         const chips = {};
         RC_CHECKLOG_GROUPS.forEach((g, i) => { if (rest[i]) chips[g] = rest[i]; });
+        if (activityVal) chips.activity = activityVal;
         if (!newDb.checkItemsLog[date]) newDb.checkItemsLog[date] = {};
         newDb.checkItemsLog[date][id] = { chips, notes };
       });
@@ -11316,9 +11337,16 @@ ${customInstructionsBlock('customPromptRehabRecord')}
 
       Object.entries(entry.chips || {}).forEach(([group, value]) => {
         appState.renrakucho.chips[group] = value;
-        document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
-          el.classList.toggle('selected', el.dataset.value === value);
-        });
+        if (group === 'activity') {
+          const values = value ? value.split('、') : [];
+          document.querySelectorAll('[data-group="activity"]').forEach(el => {
+            el.classList.toggle('selected', values.includes(el.dataset.value));
+          });
+        } else {
+          document.querySelectorAll(`[data-group="${group}"]`).forEach(el => {
+            el.classList.toggle('selected', el.dataset.value === value);
+          });
+        }
       });
 
       const notesEl = document.getElementById('notes');
@@ -11377,6 +11405,15 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       }
     }
 
+    // 「活動」は他のチップと違い複数選択できる（脳トレ・色塗り等を同時に選べる）ため、
+    // 単一選択のselectChip()とは別に、クリックされたチップだけをトグルする
+    function toggleActivityChip(el) {
+      el.classList.toggle('selected');
+      const values = Array.from(document.querySelectorAll('#rcActivityChipRow .chip.selected')).map(c => c.dataset.value);
+      if (values.length) appState.renrakucho.chips.activity = values.join('、');
+      else delete appState.renrakucho.chips.activity;
+    }
+
     function onMealIntakeChange(group, el) {
       if (el.value) {
         appState.renrakucho.chips[group] = el.value;
@@ -11397,8 +11434,10 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       };
     }
 
-    const RC_CHECK_GROUP_LABELS = { condition: '体調', mood: '気分・表情', lunchMain: '昼食摂取量（主食）', lunchSide: '昼食摂取量（副食）', water: '水分補給', bath: '入浴', toilet: '排泄', rec: 'レク参加', training: '訓練', safety: '安全', medicine: '服薬' };
+    const RC_CHECK_GROUP_LABELS = { condition: '体調', mood: '気分・表情', lunchMain: '昼食摂取量（主食）', lunchSide: '昼食摂取量（副食）', water: '水分補給', bath: '入浴', toilet: '排泄', rec: 'レク参加', training: '訓練', safety: '安全', medicine: '服薬', activity: '活動' };
     const RC_REQUIRED_VITAL_FIELDS = [{ field: 'temp', label: '体温' }, { field: 'bpSys', label: '血圧（収縮期）' }, { field: 'bpDia', label: '血圧（拡張期）' }, { field: 'pulse', label: '脈拍' }];
+    // 「活動」は該当する活動が無い日もあるため、他のチェック項目と違い未選択でも作成できる（必須項目チェックの対象外）
+    const RC_OPTIONAL_CHECK_GROUPS = ['activity'];
 
     function getMissingRenrakuchoFields() {
       const missing = [];
@@ -11407,6 +11446,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
         if (val === undefined || val === null || val === '') missing.push(v.label);
       });
       Object.keys(RC_CHECK_GROUP_LABELS).forEach(g => {
+        if (RC_OPTIONAL_CHECK_GROUPS.includes(g)) return;
         const val = appState.renrakucho.chips[g];
         if (val === undefined || val === '') missing.push(RC_CHECK_GROUP_LABELS[g]);
       });
@@ -11469,6 +11509,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       if (!appState.db.checkItemsLog[date]) appState.db.checkItemsLog[date] = {};
       const chipsToSave = {};
       RC_CHECKLOG_GROUPS.forEach(g => { if (appState.renrakucho.chips[g] !== undefined) chipsToSave[g] = appState.renrakucho.chips[g]; });
+      if (appState.renrakucho.chips.activity !== undefined) chipsToSave.activity = appState.renrakucho.chips.activity;
       appState.db.checkItemsLog[date][r.id] = { chips: chipsToSave, notes };
 
       saveDb();
@@ -13163,4 +13204,3 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
 </body>
 
 </html>
-  

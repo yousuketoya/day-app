@@ -4937,7 +4937,18 @@
 
     function loadDb() {
       const saved = localStorage.getItem(DB_KEY);
-      if (saved) appState.db = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [], ...JSON.parse(saved) };
+      const defaults = { facility: '', style: 'warm', residentDb: [], scheduleEvents: {}, attendanceOverrides: {}, renrakuchoLog: {}, rehabPlans: {}, vitalsLog: {}, checkItemsLog: {}, businessDays: '月,火,水,木,金,土', dayStatusOverrides: {}, rehabRecordLog: {}, rehabStaffList: [], careStaffList: [], rehabContentList: null, renrakuchoStaffLog: {}, keirokaLog: {}, assessments: {}, transportLog: {}, otherStaffList: [], vehicleList: [], rehabMonitoring: {}, careMonitoring: {}, dailyLog: {}, usageLog: {}, mealIntakeLog: {}, customPromptRenrakucho: '', customPromptRehabRecord: '', customPromptMonitoring: '', shiftCycleStart: '', shiftPattern: {}, shiftPlanConfirmed: false, shiftPlanConfirmedAt: '', shiftActual: {}, teikyohyoPlan: {}, teikyohyoActual: {}, teikyohyoConfirmed: {}, teikyohyoConfirmedAt: {}, teikyohyoHospitalized: {}, teikyohyoDocLoaded: {}, meetings: [], customPromptMeeting: '', customPromptRehaMeeting: '', nurseStaffList: [] };
+      if (saved) {
+        try {
+          appState.db = { ...defaults, ...JSON.parse(saved) };
+        } catch (err) {
+          console.error('保存データの読み込みに失敗しました（JSON破損の可能性）:', err);
+          appState.db = defaults;
+          alert('⚠️ 保存データの読み込みに失敗しました。データが破損している可能性があるため、空の状態で起動しました。\n\n直前のExcelバックアップがあれば、設定画面の「バックアップから復元する」で復元できます。\n\n（この空の状態のまま操作を続けると、破損したデータは上書きされます。復元する場合は、先に他の操作を行わないようご注意ください。）');
+        }
+      } else {
+        appState.db = defaults;
+      }
       // 旧バージョン（機能共通の単一指示欄）からの移行：3つとも空でまだ移行していなければ、旧内容を引き継ぐ
       if (appState.db.customPromptInstructions && !appState.db.customPromptRenrakucho && !appState.db.customPromptRehabRecord && !appState.db.customPromptMonitoring) {
         appState.db.customPromptRenrakucho = appState.db.customPromptInstructions;
@@ -6321,9 +6332,9 @@
       const opt = (n) => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`;
       let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`;
       if (care.length) opts += `<optgroup label="介護職員">${care.map(opt).join('')}</optgroup>`;
-      if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
-      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
       if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(opt).join('')}</optgroup>`;
+      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
+      if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }

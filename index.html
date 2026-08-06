@@ -5494,10 +5494,11 @@
       addSheet('業務日誌', dlRows);
 
       // ⑭ 利用時間・入浴状況
-      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考']];
+      // ※「区分(手動確定)」列は後から追加した項目のため、既存の並び順を崩さないよう末尾に追加している
+      const usRows = [['日付', '利用者名', '利用開始', '利用終了', '入浴', '備考', '区分(手動確定)']];
       Object.keys(db.usageLog).sort().forEach(date => {
         Object.entries(db.usageLog[date]).forEach(([rid, u]) => {
-          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '']);
+          usRows.push([date, residentNameOf(rid), u.startTime || '', u.endTime || '', u.bathing || '', u.note || '', u.durationCategory || '']);
         });
       });
       addSheet('利用時間・入浴状況', usRows);
@@ -5932,11 +5933,13 @@
         };
       });
 
-      // ⑭ 利用時間・入浴状況
-      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note]) => {
+      // ⑭ 利用時間・入浴状況（「区分(手動確定)」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ未設定のまま＝自動計算に任せる）
+      getSheetRows(wb, '利用時間・入浴状況').forEach(([date, name, startTime, endTime, bathing, note, durationCategory]) => {
         const id = findId(name); if (!id || !date) return;
         if (!newDb.usageLog[date]) newDb.usageLog[date] = {};
-        newDb.usageLog[date][id] = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
+        const entry = { startTime: startTime || '', endTime: endTime || '', bathing: bathing || '', note: note || '' };
+        if (durationCategory) entry.durationCategory = durationCategory;
+        newDb.usageLog[date][id] = entry;
       });
 
       // ⑭b 食事摂取量（主食・副食）
@@ -7489,6 +7492,13 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       return bucketLabelFromTimes(startTime, endTime);
     }
 
+    // 業務日誌テーブルに表示する「区分」の確定値
+    // 優先順位：①職員がプルダウンで確定した区分（手動） → ②自動計算（computeEffectiveUsageBucket）
+    function getEffectiveUsageDurationCategory(dateStr, r, usageEntry, transportEntry) {
+      if (usageEntry && usageEntry.durationCategory !== undefined) return usageEntry.durationCategory;
+      return computeEffectiveUsageBucket(dateStr, r, usageEntry, transportEntry);
+    }
+
     // 利用者リストから、利用時間の長さ別の人数集計を行う（区分外・時間未登録は「その他」に集計）
     function computeUsageDurationBreakdown(dateStr, residents) {
       const usage = appState.db.usageLog[dateStr] || {};
@@ -7496,7 +7506,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       const buckets = USAGE_DURATION_BUCKETS.map(b => ({ ...b, count: 0 }));
       let otherCount = 0;
       residents.forEach(r => {
-        const label = computeEffectiveUsageBucket(dateStr, r, usage[r.id], transport[r.id]);
+        const label = getEffectiveUsageDurationCategory(dateStr, r, usage[r.id], transport[r.id]);
         const bucket = label ? buckets.find(b => b.label === label) : null;
         if (bucket) bucket.count++;
         else otherCount++;
@@ -7518,6 +7528,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       }
 
       const bathOptions = ['', 'あり', 'シャワーのみ', 'なし', '清拭'];
+      const categoryOptions = USAGE_DURATION_BUCKETS.map(b => b.label);
       const wd = weekdayLabelOf(dateStr);
       const checkLog = appState.db.checkItemsLog[dateStr] || {};
       const rows = residents.map(r => {
@@ -7529,11 +7540,26 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const bathSel = bathOptions.map(o => `<option value="${o}" ${defaultBathing === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
         // 保存済みの記録が無い場合のみ、送迎表の「迎え：到着」「送り：時刻」を自動表示（あくまで目安。その場で変更・保存可能）
         const { startTime: defaultStart, endTime: defaultEnd } = computeEffectiveUsageTimes(u, t, r);
+
+        // 区分：未確定（自動計算）の間だけ、利用者DBの登録上の区分と食い違っていないかチェックし、
+        // 食い違っていれば赤枠で警告する（職員が内容を確認し、プルダウンで確定させると警告は消える）
+        const isCategoryManual = u.durationCategory !== undefined;
+        const effectiveCategory = getEffectiveUsageDurationCategory(dateStr, r, u, t) || '';
+        const normalCategory = r.usageDurationCategory || '';
+        const categoryMismatch = !isCategoryManual && normalCategory && effectiveCategory && effectiveCategory !== normalCategory;
+        const categoryOptionsForRow = effectiveCategory && !categoryOptions.includes(effectiveCategory)
+          ? [...categoryOptions, effectiveCategory] // 「区分外」など通常の一覧にない値も、現在の値として表示できるようにする
+          : categoryOptions;
+        const categorySel = ['', ...categoryOptionsForRow].map(o => `<option value="${o}" ${effectiveCategory === o ? 'selected' : ''}>${o || '未選択'}</option>`).join('');
+        const categoryWarnStyle = categoryMismatch ? 'background:#fdecea; border-color:var(--danger); color:var(--danger); font-weight:700;' : '';
+        const categoryTitle = categoryMismatch ? `⚠️ 登録上の区分「${escAttr(normalCategory)}」と異なります。内容を確認し、区分を確定してください。` : '';
+
         return `<tr>
       <td class="tp-name">${escHtml(r.name)}${isBathScheduled ? '<br><span style="font-size:10px; color:var(--green); font-weight:700;">🛁入浴予定日</span>' : ''}</td>
       <td><input type="time" value="${defaultStart}" onchange="saveUsageField('${dateStr}','${r.id}','startTime', this.value)"></td>
       <td><input type="time" value="${defaultEnd}" onchange="saveUsageField('${dateStr}','${r.id}','endTime', this.value)"></td>
-      <td><select style="${(defaultBathing === 'なし' || defaultBathing === '') ? 'background:#fdecea; border-color:var(--red); color:var(--red); font-weight:700;' : ''}" onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
+      <td><select style="${categoryWarnStyle}" title="${categoryTitle}" onchange="saveUsageField('${dateStr}','${r.id}','durationCategory', this.value)">${categorySel}</select>${categoryMismatch ? '<div style="font-size:9.5px; color:var(--danger); font-weight:700; margin-top:2px; white-space:nowrap;">⚠️要確認</div>' : ''}</td>
+      <td><select style="${(defaultBathing === 'なし' || defaultBathing === '') ? 'background:#fdecea; border-color:var(--danger); color:var(--danger); font-weight:700;' : ''}" onchange="saveUsageField('${dateStr}','${r.id}','bathing', this.value)">${bathSel}</select></td>
       <td><input type="text" value="${escAttr(u.note || '')}" placeholder="備考" onchange="saveUsageField('${dateStr}','${r.id}','note', this.value)"></td>
     </tr>`;
       }).join('');
@@ -7543,10 +7569,10 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         + (otherCount ? `<span class="tag" style="display:inline-block; margin:2px 6px 2px 0; padding:3px 8px; border:1px solid var(--border); border-radius:12px; font-size:11.5px; color:var(--muted);">上記区分外・時間未登録：<b>${otherCount}名</b></span>` : '');
 
       el.innerHTML = `<div class="tp-table-wrap"><table class="tp-table">
-    <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>入浴</th><th>備考</th></tr>
+    <tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>区分</th><th>入浴</th><th>備考</th></tr>
     ${rows}
   </table></div>
-  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は、利用者DBの「標準利用時間」を基準に、送迎表の実績（迎えの遅れ・送りの早退分）で自動調整して表示します（標準利用時間が未設定の場合は送迎表の「迎え：到着」「送り：時刻」をそのまま使用）。入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します。いずれも未記録の場合のみの自動表示で、その場で変更・保存も可能です。</div>
+  <div style="font-size:11px; color:var(--muted); margin-top:8px;">利用開始・利用終了は、利用者DBの「標準利用時間」を基準に、送迎表の実績（迎えの遅れ・送りの早退分）で自動調整して表示します（標準利用時間が未設定の場合は送迎表の「迎え：到着」「送り：時刻」をそのまま使用）。区分は利用者DBの「所要時間区分」をもとに自動計算され、送迎の実績等でいつもと異なる区分になった場合は赤枠で警告します。内容を確認のうえプルダウンで区分を確定してください（確定後は警告が消えます）。入浴は連絡帳の入浴チップ（一般浴・機械浴・シャワー→あり／それ以外→なし）を初期値として自動表示します。いずれも未記録の場合のみの自動表示で、その場で変更・保存も可能です。</div>
   <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border);">
     <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:4px;">⏱ 利用時間帯別 人数</div>
     ${breakdownHtml}
@@ -7574,7 +7600,8 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         const t = transportLog[r.id] || {};
         const { startTime, endTime } = computeEffectiveUsageTimes(u, t, r);
         const bathing = computeEffectiveBathing(dateStr, r, u, checkLog);
-        return `<tr><td>${escHtml(r.name)}</td><td>${startTime}</td><td>${endTime}</td><td>${escHtml(bathing)}</td><td>${escHtml(u.note || '')}</td></tr>`;
+        const category = getEffectiveUsageDurationCategory(dateStr, r, u, t) || '';
+        return `<tr><td>${escHtml(r.name)}</td><td>${startTime}</td><td>${endTime}</td><td>${escHtml(category)}</td><td>${escHtml(bathing)}</td><td>${escHtml(u.note || '')}</td></tr>`;
       }).join('');
 
       const win = window.open('', '_blank');
@@ -7588,7 +7615,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       th { background: #f0f0f0; }
     </style></head><body>
     <h1>利用時間・入浴状況　${escHtml(appState.db.facility || '')}　${dateStr}</h1>
-    <table><tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>入浴</th><th>備考</th></tr>${rows}</table>
+    <table><tr><th>利用者名</th><th>利用開始</th><th>利用終了</th><th>区分</th><th>入浴</th><th>備考</th></tr>${rows}</table>
     </body></html>`);
       win.document.close();
       win.print();

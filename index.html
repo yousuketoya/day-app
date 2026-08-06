@@ -7802,10 +7802,11 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           const careLevel = r.careLevel || '未設定';
           const bathingVal = computeEffectiveBathing(dateStr, r, usage[r.id], checkLog);
           const bathingLabel = ['あり', 'シャワーのみ', '清拭'].includes(bathingVal) ? 'あり' : 'なし';
-          const transportLabel = `迎え${t && t.pickupTime ? '〇' : '×'} 送り${t && t.dropoffTime ? '〇' : '×'}`;
+          const pickupLabel = `迎え${t && t.pickupTime ? '〇' : '×'}`;
+          const dropoffLabel = `送り${t && t.dropoffTime ? '〇' : '×'}`;
           const rehabLabel = rehabLog[r.id] ? 'あり' : 'なし';
 
-          lines.push(`・${r.name}様　区分：${category}／要介護：${careLevel}／入浴：${bathingLabel}／送迎：${transportLabel}／リハビリ：${rehabLabel}／利用時間：${timeStr}`);
+          lines.push(`・${r.name}様　${category}／${careLevel}／入浴：${bathingLabel}／${pickupLabel}／${dropoffLabel}／リハビリ：${rehabLabel}／利用時間：${timeStr}`);
         });
       }
 

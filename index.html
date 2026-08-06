@@ -7796,6 +7796,21 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       if (offRow) offRow.textContent = '';
     }
 
+    // 全角文字は半角の2倍の見た目幅として扱い、プレーンテキスト上でも列がまっすぐ揃うように末尾を半角スペースで埋める
+    function jpDisplayWidth(str) {
+      let w = 0;
+      for (const ch of String(str)) {
+        const code = ch.codePointAt(0);
+        const isHalf = (code >= 0x0000 && code <= 0x00FF) || (code >= 0xFF61 && code <= 0xFFDC) || (code >= 0xFFE8 && code <= 0xFFEE);
+        w += isHalf ? 1 : 2;
+      }
+      return w;
+    }
+    function padJp(str, targetWidth) {
+      const w = jpDisplayWidth(str);
+      return str + ' '.repeat(Math.max(0, targetWidth - w));
+    }
+
     function computeDailySummaryText(dateStr) {
       const residents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用・予定なし（提供表））
       const attending = residents.filter(r => !r._dayStatus);
@@ -7849,7 +7864,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
       if (attending.length) {
         lines.push('【本日の利用者・時間】');
-        attending.forEach(r => {
+        const rowsData = attending.map(r => {
           const t = transport[r.id];
           // 送迎の迎え・送り時刻ではなく、実際の利用時間（標準時間＋送迎実績で調整済み。上の「利用時間帯別 人数」と同じ算出方法）を表示する
           const { startTime, endTime } = computeEffectiveUsageTimes(usage[r.id], t, r);
@@ -7864,7 +7879,20 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           const rehabMark = getEffectiveRehabDone(dateStr, r, usage[r.id]) === 'あり' ? '〇' : '×';
           const mealMark = getEffectiveMealDone(dateStr, r, usage[r.id]) === 'あり' ? '〇' : '×';
 
-          lines.push(`・${r.name}様　${category}／${careLevel}／入浴${bathingMark}／${pickupLabel}／${dropoffLabel}／リハビリ${rehabMark}／食事${mealMark}／利用時間：${timeStr}`);
+          return { nameLabel: `${r.name}様`, category, careLevel, bathingMark, pickupLabel, dropoffLabel, rehabMark, mealMark, timeStr };
+        });
+
+        // 氏名・区分・要介護は利用者ごとに長さが違うため、その日の最長に合わせて空白で埋め、
+        // 以降の「入浴／迎え／送り／リハビリ／食事」が縦にまっすぐ揃うようにする
+        const maxNameW = Math.max(...rowsData.map(d => jpDisplayWidth(d.nameLabel)));
+        const maxCategoryW = Math.max(...rowsData.map(d => jpDisplayWidth(d.category)));
+        const maxCareLevelW = Math.max(...rowsData.map(d => jpDisplayWidth(d.careLevel)));
+
+        rowsData.forEach(d => {
+          const namePart = padJp(d.nameLabel, maxNameW + 2);
+          const categoryPart = padJp(d.category, maxCategoryW + 2);
+          const careLevelPart = padJp(d.careLevel, maxCareLevelW + 2);
+          lines.push(`・${namePart}${categoryPart}${careLevelPart}入浴${d.bathingMark}　${d.pickupLabel}　${d.dropoffLabel}　リハビリ${d.rehabMark}　食事${d.mealMark}　利用時間：${d.timeStr}`);
         });
       }
 

@@ -1098,7 +1098,7 @@
 
     .tp-table th,
     .tp-table td {
-      border: 1px solid var(--border);
+      border: 3px solid var(--border);
       padding: 5px 4px;
     }
 
@@ -1158,7 +1158,7 @@
     }
 
     .tp-table-transport th {
-      font-size: 9.5px;
+      font-size: 14px;
       line-height: 1.3;
       padding: 4px 2px;
     }
@@ -1188,7 +1188,7 @@
     }
 
     .tp-table-transport td.tp-name {
-      font-size: 10.5px;
+      font-size: 14px;
       white-space: normal;
       word-break: break-word;
     }
@@ -6321,9 +6321,9 @@
       const opt = (n) => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`;
       let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`;
       if (care.length) opts += `<optgroup label="介護職員">${care.map(opt).join('')}</optgroup>`;
+      if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
       if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(opt).join('')}</optgroup>`;
       if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
-      if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
@@ -7723,11 +7723,21 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       if (attending.length) {
         lines.push('【本日の利用者・時間】');
         attending.forEach(r => {
-          const t = transport[r.id];
-          // 送迎の迎え・送り時刻ではなく、実際の利用時間（標準時間＋送迎実績で調整済み。上の「利用時間帯別 人数」と同じ算出方法）を表示する
-          const { startTime, endTime } = computeEffectiveUsageTimes(usage[r.id], t, r);
-          const timeStr = (startTime && endTime) ? `${startTime}〜${endTime}` : '（利用時間未登録）';
-          lines.push(`・${r.name}様　${timeStr}`);
+          const t = transport[r.id] || {};
+          // 区分：上の「利用時間帯別 人数」と同じ算出方法（標準時間＋送迎実績で調整）
+          const bucketLabel = computeEffectiveUsageBucket(dateStr, r, usage[r.id], t) || '区分外・時間未登録';
+          // 介護度：利用者DBから
+          const careLevelStr = r.careLevel || '未設定';
+          // 入浴有無：連絡帳の入浴チップ（無ければ利用者DBの入浴予定日）から算出
+          const bathing = computeEffectiveBathing(dateStr, r, usage[r.id], checkLog) || '未記録';
+          // 食事の有無：連絡帳の昼食摂取量（主食・副食）のいずれかが記録されていれば「あり」
+          const mealChips = checkLog[r.id]?.chips || {};
+          const mealStatus = (mealChips.lunchMain || mealChips.lunchSide) ? 'あり' : 'なし';
+          // 利用時間：送迎表の生の時刻（迎え：到着〜送り：時刻）。どちらか未入力なら「（時間未登録）」
+          const rawStart = t.facilityArrivalTime || '';
+          const rawEnd = t.dropoffTime || '';
+          const timeStr = (rawStart && rawEnd) ? `${rawStart}〜${rawEnd}` : '（時間未登録）';
+          lines.push(`・${r.name}様　区分（${bucketLabel}）　${careLevelStr}　入浴：${bathing}　食事：${mealStatus}　${timeStr}`);
         });
       }
 

@@ -1304,6 +1304,46 @@
       opacity: 1;
     }
 
+    /* テンキー入力を開くための小さな🔢ボタン（送迎表の時刻欄など） */
+    .numpad-trigger-btn {
+      border: none;
+      background: none;
+      padding: 0;
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.2;
+      cursor: pointer;
+      opacity: 0.75;
+    }
+
+    .numpad-trigger-btn:hover {
+      opacity: 1;
+    }
+
+    /* テンキーモーダルの数字ボタン */
+    .numpad-btn {
+      padding: 16px 0;
+      font-size: 20px;
+      font-weight: 700;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.1s;
+      font-family: inherit;
+    }
+
+    .numpad-btn:hover {
+      background: var(--green-light);
+      border-color: var(--green);
+    }
+
+    .numpad-btn:active {
+      background: var(--green);
+      color: white;
+    }
+
     .tp-badge {
       display: inline-block;
       font-size: 8.5px;
@@ -2952,7 +2992,7 @@
             </button>
             <button class="mode-btn" data-mode="plan" onclick="selectMode(this)">
               <span class="mode-icon">📘</span>リハビリ計画書
-              <div style="font-size:10px; color:var(--muted); margin-top:3px; font-weight:400;">計画書→リハビリ計画書</div>
+              <div style="font-size:10px; color:var(--muted); margin-top:3px; font-weight:400;">居宅サービス計画書→リハビリ計画書に反映</div>
             </button>
             <button class="mode-btn" data-mode="free" onclick="selectMode(this)">
               <span class="mode-icon">🔍</span>自由抽出
@@ -3094,8 +3134,14 @@
           </div>
           <div id="vitalsImportStatus" style="margin-top:6px;"></div>
           <div class="vital-grid" style="margin-top:8px;">
-            <div class="vital-item"><label>体温 ℃</label><input type="number" id="temp" placeholder="36.5" step="0.1"
-                onchange="saveVitalFieldNow()"></div>
+            <div class="vital-item"><label>体温 ℃</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="temp" placeholder="36.5" step="0.1" style="flex:1; min-width:0;"
+                  onchange="saveVitalFieldNow()">
+                <button type="button" onclick="openNumpad('temp','decimal')" title="テンキーで入力"
+                  style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
+              </div>
+            </div>
             <div class="vital-item"><label>血圧 収縮期</label><input type="number" id="bpSys" placeholder="120" step="1"
                 onchange="saveVitalFieldNow()"></div>
             <div class="vital-item"><label>血圧 拡張期</label><input type="number" id="bpDia" placeholder="80" step="1"
@@ -3434,6 +3480,10 @@
               <div class="form-group"><label>原因疾病</label><input type="text" id="rp_causeDisease" placeholder="例：脳梗塞">
               </div>
             </div>
+            <div class="form-grid single">
+              <div class="form-group"><label>既往歴・現病歴</label><textarea id="rp_pastHistory" placeholder="例：脳梗塞(2018年)、糖尿病、高血圧"></textarea>
+              </div>
+            </div>
             <div class="form-grid">
               <div class="form-group"><label>発症日・受傷日</label><input type="date" id="rp_onsetDate"></div>
               <div class="form-group"><label>直近の入院日</label><input type="date" id="rp_lastAdmitDate"></div>
@@ -3525,6 +3575,7 @@
 
           <div class="card">
             <div class="card-title">🎯 目標設定</div>
+            <div id="rehabPlanRefGoals" style="display:none;"></div>
             <div style="font-size:12.5px; font-weight:700; color:var(--green); margin-bottom:6px;">短期目標（今後3ヶ月）</div>
             <div class="form-grid single">
               <div class="form-group"><label>心身機能</label><textarea id="rp_shortGoalMind"></textarea></div>
@@ -3598,6 +3649,15 @@
               <button class="btn btn-primary" style="flex:2;" onclick="saveRehabPlan()">💾 保存</button>
             </div>
             <div id="rehabSaveStatus" style="margin-top:8px;"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">📜 版の管理（3ヶ月ごとの定期更新など）</div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
+              定期的に計画書を作り直す際、先に「💾 保存」で今の内容を確定してから「🆕 新しい版を作成」を押すと、確定した内容が「過去の版」として保管されます。画面はそのまま編集を続けられるので、前回の内容をベースに書き直して再度保存してください。
+            </div>
+            <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="createNewRehabPlanVersion()">🆕 新しい版を作成（現在の内容を過去の版として保管）</button>
+            <div id="rehabPlanVersionHistoryArea" style="margin-top:10px;"></div>
           </div>
 
         </div>
@@ -4840,6 +4900,19 @@
     </div>
   </div>
 
+  <!-- ===== テンキー入力（時刻・体温など） ===== -->
+  <div class="modal-overlay" id="numpadModal">
+    <div class="modal" style="max-width:300px;">
+      <h2><span id="numpadModalTitle">🔢 入力</span> <button class="modal-x" onclick="closeNumpadModal()">✕</button></h2>
+      <div id="numpadPreview" style="font-size:34px; font-weight:700; text-align:center; padding:14px 0; color:var(--green); letter-spacing:2px; background:var(--bg); border-radius:var(--radius-sm); margin-bottom:12px;">00:00</div>
+      <div id="numpadGrid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;"></div>
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="numpadClear()">C クリア</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="numpadConfirm()">✓ 確定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Excel一括インポートモーダル ===== -->
   <div class="modal-overlay" id="importModal">
     <div class="modal" style="max-width:560px;">
@@ -5576,8 +5649,8 @@
       addSheet('利用時間・入浴状況', usRows);
 
       // 20. リハビリ計画書
-      // 末尾の3列（*データ(JSON)）は復元用の完全データ（表示列は目視確認用で、復元には使用しない）
-      const rpHeader = ['利用者名', ...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS, '心身機能構造', '基本動作', 'ADL', '最終更新', '心身機能構造データ(JSON)', '基本動作データ(JSON)', 'ADLデータ(JSON)'];
+      // 末尾の4列（*データ(JSON)）は復元用の完全データ（表示列は目視確認用で、復元には使用しない）
+      const rpHeader = ['利用者名', ...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS, '心身機能構造', '基本動作', 'ADL', '最終更新', '心身機能構造データ(JSON)', '基本動作データ(JSON)', 'ADLデータ(JSON)', '版履歴データ(JSON)'];
       const rpRows = [rpHeader];
       Object.entries(db.rehabPlans).forEach(([rid, plan]) => {
         const mb = (plan.mindBody || []).map((d, i) => `${MIND_BODY_ITEMS[i]}:${[d.status, d.impact, d.note].filter(Boolean).join('/')}`).join('；');
@@ -5589,7 +5662,8 @@
           ...RP_DATE_FIELDS.map(f => plan[f] || ''),
           ...RP_CHIP_FIELDS.map(f => plan[f] || ''),
           mb, bm, adl, plan.updatedAt || '',
-          JSON.stringify(plan.mindBody || []), JSON.stringify(plan.basicMotion || []), JSON.stringify(plan.adl || [])
+          JSON.stringify(plan.mindBody || []), JSON.stringify(plan.basicMotion || []), JSON.stringify(plan.adl || []),
+          JSON.stringify(plan.versionHistory || [])
         ]);
       });
       addSheet('リハビリ計画書', rpRows);
@@ -6011,7 +6085,7 @@
         newDb.usageLog[date][id] = entry;
       });
 
-      // 19. リハビリ計画書（本文項目に加え、末尾のJSON列から心身機能・基本動作・ADLの評価表も復元）
+      // 19. リハビリ計画書（本文項目に加え、末尾のJSON列から心身機能・基本動作・ADL・版履歴も復元）
       const rpFlatFields = [...RP_TEXT_FIELDS, ...RP_DATE_FIELDS, ...RP_CHIP_FIELDS];
       const parseAssessJson = (val, fallback) => { try { const p = JSON.parse(val); return Array.isArray(p) ? p : fallback; } catch (e) { return fallback; } };
       getSheetRows(wb, 'リハビリ計画書').forEach(row => {
@@ -6024,6 +6098,7 @@
         plan.mindBody = parseAssessJson(row[base + 4], []);
         plan.basicMotion = parseAssessJson(row[base + 5], []);
         plan.adl = parseAssessJson(row[base + 6], []);
+        plan.versionHistory = parseAssessJson(row[base + 7], []);
         newDb.rehabPlans[id] = plan;
       });
 
@@ -6499,8 +6574,8 @@
 
         const pickupTimeCell = naPickupLeg
           ? `<td class="tp-na">－</td>`
-          : `<td><div class="tp-time-wrap"><input type="time" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"><button type="button" class="tp-lock-btn${t.pickupIndividual ? ' individual' : ''}" title="${t.pickupIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','pickup')">${t.pickupIndividual ? '🔓' : '🔗'}</button></div></td>`;
-        const facilityArrivalCell = `<td><input type="time" value="${t.facilityArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','facilityArrivalTime', this.value)"></td>`;
+          : `<td><div class="tp-time-wrap"><input type="time" id="tp_pickup_${r.id}" value="${t.pickupTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','pickupTime', this.value)"><div style="display:flex; gap:4px;"><button type="button" class="numpad-trigger-btn" onclick="openNumpad('tp_pickup_${r.id}','time')" title="テンキーで入力">🔢</button><button type="button" class="tp-lock-btn${t.pickupIndividual ? ' individual' : ''}" title="${t.pickupIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','pickup')">${t.pickupIndividual ? '🔓' : '🔗'}</button></div></div></td>`;
+        const facilityArrivalCell = `<td><div class="tp-time-wrap"><input type="time" id="tp_facilityArrival_${r.id}" value="${t.facilityArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','facilityArrivalTime', this.value)"><button type="button" class="numpad-trigger-btn" onclick="openNumpad('tp_facilityArrival_${r.id}','time')" title="テンキーで入力">🔢</button></div></td>`;
         const pickupVehicleCell = naPickupLeg
           ? `<td class="tp-na">－</td>`
           : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupVehicle', this.value)">${buildVehicleOptions(pickupVehicle)}</select>${vehicleAttendantHint(pickupVehicle)}</td>`;
@@ -6511,10 +6586,10 @@
           ? `<td class="tp-na">－</td>`
           : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupAttendant', this.value)">${buildDriverOptions(t.pickupAttendant)}</select></td>`;
 
-        const dropoffTimeCell = `<td><div class="tp-time-wrap"><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"><button type="button" class="tp-lock-btn${t.dropoffIndividual ? ' individual' : ''}" title="${t.dropoffIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','dropoff')">${t.dropoffIndividual ? '🔓' : '🔗'}</button></div></td>`;
+        const dropoffTimeCell = `<td><div class="tp-time-wrap"><input type="time" id="tp_dropoff_${r.id}" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"><div style="display:flex; gap:4px;"><button type="button" class="numpad-trigger-btn" onclick="openNumpad('tp_dropoff_${r.id}','time')" title="テンキーで入力">🔢</button><button type="button" class="tp-lock-btn${t.dropoffIndividual ? ' individual' : ''}" title="${t.dropoffIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','dropoff')">${t.dropoffIndividual ? '🔓' : '🔗'}</button></div></div></td>`;
         const homeArrivalCell = naDropoffLeg
           ? `<td class="tp-na">－</td>`
-          : `<td><input type="time" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"></td>`;
+          : `<td><div class="tp-time-wrap"><input type="time" id="tp_homeArrival_${r.id}" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"><button type="button" class="numpad-trigger-btn" onclick="openNumpad('tp_homeArrival_${r.id}','time')" title="テンキーで入力">🔢</button></div></td>`;
         const dropoffVehicleCell = naDropoffLeg
           ? `<td class="tp-na">－</td>`
           : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','dropoffVehicle', this.value)">${buildVehicleOptions(dropoffVehicle)}</select>${vehicleAttendantHint(dropoffVehicle)}</td>`;
@@ -9165,6 +9240,99 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
     function closeEventModal() { document.getElementById('eventModal').classList.remove('open'); }
 
+    // ============================================================
+    // テンキー入力（時刻・体温などを電卓風に素早く入力するための共通部品）
+    // 既存の手入力（キーボード直接入力）・プルダウンはそのまま残し、
+    // 入力欄の横の🔢ボタンから開く追加の入力手段として提供する。
+    // ============================================================
+    let numpadState = { mode: null, digits: '', targetInputId: null };
+
+    // mode: 'time'（4桁でHH:MM。4桁揃うと自動で確定） / 'decimal'（小数点対応。✓ボタンで確定）
+    function openNumpad(targetInputId, mode) {
+      const input = document.getElementById(targetInputId);
+      if (!input) return;
+      numpadState = { mode, digits: '', targetInputId };
+      document.getElementById('numpadModalTitle').textContent = mode === 'time' ? '🔢 時刻を入力' : '🔢 数値を入力';
+      renderNumpadGrid(mode);
+      updateNumpadPreview();
+      document.getElementById('numpadModal').classList.add('open');
+    }
+
+    function renderNumpadGrid(mode) {
+      const grid = document.getElementById('numpadGrid');
+      const keys = mode === 'time'
+        ? ['7', '8', '9', '4', '5', '6', '1', '2', '3', '', '0', '⌫']
+        : ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'];
+      grid.innerHTML = keys.map(k => {
+        if (k === '') return `<div></div>`;
+        if (k === '⌫') return `<button type="button" class="numpad-btn" onclick="numpadBackspace()">⌫</button>`;
+        return `<button type="button" class="numpad-btn" onclick="numpadPressDigit('${k}')">${k}</button>`;
+      }).join('');
+    }
+
+    function numpadPressDigit(d) {
+      if (numpadState.mode === 'time') {
+        if (numpadState.digits.length >= 4) return;
+        // 「時」の1桁目が1・2以外（0,3〜9）の場合、2桁目の「1」を待たずに0を補って即座に「時」を確定し、
+        // そのまま「分」の入力に移る（例：9→30 と2回押すだけで「09:30」になる。0を打つ手間を省く）
+        if (numpadState.digits.length === 0 && d !== '1' && d !== '2') {
+          numpadState.digits = '0' + d;
+        } else {
+          numpadState.digits += d;
+        }
+        updateNumpadPreview();
+        if (numpadState.digits.length === 4) numpadConfirm(); // 4桁揃ったら自動で確定
+      } else {
+        if (d === '.' && numpadState.digits.includes('.')) return; // 小数点は1つまで
+        if (numpadState.digits.replace('.', '').length >= 4) return; // 上限4桁（例：99.9）
+        numpadState.digits += d;
+        updateNumpadPreview();
+      }
+    }
+
+    function numpadBackspace() {
+      numpadState.digits = numpadState.digits.slice(0, -1);
+      updateNumpadPreview();
+    }
+
+    function numpadClear() {
+      numpadState.digits = '';
+      updateNumpadPreview();
+    }
+
+    function updateNumpadPreview() {
+      const el = document.getElementById('numpadPreview');
+      if (!el) return;
+      if (numpadState.mode === 'time') {
+        const d = numpadState.digits.padEnd(4, '_');
+        el.textContent = `${d.slice(0, 2)}:${d.slice(2, 4)}`;
+      } else {
+        el.textContent = numpadState.digits || '0';
+      }
+    }
+
+    function numpadConfirm() {
+      let value;
+      if (numpadState.mode === 'time') {
+        if (numpadState.digits.length !== 4) { closeNumpadModal(); return; }
+        value = `${numpadState.digits.slice(0, 2)}:${numpadState.digits.slice(2, 4)}`;
+      } else {
+        if (!numpadState.digits) { closeNumpadModal(); return; }
+        value = numpadState.digits.endsWith('.') ? numpadState.digits.slice(0, -1) : numpadState.digits;
+      }
+      const input = document.getElementById(numpadState.targetInputId);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change', { bubbles: true })); // 既存のonchange保存処理をそのまま動かす
+      }
+      closeNumpadModal();
+    }
+
+    function closeNumpadModal() {
+      document.getElementById('numpadModal').classList.remove('open');
+      numpadState = { mode: null, digits: '', targetInputId: null };
+    }
+
     function saveEvent() {
       const title = document.getElementById('ev_title').value.trim();
       if (!title) { alert('予定のタイトルを入力してください'); return; }
@@ -9922,7 +10090,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // SHORUI - Analyze
     // ============================================================
     // 長文出力が必要なモードはトークン上限を多めに確保（途中で切れるのを防ぐ）
-    const SHORUI_MAX_OUTPUT_TOKENS = { basic: 2048, care: 2048, plan: 8192, free: 8192, teikyohyo: 4096 };
+    const SHORUI_MAX_OUTPUT_TOKENS = { basic: 2048, care: 2048, plan: 2048, free: 8192, teikyohyo: 4096 };
     const SHORUI_MAX_RETRIES = 2; // 空応答・通信エラー時の自動リトライ回数
 
     async function callGeminiOnce(imageParts, mode) {
@@ -10016,14 +10184,24 @@ ${SHORUI_COMMON_NOTE}`;
       if (mode === 'care') return `この書類からケア・医療情報を抽出してください。JSONのみ返してください。
 {"食事形態":"","食事制限":"","アレルギー":"","水分制限":"","入浴方法":"","入浴頻度":"","服薬内容":"","服薬タイミング":"","既往歴":"","現在の疾患":"","注意事項":"","ADL状況":"","認知症の有無":"","コミュニケーション":""}
 ${SHORUI_COMMON_NOTE}`;
-      if (mode === 'plan') return `この居宅サービス計画書・アセスメントシートを読み取り、デイケア向けリハビリテーション計画書の雛形を作成してください。
-【利用者情報】氏名：要介護度：主疾患：
-【現状と課題】
-【リハビリテーション目標】長期目標（6ヶ月）：短期目標（3ヶ月）：
-【リハビリテーション内容】1.種目：目的：方法・負荷：頻度：
-【留意事項・リスク管理】
-【家族への説明事項】
-※この雛形はAIが生成した案です。担当スタッフが必ず確認・修正してください。
+      if (mode === 'plan') return `この居宅サービス計画書（ケアプラン）を読み取り、リハビリテーション計画書の作成に使う項目をJSON形式で抽出してください。
+
+【読み取ってほしい項目】
+・氏名
+・計画作成年月日（居宅サービス計画書の一番上に記載されている作成日）
+・利用者及び家族の生活に対する意向のうち、「本人：」で始まる部分（本人の希望）
+・利用者及び家族の生活に対する意向のうち、「家族：」で始まる部分（家族の希望）
+・障害高齢者の日常生活自立度（寝たきり度。自立／J1／J2／A1／A2／B1／B2／C1／C2のいずれか）
+・認知症高齢者の日常生活自立度（自立／Ⅰ／Ⅱa／Ⅱb／Ⅲa／Ⅲb／Ⅳ／Mのいずれか）
+・原因疾病（介護が必要となった主な原因の疾病）
+・既往歴・現病歴
+・総合的な援助の方針
+・長期目標（ケアプラン全体の長期目標）
+・短期目標（ケアプラン全体の短期目標）
+
+JSONのみ返してください。他の文章は含めないでください。
+{"氏名":"","計画作成年月日":"","本人の希望":"","家族の希望":"","日常生活自立度":"","認知症高齢者の日常生活自立度":"","原因疾病":"","既往歴":"","総合的な援助の方針":"","長期目標":"","短期目標":""}
+※記載が無い項目は空欄のままにしてください。存在しない情報を作り出さないでください。
 ${SHORUI_COMMON_NOTE}`;
       if (mode === 'teikyohyo') return `このサービス提供票（居宅サービス計画に基づく月間の提供票）を読み取ってください。
 
@@ -10060,9 +10238,21 @@ ${SHORUI_COMMON_NOTE}`;
     function processResult(text, mode) {
       document.getElementById('rawText').textContent = text;
       const actionBtnRow = document.getElementById('shoruiActionButtons');
-      if (mode === 'plan' || mode === 'free') {
+      if (mode === 'free') {
         if (actionBtnRow) actionBtnRow.style.display = 'flex';
         document.getElementById('extractedFields').innerHTML = `<div class="plan-text">${escHtml(text)}</div>`;
+        return;
+      }
+      if (mode === 'plan') {
+        if (actionBtnRow) actionBtnRow.style.display = 'none';
+        try {
+          const m = text.match(/\{[\s\S]*\}/);
+          if (!m) throw new Error();
+          const parsed = JSON.parse(m[0]);
+          renderRehabPlanExtractPreview(parsed);
+        } catch (e) {
+          document.getElementById('extractedFields').innerHTML = `<div class="raw-text">${escHtml(text)}</div>`;
+        }
         return;
       }
       if (mode === 'teikyohyo') {
@@ -10258,11 +10448,122 @@ ${SHORUI_COMMON_NOTE}`;
     }
 
     // ============================================================
+    // SHORUI - 居宅サービス計画書 → リハビリ計画書への反映
+    // ============================================================
+    function renderRehabPlanExtractPreview(data) {
+      const matched = matchResidentByName(data['氏名']);
+      appState.shorui.rehabPlanExtract = { data, residentId: matched ? matched.id : '' };
+
+      const el = document.getElementById('extractedFields');
+      if (!appState.db.residentDb.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px; padding:10px;">利用者DBに登録されている方がいません。先に利用者を登録してください。</div>`;
+        return;
+      }
+      const options = appState.db.residentDb.map(r =>
+        `<option value="${r.id}" ${matched && matched.id === r.id ? 'selected' : ''}>${escHtml(r.name)}</option>`).join('');
+
+      const fieldRows = [
+        ['計画作成年月日', data['計画作成年月日']],
+        ['本人の希望', data['本人の希望']],
+        ['家族の希望', data['家族の希望']],
+        ['日常生活自立度', data['日常生活自立度']],
+        ['認知症高齢者の日常生活自立度', data['認知症高齢者の日常生活自立度']],
+        ['原因疾病', data['原因疾病']],
+        ['既往歴・現病歴', data['既往歴']],
+        ['総合的な援助の方針', data['総合的な援助の方針']],
+        ['長期目標（参考）', data['長期目標']],
+        ['短期目標（参考）', data['短期目標']],
+      ].filter(([, v]) => v);
+
+      if (!fieldRows.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px; padding:10px;">読み取れた項目がありませんでした。書類の写り具合を確認のうえ、撮り直してお試しください。</div>`;
+        return;
+      }
+
+      el.innerHTML = `
+    <div style="font-size:13px; margin-bottom:10px;">📋 読取氏名：<b>${escHtml(data['氏名'] || '（不明）')}</b></div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px; font-weight:700; color:var(--muted);">反映先の利用者</label>
+      <select id="rehabPlanExtractResidentSelect" style="width:100%; padding:8px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; margin-top:4px;" onchange="appState.shorui.rehabPlanExtract.residentId = this.value">
+        <option value="">－ 利用者を選択 －</option>
+        ${options}
+      </select>
+    </div>
+    <div class="extracted-grid">
+      ${fieldRows.map(([label, val]) => `
+        <div class="field-item" style="grid-column: span 2;">
+          <div class="field-label">${escHtml(label)}</div>
+          <div style="font-size:13px; margin-top:4px; white-space:pre-wrap;">${escHtml(val)}</div>
+        </div>`).join('')}
+    </div>
+    <div style="font-size:11px; color:var(--muted); margin:10px 0; line-height:1.6;">
+      ※長期目標・短期目標はケアプラン全体の目標のため、リハビリ計画書の心身機能／活動／参加のどこに書くかはご自身でご判断ください（反映すると計画書画面に参考として表示されます。自動では欄に入りません）。<br>
+      ※それ以外の項目は、リハビリ計画書の対応する欄にそのまま入ります（既存の内容があれば上書きされます）。反映後は保存されませんので、内容を確認してから「保存」を押してください。</div>
+    <button class="btn btn-primary" onclick="applyExtractedPlanToRehabForm()">📲 リハビリ計画書に反映する</button>
+    <div id="rehabPlanExtractApplyStatus" style="margin-top:8px;"></div>`;
+    }
+
+    function applyExtractedPlanToRehabForm() {
+      const state = appState.shorui.rehabPlanExtract;
+      if (!state) return;
+      const residentId = document.getElementById('rehabPlanExtractResidentSelect')?.value || state.residentId;
+      if (!residentId) {
+        showStatus('rehabPlanExtractApplyStatus', '⚠️ 反映先の利用者を選択してください', 'info');
+        return;
+      }
+      const data = state.data;
+
+      switchPage('rehab');
+      selectRehabResident(residentId);
+
+      // 抽出できた項目だけ、既存内容の上に反映する（空欄の項目・読み取れなかった項目には触れない）
+      const fieldMap = {
+        '計画作成年月日': 'planDate',
+        '本人の希望': 'hope',
+        '家族の希望': 'familyHope',
+        '日常生活自立度': 'adlIndependence',
+        '認知症高齢者の日常生活自立度': 'dementiaIndependence',
+        '原因疾病': 'causeDisease',
+        '既往歴': 'pastHistory',
+        '総合的な援助の方針': 'policy'
+      };
+      Object.entries(fieldMap).forEach(([jpKey, fieldId]) => {
+        const val = data[jpKey];
+        if (val) {
+          const el = document.getElementById('rp_' + fieldId);
+          if (el) el.value = val;
+        }
+      });
+      if (data['計画作成年月日']) suggestReviewDate();
+
+      // 長期・短期目標は分野（心身機能／活動／参加）が決まっていないため、自動で欄には入れず「参考」として表示するのみ
+      const refEl = document.getElementById('rehabPlanRefGoals');
+      if (refEl) {
+        const longG = data['長期目標'], shortG = data['短期目標'];
+        if (longG || shortG) {
+          refEl.style.display = 'block';
+          refEl.innerHTML = `
+        <div style="background:var(--warn-light); border:1px solid var(--accent); border-radius:var(--radius-sm); padding:10px 12px; font-size:12.5px; line-height:1.7; margin-bottom:10px;">
+          <b>📋 参考：居宅サービス計画書の目標（未整理）</b><br>
+          ${longG ? `<b>長期目標：</b>${escHtml(longG)}<br>` : ''}
+          ${shortG ? `<b>短期目標：</b>${escHtml(shortG)}<br>` : ''}
+          <span style="color:var(--muted);">↓心身機能・活動・参加のどこに書くかはご自身で振り分けてください</span>
+        </div>`;
+        } else {
+          refEl.style.display = 'none';
+        }
+      }
+
+      showStatus('rehabSaveStatus', '📥 居宅サービス計画書の内容をリハビリ計画書に反映しました（まだ保存されていません。内容を確認・修正のうえ「保存」を押してください）', 'success');
+    }
+
+    // ============================================================
     // 提供表ページ（月間の予定・実績の確認用一覧表。勤務表と同じ操作感）
     // ============================================================
     function ymKeyOf(year, month) { return `${year}-${String(month).padStart(2, '0')}`; }
 
     const TEIKYOHYO_CYCLE = ['', '1', '休', '入', '／', 'S'];
+
 
     function teikyohyoCellClass(v) {
       if (v === '1') return 'work';
@@ -11988,7 +12289,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       'shortGoalMind', 'shortGoalActivity', 'shortGoalParticipation',
       'longGoalMind', 'longGoalActivity', 'longGoalParticipation',
       'policy', 'lifeGuidance', 'precautions', 'prospect', 'endTiming', 'specialNotes',
-      'gender', 'careType'];
+      'gender', 'careType', 'pastHistory'];
     const RP_DATE_FIELDS = ['planDate', 'reviewDate', 'onsetDate', 'lastAdmitDate', 'lastDischargeDate', 'explainDate'];
     const RP_CHIP_FIELDS = ['planTypes', 'staffTypes', 'infoShare'];
 
@@ -12129,6 +12430,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       document.getElementById('rehabFormArea').style.display = 'block';
       buildRehabTables();
       loadRehabForm(id, r);
+      renderRehabPlanVersionHistory();
     }
 
     function loadRehabForm(residentId, resident) {
@@ -12147,6 +12449,8 @@ ${customInstructionsBlock('customPromptRenrakucho')}
 
       // 未入力の場合、利用者DBの主治医情報を下書きとして提案
       if (!plan.rehabDoctor && resident?.doctor) document.getElementById('rp_rehabDoctor').value = resident.doctor;
+      // 未入力の場合、利用者DBの性別を初期値として反映
+      if (!plan.gender && resident?.gender) document.getElementById('rp_gender').value = resident.gender;
 
       document.getElementById('rp_planTypes').value = plan.planTypes || '';
       document.getElementById('rp_staffTypes').value = plan.staffTypes || '';
@@ -12908,6 +13212,7 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       const r = appState.rehab.selectedResident;
       if (!r) { alert('利用者を選択してください'); return; }
 
+      const existing = appState.db.rehabPlans[r.id] || {};
       const plan = {};
       RP_TEXT_FIELDS.forEach(f => { plan[f] = document.getElementById('rp_' + f).value.trim(); });
       RP_DATE_FIELDS.forEach(f => { plan[f] = document.getElementById('rp_' + f).value; });
@@ -12931,17 +13236,75 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
 
       plan.updatedAt = new Date().toLocaleString('ja-JP');
 
+      // 会議録の履歴（history）・過去の版の履歴（versionHistory）は、通常の保存では消さずに引き継ぐ
+      // （以前はここで既存オブジェクトを丸ごと上書きしていたため、保存するたびに会議録の履歴が消えてしまう不具合があった）
+      plan.history = existing.history || [];
+      plan.versionHistory = existing.versionHistory || [];
+
       appState.db.rehabPlans[r.id] = plan;
       saveDb();
       renderRehabResidentSelector();
       renderReviewDueList();
+      renderRehabPlanVersionHistory();
       showStatus('rehabSaveStatus', `✅ ${plan.updatedAt} に保存しました`, 'success');
     }
 
-    function printRehabPlan() {
+    // 定期更新（3ヶ月ごと等）の際に、現在保存されている版を「過去の版」として保管し、
+    // 新しい版の作成を始めるための機能。フォーム自体は現在の内容のまま編集を続けられる。
+    function createNewRehabPlanVersion() {
       const r = appState.rehab.selectedResident;
       if (!r) { alert('利用者を選択してください'); return; }
-      const plan = appState.db.rehabPlans[r.id] || {};
+      const existing = appState.db.rehabPlans[r.id];
+      if (!existing) { alert('まだ計画書が作成されていないため、新しい版を作る必要はありません。このまま入力・保存してください。'); return; }
+      if (!confirm('現在保存されている内容を「過去の版」として保管し、新しい版の作成を始めます。\n※今の画面上の入力内容のうち、まだ保存していない変更は失われます。先に保存してから行うことをおすすめします。\n\nよろしいですか？')) return;
+
+      const snapshot = { ...existing };
+      delete snapshot.history;
+      delete snapshot.versionHistory;
+
+      if (!existing.versionHistory) existing.versionHistory = [];
+      existing.versionHistory.push(snapshot);
+      saveDb();
+      renderRehabPlanVersionHistory();
+      showStatus('rehabSaveStatus', '🆕 新しい版の作成を開始しました。内容を確認・編集し、保存してください。', 'info');
+    }
+
+    function renderRehabPlanVersionHistory() {
+      const el = document.getElementById('rehabPlanVersionHistoryArea');
+      if (!el) return;
+      const r = appState.rehab.selectedResident;
+      const plan = r && appState.db.rehabPlans[r.id];
+      const versions = (plan && plan.versionHistory) || [];
+      if (!versions.length) {
+        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">過去の版はまだありません</div>`;
+        return;
+      }
+      el.innerHTML = versions.map((v, idx) => idx).reverse().map(idx => {
+        const v = versions[idx];
+        return `<div class="review-item" style="display:block; cursor:default;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <b>計画作成日：${escHtml(v.planDate || '未設定')}</b>
+        <span style="font-size:11.5px; color:var(--muted);">保存：${escHtml(v.updatedAt || '')}</span>
+      </div>
+      <div style="margin-top:4px;">
+        <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="printRehabPlanVersion('${r.id}', ${idx})">🖨️ この版を印刷</span>
+      </div>
+    </div>`;
+      }).join('');
+    }
+
+    function printRehabPlanVersion(residentId, versionIdx) {
+      const plan = appState.db.rehabPlans[residentId];
+      const snapshot = plan && plan.versionHistory && plan.versionHistory[versionIdx];
+      if (!snapshot) return;
+      const resident = appState.db.residentDb.find(x => x.id === residentId);
+      printRehabPlan(snapshot, resident);
+    }
+
+    function printRehabPlan(overridePlan, overrideResident) {
+      const r = overrideResident || appState.rehab.selectedResident;
+      if (!r) { alert('利用者を選択してください'); return; }
+      const plan = overridePlan || appState.db.rehabPlans[r.id] || {};
 
       const assessRow = (item, cols) => `<tr><td class="pname">${item}</td>${cols.map(c => `<td>${escHtml(c || '－')}</td>`).join('')}</tr>`;
       const mbRows = MIND_BODY_ITEMS.map((item, i) => {
@@ -12982,6 +13345,7 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
 
     <h2>健康状態、経過</h2>
     <div class="row"><span class="label">原因疾病：</span>${escHtml(plan.causeDisease || '')}　<span class="label">発症日・受傷日：</span>${plan.onsetDate || ''}</div>
+    <div class="row"><span class="label">既往歴・現病歴：</span>${escHtml(plan.pastHistory || '')}</div>
     <div class="row"><span class="label">直近の入院日：</span>${plan.lastAdmitDate || ''}　<span class="label">直近の退院日：</span>${plan.lastDischargeDate || ''}</div>
     <div class="row"><span class="label">治療経過：</span>${escHtml(plan.treatmentCourse || '')}</div>
     <div class="row"><span class="label">合併疾患・コントロール状態：</span>${escHtml(plan.complications || '')}</div>

@@ -3142,16 +3142,46 @@
                   style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
               </div>
             </div>
-            <div class="vital-item"><label>血圧 収縮期</label><input type="number" id="bpSys" placeholder="120" step="1"
-                onchange="saveVitalFieldNow()"></div>
-            <div class="vital-item"><label>血圧 拡張期</label><input type="number" id="bpDia" placeholder="80" step="1"
-                onchange="saveVitalFieldNow()"></div>
-            <div class="vital-item"><label>脈拍 /分</label><input type="number" id="pulse" placeholder="80" step="1"
-                onchange="saveVitalFieldNow()"></div>
-            <div class="vital-item"><label>SpO₂ %</label><input type="number" id="spo2" placeholder="98" step="1"
-                onchange="saveVitalFieldNow()"></div>
-            <div class="vital-item"><label>体重 kg</label><input type="number" id="weight" placeholder="50" step="0.1"
-                onchange="saveVitalFieldNow()"></div>
+            <div class="vital-item"><label>血圧 収縮期</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="bpSys" placeholder="120" step="1" style="flex:1; min-width:0;"
+                  onchange="saveVitalFieldNow()">
+                <button type="button" onclick="openNumpad('bpSys','decimal')" title="テンキーで入力"
+                  style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
+              </div>
+            </div>
+            <div class="vital-item"><label>血圧 拡張期</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="bpDia" placeholder="80" step="1" style="flex:1; min-width:0;"
+                  onchange="saveVitalFieldNow()">
+                <button type="button" onclick="openNumpad('bpDia','decimal')" title="テンキーで入力"
+                  style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
+              </div>
+            </div>
+            <div class="vital-item"><label>脈拍 /分</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="pulse" placeholder="80" step="1" style="flex:1; min-width:0;"
+                  onchange="saveVitalFieldNow()">
+                <button type="button" onclick="openNumpad('pulse','decimal')" title="テンキーで入力"
+                  style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
+              </div>
+            </div>
+            <div class="vital-item"><label>SpO₂ %</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="spo2" placeholder="98" step="1" style="flex:1; min-width:0;"
+                  onchange="saveVitalFieldNow()">
+                <button type="button" onclick="openNumpad('spo2','decimal')" title="テンキーで入力"
+                  style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
+              </div>
+            </div>
+            <div class="vital-item"><label>体重 kg</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="weight" placeholder="50" step="0.1" style="flex:1; min-width:0;"
+                  onchange="saveVitalFieldNow()">
+                <button type="button" onclick="openNumpad('weight','decimal')" title="テンキーで入力"
+                  style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:8px 9px; cursor:pointer; font-size:14px;">🔢</button>
+              </div>
+            </div>
           </div>
           <div id="vitalsAutoFilledNote" style="font-size:11px; color:var(--green); margin-top:6px; display:none;">✅
             取り込んだバイタル表から自動入力されました</div>
@@ -9247,7 +9277,8 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // ============================================================
     let numpadState = { mode: null, digits: '', targetInputId: null };
 
-    // mode: 'time'（4桁でHH:MM。4桁揃うと自動で確定） / 'decimal'（小数点対応。✓ボタンで確定）
+    // mode: 'time'（4桁でHH:MM。1桁目が1・2以外なら即座に「時」を確定し「分」へ） / 'decimal'（小数点対応）
+    // どちらも数字を入力しただけでは反映されず、✓ボタンを押した時に初めて元の入力欄へ反映される
     function openNumpad(targetInputId, mode) {
       const input = document.getElementById(targetInputId);
       if (!input) return;
@@ -9281,7 +9312,6 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           numpadState.digits += d;
         }
         updateNumpadPreview();
-        if (numpadState.digits.length === 4) numpadConfirm(); // 4桁揃ったら自動で確定
       } else {
         if (d === '.' && numpadState.digits.includes('.')) return; // 小数点は1つまで
         if (numpadState.digits.replace('.', '').length >= 4) return; // 上限4桁（例：99.9）

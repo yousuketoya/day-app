@@ -6512,7 +6512,7 @@
           : `<td><select onchange="saveTransportField('${dateStr}','${r.id}','pickupAttendant', this.value)">${buildDriverOptions(t.pickupAttendant)}</select></td>`;
 
         const dropoffTimeCell = `<td><div class="tp-time-wrap"><input type="time" value="${t.dropoffTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','dropoffTime', this.value)"><button type="button" class="tp-lock-btn${t.dropoffIndividual ? ' individual' : ''}" title="${t.dropoffIndividual ? '個別設定中（クリックで車両の時刻に連動させる）' : '車両の時刻に連動中（クリックでこの人だけ個別に変更）'}" onclick="toggleTransportIndividual('${dateStr}','${r.id}','dropoff')">${t.dropoffIndividual ? '🔓' : '🔗'}</button></div></td>`;
-        const homeArrivalCell = isFamilyDefault
+        const homeArrivalCell = naDropoffLeg
           ? `<td class="tp-na">－</td>`
           : `<td><input type="time" value="${t.homeArrivalTime || ''}" onchange="saveTransportField('${dateStr}','${r.id}','homeArrivalTime', this.value)"></td>`;
         const dropoffVehicleCell = naDropoffLeg
@@ -6719,7 +6719,7 @@
         return `${groupHeaderRow}<tr><td>${t.order ?? (i + 1)}</td><td>${escHtml(r.name)}</td><td>${typeLabel}</td>
       <td>${naPickup ? '－' : (t.pickupTime || '')}</td><td>${t.facilityArrivalTime || ''}</td>
       <td>${naPickup ? '－' : escHtml(pickupDriver)}</td><td>${naPickup ? '－' : escHtml(pickupVehicle)}</td><td>${naPickup ? '－' : escHtml(t.pickupAttendant || '')}</td>
-      <td>${t.dropoffTime || ''}</td><td>${isFamilyDefault ? '－' : (t.homeArrivalTime || '')}</td>
+      <td>${t.dropoffTime || ''}</td><td>${naDropoff ? '－' : (t.homeArrivalTime || '')}</td>
       <td>${naDropoff ? '－' : escHtml(dropoffDriver)}</td><td>${naDropoff ? '－' : escHtml(dropoffVehicle)}</td><td>${naDropoff ? '－' : escHtml(t.dropoffAttendant || '')}</td>
       <td>${escHtml(t.note || '')}</td></tr>`;
       }).join('');

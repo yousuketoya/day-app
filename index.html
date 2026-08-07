@@ -4608,6 +4608,8 @@
           <select id="rf_transportType">
             <option value="">事業所送迎（通常）</option>
             <option value="家族送迎">家族送迎（送迎表では到着時刻・送り時刻のみ入力）</option>
+            <option value="家族送り">家族が送る（送迎表では到着時刻のみ入力する）</option>
+            <option value="家族迎え">家族が迎え（送迎表では送り時刻のみ入力する）</option>
           </select>
         </div>
       </div>
@@ -5488,7 +5490,7 @@
       Object.keys(db.transportLog).sort().forEach(date => {
         Object.entries(db.transportLog[date]).forEach(([rid, t]) => {
           const r = db.residentDb.find(x => x.id === rid);
-          const typeLabel = r?.transportType === '家族送迎' ? '家族送迎' : '事業所';
+          const typeLabel = r?.transportType || '事業所';
           tpRows.push([date, t.order || '', residentNameOf(rid), t.pickupTime || '', t.facilityArrivalTime || '', t.dropoffTime || '', t.homeArrivalTime || '', t.vehicle || '', t.driver || '', t.note || '', typeLabel, t.familyPickupToday ? 'はい' : '', t.familyDropoffToday ? 'はい' : '',
             t.pickupVehicle ?? t.vehicle ?? '', t.pickupDriver ?? t.driver ?? '', t.pickupAttendant || '', t.dropoffVehicle ?? t.vehicle ?? '', t.dropoffDriver ?? t.driver ?? '', t.dropoffAttendant || '', t.pickupIndividual ? 'はい' : '', t.dropoffIndividual ? 'はい' : '']);
         });
@@ -6468,9 +6470,11 @@
       const rows = sorted.map((r, i) => {
         const t = log[r.id] || {};
         const isFamilyDefault = r.transportType === '家族送迎';
+        const isFamilyPickupDefault = r.transportType === '家族迎え'; // いつも、夕方の迎え（＝送り相当）を家族が担当
+        const isFamilyDropoffDefault = r.transportType === '家族送り'; // いつも、朝の送り（＝迎え相当）を家族が担当
         const isFamilyToday = !!t.familyPickupToday;       // 本日だけ、迎えを家族が担当（送りのみ発生）
         const isFamilyDropoffToday = !!t.familyDropoffToday; // 本日だけ、送りを家族が担当（迎えのみ発生）
-        const badges = `${isFamilyDefault ? '<span class="tp-badge tp-badge-family">🚗家族送迎</span>' : ''}${isFamilyToday ? '<span class="tp-badge tp-badge-familyToday">🏥本日家族迎え</span>' : ''}${isFamilyDropoffToday ? '<span class="tp-badge tp-badge-familyDropoff">🏥本日家族送り</span>' : ''}`;
+        const badges = `${isFamilyDefault ? '<span class="tp-badge tp-badge-family">🚗家族送迎</span>' : ''}${isFamilyPickupDefault ? '<span class="tp-badge tp-badge-family">🚗家族迎え</span>' : ''}${isFamilyDropoffDefault ? '<span class="tp-badge tp-badge-family">🚗家族送り</span>' : ''}${isFamilyToday ? '<span class="tp-badge tp-badge-familyToday">🏥本日家族迎え</span>' : ''}${isFamilyDropoffToday ? '<span class="tp-badge tp-badge-familyDropoff">🏥本日家族送り</span>' : ''}`;
 
         // 旧データ（車両・運転手が迎え/送り共通で1つだけだった頃）からの移行：新項目が無ければ旧項目を両方の初期値に使う
         const pickupVehicle = t.pickupVehicle ?? t.vehicle ?? '';
@@ -6490,8 +6494,8 @@
           }
         }
 
-        const naPickupLeg = isFamilyDefault || isFamilyDropoffToday; // 迎え：家族が担当する日は事業所側は「－」
-        const naDropoffLeg = isFamilyDefault || isFamilyToday;       // 送り：家族が担当する日は事業所側は「－」
+        const naPickupLeg = isFamilyDefault || isFamilyDropoffDefault || isFamilyDropoffToday; // 迎え：家族が担当する日は事業所側は「－」
+        const naDropoffLeg = isFamilyDefault || isFamilyPickupDefault || isFamilyToday;       // 送り：家族が担当する日は事業所側は「－」
 
         const pickupTimeCell = naPickupLeg
           ? `<td class="tp-na">－</td>`
@@ -6685,11 +6689,18 @@
       const rows = sorted.map((r, i) => {
         const t = log[r.id] || {};
         const isFamilyDefault = r.transportType === '家族送迎';
+        const isFamilyPickupDefault = r.transportType === '家族迎え';
+        const isFamilyDropoffDefault = r.transportType === '家族送り';
         const isFamilyToday = !!t.familyPickupToday;
         const isFamilyDropoffToday = !!t.familyDropoffToday;
-        const typeLabel = isFamilyDefault ? '家族送迎' : (isFamilyToday ? '家族迎え(本日)' : isFamilyDropoffToday ? '家族送り(本日)' : '事業所');
-        const naPickup = isFamilyDefault || isFamilyDropoffToday;
-        const naDropoff = isFamilyDefault || isFamilyToday;
+        const typeLabel = isFamilyDefault ? '家族送迎'
+          : isFamilyPickupDefault ? '家族迎え'
+          : isFamilyDropoffDefault ? '家族送り'
+          : isFamilyToday ? '家族迎え(本日)'
+          : isFamilyDropoffToday ? '家族送り(本日)'
+          : '事業所';
+        const naPickup = isFamilyDefault || isFamilyDropoffDefault || isFamilyDropoffToday;
+        const naDropoff = isFamilyDefault || isFamilyPickupDefault || isFamilyToday;
         const pickupVehicle = t.pickupVehicle ?? t.vehicle ?? '';
         const pickupDriver = t.pickupDriver ?? t.driver ?? '';
         const dropoffVehicle = t.dropoffVehicle ?? t.vehicle ?? '';
@@ -7811,6 +7822,15 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       return str + ' '.repeat(Math.max(0, targetWidth - w));
     }
 
+    // 【本日の利用者・時間】に表示する、休み等のステータスの言い回し
+    const DAY_STATUS_SUMMARY_LABELS = {
+      '休み': '本人都合にて休み',
+      '欠席': '本人都合にて欠席',
+      'ショートステイ利用': 'ショートステイ利用',
+      '入院中': '入院中',
+      '予定なし（提供表）': '予定なし（提供表）'
+    };
+
     function computeDailySummaryText(dateStr) {
       const residents = getResidentsForDate(dateStr); // _dayStatus付き（休み・欠席・入院中・ショートステイ利用・予定なし（提供表））
       const attending = residents.filter(r => !r._dayStatus);
@@ -7862,7 +7882,9 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         lines.push('');
       }
 
-      if (attending.length) {
+      const absentResidents = residents.filter(r => r._dayStatus);
+
+      if (attending.length || absentResidents.length) {
         lines.push('【本日の利用者・時間】');
         const rowsData = attending.map(r => {
           const t = transport[r.id];
@@ -7884,15 +7906,23 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
 
         // 氏名・区分・要介護は利用者ごとに長さが違うため、その日の最長に合わせて空白で埋め、
         // 以降の「入浴／迎え／送り／リハビリ／食事」が縦にまっすぐ揃うようにする
-        const maxNameW = Math.max(...rowsData.map(d => jpDisplayWidth(d.nameLabel)));
-        const maxCategoryW = Math.max(...rowsData.map(d => jpDisplayWidth(d.category)));
-        const maxCareLevelW = Math.max(...rowsData.map(d => jpDisplayWidth(d.careLevel)));
+        if (rowsData.length) {
+          const maxNameW = Math.max(...rowsData.map(d => jpDisplayWidth(d.nameLabel)));
+          const maxCategoryW = Math.max(...rowsData.map(d => jpDisplayWidth(d.category)));
+          const maxCareLevelW = Math.max(...rowsData.map(d => jpDisplayWidth(d.careLevel)));
 
-        rowsData.forEach(d => {
-          const namePart = padJp(d.nameLabel, maxNameW + 2);
-          const categoryPart = padJp(d.category, maxCategoryW + 2);
-          const careLevelPart = padJp(d.careLevel, maxCareLevelW + 2);
-          lines.push(`・${namePart}${categoryPart}${careLevelPart}入浴${d.bathingMark}　${d.pickupLabel}　${d.dropoffLabel}　リハビリ${d.rehabMark}　食事${d.mealMark}　利用時間：${d.timeStr}`);
+          rowsData.forEach(d => {
+            const namePart = padJp(d.nameLabel, maxNameW + 2);
+            const categoryPart = padJp(d.category, maxCategoryW + 2);
+            const careLevelPart = padJp(d.careLevel, maxCareLevelW + 2);
+            lines.push(`・${namePart}${categoryPart}${careLevelPart}入浴${d.bathingMark}　${d.pickupLabel}　${d.dropoffLabel}　リハビリ${d.rehabMark}　食事${d.mealMark}　利用時間：${d.timeStr}`);
+          });
+        }
+
+        // 休み・欠席・入院中・ショートステイ利用・予定なし（提供表）の利用者も、理由がひと目でわかる形で並べる
+        absentResidents.forEach(r => {
+          const label = DAY_STATUS_SUMMARY_LABELS[r._dayStatus] || r._dayStatus;
+          lines.push(`・${r.name}様　${label}`);
         });
       }
 
@@ -9276,7 +9306,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
           ['B', colOf('meal'), ['普通食', '一口大', '刻み食', 'ミキサー食', 'ソフト食', '流動食']],
           ['C', colOf('bath'), ['一般浴', '機械浴', 'シャワー浴', '清拭のみ']],
           ['D', colOf('usageDurationCategory'), ['2時間以上3時間未満', '3時間以上4時間未満', '4時間以上5時間未満', '5時間以上6時間未満', '6時間以上7時間未満']],
-          ['E', colOf('transportType'), ['事業所送迎', '家族送迎']],
+          ['E', colOf('transportType'), ['事業所送迎', '家族送迎', '家族送り', '家族迎え']],
           ['F', colOf('rehabStaffInCharge'), (appState.db.rehabStaffList || []).slice()],
           ['G', colOf('careStaffInCharge'), (appState.db.careStaffList || []).slice()],
           ['J', colOf('nurseStaffInCharge'), (appState.db.nurseStaffList || []).slice()],

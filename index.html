@@ -3080,6 +3080,7 @@
 
         <div class="card">
           <div class="card-title">📋 この日の連絡帳一覧</div>
+          <div id="todayRenrakuchoListDateLabel" style="font-size:17px; font-weight:700; color:var(--green); margin-bottom:8px;"></div>
           <div id="todayRenrakuchoList"></div>
           <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;"
             onclick="printAllRenrakucho()">🖨️ この日の連絡帳をまとめて印刷</button>
@@ -3088,10 +3089,14 @@
         </div>
 
         <div class="card">
-          <div class="card-title">✅ 今週の連絡帳チェック</div>
+          <div class="cal-header">
+            <button class="icon-btn" onclick="changeRenrakuchoCheckWeek(-1)" title="前の週">◀</button>
+            <div class="card-title" style="border:none; padding:0; margin:0;">✅ <span id="rcWeekMatrixLabel">今週</span>の経過記録チェック</div>
+            <button class="icon-btn" onclick="changeRenrakuchoCheckWeek(1)" title="次の週">▶</button>
+          </div>
           <div id="rcWeekMatrix"></div>
           <div style="font-size:11px; color:var(--muted); margin-top:8px;">
-            緑＝作成済み／オレンジ＝未作成（通所日のみ表示）。丸をタップすると内容を確認・編集できます。</div>
+            緑＝経過記録作成済み／オレンジ＝未作成（通所日・休み等も含めて表示）。丸をタップすると内容を確認・編集できます。◀▶で先週・来週分も一括で確認できます。</div>
         </div>
 
         <div class="rc-record-zone">
@@ -3873,17 +3878,25 @@
 
         <div class="card">
           <div class="card-title">📋 この日のリハビリ記録一覧</div>
+          <div id="todayRehabRecordListDateLabel" style="font-size:17px; font-weight:700; color:var(--green); margin-bottom:8px;"></div>
           <div id="todayRehabRecordList"></div>
           <button class="btn btn-secondary btn-sm" style="width:100%; margin-top:10px;"
             onclick="printAllRehabRecord()">🖨️ この日の分をまとめて印刷</button>
         </div>
 
         <div class="card">
-          <div class="card-title">✅ 今週のリハビリ記録チェック</div>
+          <div class="cal-header">
+            <button class="icon-btn" onclick="changeRehabRecordCheckWeek(-1)" title="前の週">◀</button>
+            <div class="card-title" style="border:none; padding:0; margin:0;">✅ <span id="rrWeekMatrixLabel">今週</span>のリハビリ記録チェック</div>
+            <button class="icon-btn" onclick="changeRehabRecordCheckWeek(1)" title="次の週">▶</button>
+          </div>
           <div id="rrWeekMatrix"></div>
           <div style="font-size:11px; color:var(--muted); margin-top:8px;">
-            緑＝記録済み／オレンジ＝未記録（通所日のみ表示）。丸をタップすると内容を確認・編集できます。</div>
+            緑＝記録済み／オレンジ＝未記録（通所日のみ表示）。丸をタップすると内容を確認・編集できます。◀▶で先週・来週分も一括で確認できます。</div>
         </div>
+
+        <div class="rc-record-zone">
+        <div class="rc-record-zone-badge">📝 ここから下が本日の記録入力エリアです</div>
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
@@ -3974,6 +3987,8 @@
           </div>
           <div id="rehabRecordSaveStatus" style="margin-top:8px;"></div>
         </div>
+
+        </div><!-- /rc-record-zone -->
 
       </div>
 
@@ -4672,8 +4687,20 @@
         </div>
       </div>
       <div class="form-grid">
-        <div class="form-group"><label>標準利用開始時刻</label><input type="time" id="rf_standardStartTime"></div>
-        <div class="form-group"><label>標準利用終了時刻</label><input type="time" id="rf_standardEndTime"></div>
+        <div class="form-group"><label>標準利用開始時刻</label>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="time" id="rf_standardStartTime" style="flex:1; min-width:0;">
+            <button type="button" onclick="openNumpad('rf_standardStartTime','time')" title="テンキーで入力"
+              style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:9px 9px; cursor:pointer; font-size:14px;">🔢</button>
+          </div>
+        </div>
+        <div class="form-group"><label>標準利用終了時刻</label>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="time" id="rf_standardEndTime" style="flex:1; min-width:0;">
+            <button type="button" onclick="openNumpad('rf_standardEndTime','time')" title="テンキーで入力"
+              style="flex-shrink:0; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:var(--card); padding:9px 9px; cursor:pointer; font-size:14px;">🔢</button>
+          </div>
+        </div>
       </div>
       <div class="form-grid single">
         <div style="font-size:11px; color:var(--muted); margin-top:-6px;">提供票の時間区分の基準になります（業務日誌の利用時間に自動反映されます）</div>
@@ -5042,13 +5069,13 @@
         pendingExisting: null, pendingNew: null, pendingDiffs: [], pendingSettings: null,
         teikyohyoYm: null, teikyohyoList: []
       },
-      renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false, showPausedResidents: false },
+      renrakucho: { selectedResident: null, chips: {}, apiKey: '', showAllResidents: false, showPausedResidents: false, checkWeekOffset: 0 },
       schedule: { viewYear: new Date().getFullYear(), viewMonth: new Date().getMonth(), selectedDate: null, weekStart: null },
       shift: { cycleBlockIndex: null },
       rehab: { selectedResident: null, showPausedResidents: false },
       meeting: { mode: 'tantosha', viewMode: 'resident', selectedResidentId: null, selectedRoundId: null, formResidentIds: [], editingId: null, formOpen: false, showPausedResidents: false },
       rehaMeeting: { selectedResident: null, editingId: null, formOpen: false, showPausedResidents: false },
-      rehabRecord: { selectedResident: null, showAllResidents: false, showPausedResidents: false },
+      rehabRecord: { selectedResident: null, showAllResidents: false, showPausedResidents: false, checkWeekOffset: 0 },
       assessment: { selectedResident: null, showPausedResidents: false },
       monitoring: { selectedResident: null, showPausedResidents: false },
       vitalsTrend: { selectedResident: null, activeMetrics: ['temp', 'bp', 'pulse', 'spo2', 'weight'], chart: null, showPausedResidents: false },
@@ -6512,9 +6539,9 @@
       const opt = (n) => `<option value="${escAttr(n)}"${currentVal === n ? ' selected' : ''}>${escHtml(n)}</option>`;
       let opts = `<option value=""${!currentVal ? ' selected' : ''}>未設定</option>`;
       if (care.length) opts += `<optgroup label="介護職員">${care.map(opt).join('')}</optgroup>`;
-      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(opt).join('')}</optgroup>`;
-      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
       if (other.length) opts += `<optgroup label="その他の職員">${other.map(opt).join('')}</optgroup>`;
+      if (nurse.length) opts += `<optgroup label="看護スタッフ">${nurse.map(opt).join('')}</optgroup>`;
+      if (rehab.length) opts += `<optgroup label="リハビリスタッフ">${rehab.map(opt).join('')}</optgroup>`;
       if (currentVal && !known.includes(currentVal)) opts += `<option value="${escAttr(currentVal)}" selected>${escHtml(currentVal)}（未登録）</option>`;
       return opts;
     }
@@ -11268,8 +11295,22 @@ ${SHORUI_COMMON_NOTE}`;
     function renderRenrakuchoWeekMatrix() {
       const el = document.getElementById('rcWeekMatrix');
       if (!el) return;
-      const weekDates = getWeekDates(new Date());
+      const offset = appState.renrakucho.checkWeekOffset || 0;
+      const base = new Date();
+      base.setDate(base.getDate() + offset * 7);
+      const weekDates = getWeekDates(base);
       const residents = getActiveResidentDb();
+
+      const labelEl = document.getElementById('rcWeekMatrixLabel');
+      if (labelEl) {
+        if (offset === 0) {
+          labelEl.textContent = '今週';
+        } else {
+          const [, fm, fd] = weekDates[0].split('-');
+          const [, lm, ld] = weekDates[6].split('-');
+          labelEl.textContent = `${Number(fm)}/${Number(fd)}〜${Number(lm)}/${Number(ld)}`;
+        }
+      }
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
@@ -11278,12 +11319,14 @@ ${SHORUI_COMMON_NOTE}`;
 
       const rows = residents.map(r => {
         const cells = weekDates.map(dateStr => {
-          const wd = weekdayLabelOf(dateStr);
-          const isAttendDay = (r.attendanceDays || '').split(',').map(s => s.trim()).includes(wd);
-          const isOverridden = getResidentsForDate(dateStr).some(x => x.id === r.id);
-          if (!isOverridden) return `<td><span class="rc-mark na">・</span></td>`;
-          const done = !!(appState.db.renrakuchoLog[dateStr] && appState.db.renrakuchoLog[dateStr][r.id]);
-          return `<td><span class="rc-mark ${done ? 'done' : 'pending'}" onclick="openLogEntry('${dateStr}','${r.id}')">${done ? '✓' : '−'}</span></td>`;
+          const dayResident = getResidentsForDate(dateStr).find(x => x.id === r.id);
+          if (!dayResident) return `<td><span class="rc-mark na">・</span></td>`;
+          // 休み・欠席・ショートステイ利用等の日は連絡帳が作られないため、経過記録（keirokaLog）の有無で判定する
+          const done = !!(appState.db.keirokaLog[dateStr] && appState.db.keirokaLog[dateStr][r.id]);
+          const clickFn = dayResident._dayStatus
+            ? `openKeirokaWeekEntry('${dateStr}','${r.id}')`
+            : `openLogEntry('${dateStr}','${r.id}')`;
+          return `<td><span class="rc-mark ${done ? 'done' : 'pending'}" onclick="${clickFn}">${done ? '✓' : '−'}</span></td>`;
         }).join('');
         return `<tr><td class="rc-name">${escHtml(r.name)}</td>${cells}</tr>`;
       }).join('');
@@ -11294,6 +11337,24 @@ ${SHORUI_COMMON_NOTE}`;
       }).join('');
 
       el.innerHTML = `<table class="rc-matrix"><thead><tr><th></th>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function changeRenrakuchoCheckWeek(delta) {
+      appState.renrakucho.checkWeekOffset = (appState.renrakucho.checkWeekOffset || 0) + delta;
+      renderRenrakuchoWeekMatrix();
+    }
+
+    // 休み・欠席・ショートステイ利用等の日の経過記録セルをタップした時に、
+    // 該当日の「本日の連絡帳一覧」内にある軽量な経過記録入力欄をそのまま開く
+    function openKeirokaWeekEntry(dateStr, residentId) {
+      document.getElementById('dateInput').value = dateStr;
+      resetPausedUnlock('renrakucho');
+      renderResidentSelector();
+      renderTodayRenrakuchoList();
+      setTimeout(() => {
+        toggleTodayItem(residentId);
+        document.getElementById('todayRenrakuchoList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
     }
 
     function openLogEntry(dateStr, residentId) {
@@ -11313,9 +11374,9 @@ ${SHORUI_COMMON_NOTE}`;
 
       const saved = appState.db.renrakuchoLog[dateStr] && appState.db.renrakuchoLog[dateStr][residentId];
       const savedKr = appState.db.keirokaLog[dateStr] && appState.db.keirokaLog[dateStr][residentId];
-      if (saved) {
-        document.getElementById('outputText').textContent = saved;
-        document.getElementById('outputEdit').value = saved;
+      if (saved || savedKr) {
+        document.getElementById('outputText').textContent = saved || '（連絡帳は未生成です）';
+        document.getElementById('outputEdit').value = saved || '';
         document.getElementById('keirokaText').textContent = savedKr || '（経過記録は未生成です）';
         document.getElementById('keirokaEdit').value = savedKr || '';
         document.getElementById('outputDateLabel').textContent = formatDateJp(dateStr);
@@ -11350,6 +11411,9 @@ ${SHORUI_COMMON_NOTE}`;
       if (!el) return;
       const dateStr = document.getElementById('dateInput')?.value || todayStr();
       const residents = getResidentsForDate(dateStr);
+
+      const dateLabelEl = document.getElementById('todayRenrakuchoListDateLabel');
+      if (dateLabelEl) dateLabelEl.textContent = `🗓️ ${formatDateJp(dateStr)}`;
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（通所曜日未設定、または利用者未登録の可能性があります）</div>`;
@@ -11613,8 +11677,22 @@ ${SHORUI_COMMON_NOTE}`;
     function renderRehabRecordWeekMatrix() {
       const el = document.getElementById('rrWeekMatrix');
       if (!el) return;
-      const weekDates = getWeekDates(new Date());
+      const offset = appState.rehabRecord.checkWeekOffset || 0;
+      const base = new Date();
+      base.setDate(base.getDate() + offset * 7);
+      const weekDates = getWeekDates(base);
       const residents = getActiveResidentDb();
+
+      const labelEl = document.getElementById('rrWeekMatrixLabel');
+      if (labelEl) {
+        if (offset === 0) {
+          labelEl.textContent = '今週';
+        } else {
+          const [, fm, fd] = weekDates[0].split('-');
+          const [, lm, ld] = weekDates[6].split('-');
+          labelEl.textContent = `${Number(fm)}/${Number(fd)}〜${Number(lm)}/${Number(ld)}`;
+        }
+      }
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">利用者DBに登録してください</div>`;
@@ -11639,11 +11717,19 @@ ${SHORUI_COMMON_NOTE}`;
       el.innerHTML = `<table class="rc-matrix"><thead><tr><th></th>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
+    function changeRehabRecordCheckWeek(delta) {
+      appState.rehabRecord.checkWeekOffset = (appState.rehabRecord.checkWeekOffset || 0) + delta;
+      renderRehabRecordWeekMatrix();
+    }
+
     function renderTodayRehabRecordList() {
       const el = document.getElementById('todayRehabRecordList');
       if (!el) return;
       const dateStr = document.getElementById('rrDateInput')?.value || todayStr();
       const residents = getResidentsForDate(dateStr);
+
+      const dateLabelEl = document.getElementById('todayRehabRecordListDateLabel');
+      if (dateLabelEl) dateLabelEl.textContent = `🗓️ ${formatDateJp(dateStr)}`;
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（通所曜日未設定、または利用者未登録の可能性があります）</div>`;

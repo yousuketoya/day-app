@@ -2910,10 +2910,12 @@
           </select>
         </div>
         <div id="dbSortRow" style="margin-bottom:12px; display:flex; gap:6px; flex-wrap:wrap;"></div>
-        <div style="margin-bottom:12px; display:flex; gap:8px;">
-          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="downloadResidentTemplate(event)">📄
+        <div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" style="flex:1; min-width:110px;" onclick="downloadResidentTemplate(event)">📄
             雛形をダウンロード</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openImportModal()">📥 Excel一括インポート</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1; min-width:110px;" onclick="downloadResidentDataExcel(event)">📥
+            利用者DBをダウンロード</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1; min-width:110px;" onclick="openImportModal()">📥 Excel一括インポート</button>
         </div>
 
         <!-- 一覧 -->
@@ -9630,6 +9632,116 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       } catch (err) {
         console.error(err);
         alert('雛形の作成中にエラーが発生しました。時間をおいて再度お試しください。');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+      }
+    }
+
+    // 現在の利用者DBの内容を、雛形と同じ列構成でExcelに書き出す。
+    // 「今いる利用者の情報だけを少し直したい」時に、雛形（空欄）ではなく実データ入りのファイルを直接編集し、
+    // そのまま「Excel一括インポート（上書きON）」で戻せるようにするための機能。
+    async function downloadResidentDataExcel(evt) {
+      const residents = appState.db.residentDb;
+      if (!residents.length) { alert('利用者DBに登録されている方がいません。'); return; }
+
+      const fields = RF_FIELDS.filter(f => f !== 'extraInfo');
+      const colOf = (f) => fields.indexOf(f) + 1;
+
+      const bmHeaders = BASIC_MOTION_ITEMS.flatMap(item => [
+        assessColumnHeader('基本動作', item, '状況'), assessColumnHeader('基本動作', item, '特記事項')
+      ]);
+      const adlHeaders = ADL_ITEMS.flatMap(item => [
+        assessColumnHeader('ADL', item, '状況'), assessColumnHeader('ADL', item, '特記事項')
+      ]);
+      const header = [...fields.map(f => FIELD_LABELS[f] || f), ...bmHeaders, ...adlHeaders];
+      const totalCols = header.length;
+
+      const dataRows = residents.map(r => {
+        const bmVals = BASIC_MOTION_ITEMS.flatMap((_, i) => {
+          const d = r.basicMotionAssess?.[i];
+          return [d?.level || '', d?.note || ''];
+        });
+        const adlVals = ADL_ITEMS.flatMap((_, i) => {
+          const d = r.adlAssess?.[i];
+          return [d?.level || '', d?.note || ''];
+        });
+        return [...fields.map(f => r[f] || ''), ...bmVals, ...adlVals];
+      });
+
+      const btn = evt?.target;
+      const originalLabel = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '作成中…'; }
+
+      try {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = '通所サービス管理アシスタント';
+        const ws = wb.addWorksheet('利用者DB');
+
+        const headerRow = ws.addRow(header);
+        headerRow.eachCell(c => {
+          c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2D7D5A' } };
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        headerRow.height = 20;
+        dataRows.forEach(row => ws.addRow(row));
+
+        for (let i = 1; i <= totalCols; i++) ws.getColumn(i).width = 16;
+        ws.views = [{ state: 'frozen', ySplit: 1, xSplit: fields.length }];
+
+        // プルダウン選択肢は雛形と同じ仕組み（別シート参照）。実データの行数に合わせて範囲を広めに確保する。
+        const choiceSheet = wb.addWorksheet('選択肢（編集不要）');
+        choiceSheet.state = 'veryHidden';
+
+        const DROPDOWN_DEFS = [
+          ['A', colOf('careLevel'), ['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5']],
+          ['B', colOf('meal'), ['普通食', '一口大', '刻み食', 'ミキサー食', 'ソフト食', '流動食']],
+          ['C', colOf('bath'), ['一般浴', '機械浴', 'シャワー浴', '清拭のみ']],
+          ['D', colOf('usageDurationCategory'), ['2時間以上3時間未満', '3時間以上4時間未満', '4時間以上5時間未満', '5時間以上6時間未満', '6時間以上7時間未満']],
+          ['E', colOf('transportType'), ['事業所送迎', '家族送迎', '家族送り', '家族迎え']],
+          ['F', colOf('rehabStaffInCharge'), (appState.db.rehabStaffList || []).slice()],
+          ['G', colOf('careStaffInCharge'), (appState.db.careStaffList || []).slice()],
+          ['J', colOf('nurseStaffInCharge'), (appState.db.nurseStaffList || []).slice()],
+          ['I', colOf('gender'), ['女性', '男性']],
+          ['K', colOf('fluidForm'), ['普通', 'トロミ付き']]
+        ];
+        const levelOptions = ADL_LEVELS.filter(Boolean);
+        const bmLevelCols = BASIC_MOTION_ITEMS.map((_, i) => fields.length + 1 + i * 2);
+        const adlLevelCols = ADL_ITEMS.map((_, i) => fields.length + bmHeaders.length + 1 + i * 2);
+        [...bmLevelCols, ...adlLevelCols].forEach(col => {
+          DROPDOWN_DEFS.push(['H', col, levelOptions]);
+        });
+
+        const writtenRanges = {};
+        const maxRow = Math.max(200, dataRows.length + 20);
+        DROPDOWN_DEFS.forEach(([sheetCol, targetCol, options]) => {
+          if (!options.length) return;
+          const key = options.join('\u0001');
+          if (!writtenRanges[key]) {
+            options.forEach((opt, i) => { choiceSheet.getCell(`${sheetCol}${i + 1}`).value = opt; });
+            writtenRanges[key] = `'選択肢（編集不要）'!$${sheetCol}$1:$${sheetCol}$${options.length}`;
+          }
+          const range = writtenRanges[key];
+          for (let row = 2; row <= maxRow; row++) {
+            ws.getCell(row, targetCol).dataValidation = {
+              type: 'list', allowBlank: true, formulae: [range], showErrorMessage: false
+            };
+          }
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `利用者DB_${todayStr()}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        alert('利用者DBの書き出し中にエラーが発生しました。時間をおいて再度お試しください。');
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
       }

@@ -7052,7 +7052,7 @@
   </div>
   <div style="font-size:11px; color:var(--muted); margin-bottom:8px;"><b>${monthDay(dayDates[0])}〜${monthDay(dayDates[dayDates.length - 1])}</b>（起点日を第1列として4週間）を表示中（上の◀▶で前後の4週間に切り替え）。各スタッフ4行表示：<b>午前予定・午前実績・午後予定・午後実績</b>。午前・午後で異なる休み形態に対応します。予定セルはパターン編集用（確定後は実績で記録）、実績セルは日付ごとのピンポイント記録です。<b>実績行は予定通りの日は空欄で薄く表示し、予定と異なる日だけ枠付きで目立たせます（空欄セルもクリックして変更できます）。</b></div>`;
 
-      const dayHeaderCells = dayDates.map((d, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${(i % 7) + 1}<br>${dayLabels[i]}<br><span style="font-weight:400; font-size:8.5px;">${monthDay(d)}</span></th>`).join('');
+      const dayHeaderCells = dayDates.map((d, i) => `<th class="${dayIsBiz[i] ? '' : 'shift-day-off'}">${dayLabels[i]}<br><span style="font-weight:700; font-size:14px;">${monthDay(d)}</span></th>`).join('');
       const weekHeaderCells = Array.from({ length: 4 }, (_, w) => `<th colspan="7" class="shift-week-label">第${w + 1}週</th>`).join('');
 
       const locked = !!appState.db.shiftPlanConfirmed;

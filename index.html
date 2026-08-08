@@ -3425,6 +3425,15 @@
           <div id="rehabResidentInfoBox" style="display:none;"></div>
         </div>
 
+        <div class="card" id="rehabPlanVersionCard" style="display:none;">
+          <div class="card-title">📜 版の管理（3ヶ月ごとの定期更新など）</div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
+            定期的に計画書を作り直す際、先に「💾 保存」で今の内容を確定してから「🆕 新しい版を作成」を押すと、確定した内容が「過去の版」として保管されます。画面はそのまま編集を続けられるので、前回の内容をベースに書き直して再度保存してください。
+          </div>
+          <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="createNewRehabPlanVersion()">🆕 新しい版を作成（現在の内容を過去の版として保管）</button>
+          <div id="rehabPlanVersionHistoryArea" style="margin-top:10px;"></div>
+        </div>
+
         <div id="rehabFormArea" style="display:none;">
 
           <div class="card">
@@ -3686,15 +3695,6 @@
               <button class="btn btn-primary" style="flex:2;" onclick="saveRehabPlan()">💾 保存</button>
             </div>
             <div id="rehabSaveStatus" style="margin-top:8px;"></div>
-          </div>
-
-          <div class="card">
-            <div class="card-title">📜 版の管理（3ヶ月ごとの定期更新など）</div>
-            <div style="font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6;">
-              定期的に計画書を作り直す際、先に「💾 保存」で今の内容を確定してから「🆕 新しい版を作成」を押すと、確定した内容が「過去の版」として保管されます。画面はそのまま編集を続けられるので、前回の内容をベースに書き直して再度保存してください。
-            </div>
-            <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="createNewRehabPlanVersion()">🆕 新しい版を作成（現在の内容を過去の版として保管）</button>
-            <div id="rehabPlanVersionHistoryArea" style="margin-top:10px;"></div>
           </div>
 
         </div>
@@ -6503,6 +6503,7 @@
       ].map(([l, f, d]) => `<tr><td>${l}</td><td>${f ? '⚠️ 該当' : '該当なし'}</td><td>${d}</td></tr>`).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>基本チェックリスト ${escHtml(r.name)}</title>
     <style>
@@ -6875,6 +6876,7 @@
       }).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>送迎表 ${dateStr}</title>
     <style>
@@ -7595,6 +7597,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       const title = kind === 'rehab' ? 'リハビリモニタリング' : '介護モニタリング';
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>${title} ${ym}</title>
     <style>body{font-family:sans-serif;padding:24px;line-height:1.8;font-size:13px;} h1{font-size:16px;border-bottom:2px solid #333;padding-bottom:8px;}</style>
@@ -7872,6 +7875,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       }).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>利用時間・入浴状況 ${dateStr}</title>
     <style>
@@ -8193,6 +8197,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
         .join('、');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>業務日誌 ${dateStr}</title>
     <style>
@@ -9120,6 +9125,7 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
       }
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>週間予定表 ${label}</title>
     <style>
@@ -11758,6 +11764,7 @@ ${SHORUI_COMMON_NOTE}`;
       }
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>連絡帳 ${dateStr}</title>
     <style>
@@ -11833,6 +11840,7 @@ ${SHORUI_COMMON_NOTE}`;
       }).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>経過記録 ${dateStr}</title>
     <style>
@@ -12200,6 +12208,7 @@ ${customInstructionsBlock('customPromptRehabRecord')}
       }).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>リハビリ記録 ${dateStr}</title>
     <style>
@@ -12638,6 +12647,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       const date = document.getElementById('dateInput').value;
       const name = appState.renrakucho.selectedResident?.name || '';
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>経過記録 ${date}</title>
     <style>body{font-family:sans-serif;padding:24px;line-height:1.8;font-size:13px;} h1{font-size:16px;}</style>
@@ -12687,6 +12697,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       const date = document.getElementById('dateInput').value;
       const name = appState.renrakucho.selectedResident?.name || '';
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><style>body{font-family:'Hiragino Kaku Gothic ProN',sans-serif;padding:40px;max-width:600px;margin:0 auto;}h2{font-size:18px;border-bottom:2px solid #2d7d5a;padding-bottom:8px;color:#2d7d5a;}p{font-size:16px;line-height:2;white-space:pre-wrap;margin-top:20px;}</style></head><body><h2>📋 連絡帳</h2><div style="font-size:13px;color:#666;margin-top:8px;">${date}　${appState.db.facility || ''}　${name} 様</div><p>${text}</p></body></html>`);
       win.document.close();
       win.print();
@@ -12853,6 +12864,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
     </div>`;
 
       document.getElementById('rehabFormArea').style.display = 'block';
+      document.getElementById('rehabPlanVersionCard').style.display = 'block';
       buildRehabTables();
       loadRehabForm(id, r);
       renderRehabPlanVersionHistory();
@@ -13304,6 +13316,7 @@ ${ids.map((_, i) => `【利用者${i + 1}】\n（ここに文章）`).join('\n')
       }).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>担当者会議録 ${m.date || ''}</title>
     <style>
@@ -13571,6 +13584,7 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       const facility = appState.db.facility || '';
       const attendeesLabel = [(h.attendees || '').split(',').filter(Boolean).join('・'), h.attendeesOther].filter(Boolean).join('、') || '（未記入）';
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>リハビリ会議録 ${h.date || ''}</title>
     <style>
@@ -13746,6 +13760,7 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       }).join('');
 
       const win = window.open('', '_blank');
+      if (!win) { alert('新しいウィンドウを開けませんでした。ブラウザのポップアップブロックを確認し、このサイトのポップアップを許可してから、もう一度お試しください。'); return; }
       win.document.write(`
     <html><head><title>リハビリテーション実施計画書 - ${escHtml(r.name)}</title>
     <style>

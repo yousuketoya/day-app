@@ -3100,7 +3100,7 @@
         </div>
 
         <div class="rc-record-zone">
-        <div class="rc-record-zone-badge">📝 ここから下が本日の記録入力エリアです</div>
+        <div class="rc-record-zone-badge">📝 ここから下は<span id="rcRecordZoneDateLabel"></span>の記録入力エリアです</div>
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
@@ -3896,7 +3896,7 @@
         </div>
 
         <div class="rc-record-zone">
-        <div class="rc-record-zone-badge">📝 ここから下が本日の記録入力エリアです</div>
+        <div class="rc-record-zone-badge">📝 ここから下は<span id="rrRecordZoneDateLabel"></span>の記録入力エリアです</div>
 
         <div class="card">
           <div class="card-title">👤 利用者</div>
@@ -11414,6 +11414,8 @@ ${SHORUI_COMMON_NOTE}`;
 
       const dateLabelEl = document.getElementById('todayRenrakuchoListDateLabel');
       if (dateLabelEl) dateLabelEl.textContent = `🗓️ ${formatDateJp(dateStr)}`;
+      const zoneLabelEl = document.getElementById('rcRecordZoneDateLabel');
+      if (zoneLabelEl) zoneLabelEl.textContent = formatDateJp(dateStr);
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（通所曜日未設定、または利用者未登録の可能性があります）</div>`;
@@ -11730,6 +11732,8 @@ ${SHORUI_COMMON_NOTE}`;
 
       const dateLabelEl = document.getElementById('todayRehabRecordListDateLabel');
       if (dateLabelEl) dateLabelEl.textContent = `🗓️ ${formatDateJp(dateStr)}`;
+      const zoneLabelEl = document.getElementById('rrRecordZoneDateLabel');
+      if (zoneLabelEl) zoneLabelEl.textContent = formatDateJp(dateStr);
 
       if (!residents.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px;">${dateStr} の利用予定者がいません（通所曜日未設定、または利用者未登録の可能性があります）</div>`;

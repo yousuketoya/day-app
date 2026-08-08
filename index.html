@@ -4882,6 +4882,22 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="ambiguousMatchModal">
+    <div class="modal">
+      <h2>👥 同姓同名の可能性があります <button class="modal-x" onclick="closeAmbiguousMatchModal()">✕</button></h2>
+      <div id="ambiguousMatchInfo" style="font-size:13px; margin-bottom:12px; line-height:1.6;"></div>
+      <div class="form-group">
+        <label>対象の利用者を選択してください</label>
+        <select id="ambiguousMatchSelect"
+          style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; margin-top:4px;"></select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAmbiguousMatchModal()">キャンセル</button>
+        <button class="btn btn-primary" style="flex:2;" onclick="confirmAmbiguousMatch()">次へ進む</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== 予定追加モーダル ===== -->
   <div class="modal-overlay" id="missingFieldsModal">
     <div class="modal">
@@ -5499,7 +5515,7 @@
       });
       addSheet('勤務表（予定）', shiftRows);
 
-      // 4. b 勤務表（実績：予定から変更があった日のみ、午前・午後）
+      // 4. 勤務表（実績：予定から変更があった日のみ、午前・午後）
       const shiftActualRows = [['日付', 'スタッフ名', '時間帯', '実績']];
       Object.keys(db.shiftActual || {}).sort().forEach(date => {
         Object.entries(db.shiftActual[date]).forEach(([name, data]) => {
@@ -5514,7 +5530,7 @@
       });
       addSheet('勤務表（実績）', shiftActualRows);
 
-      // 5. d 提供表（予定）
+      // 5. 提供表（予定）
       const tyPlanRows = [['年月', '利用者名', '日', '値']];
       Object.keys(db.teikyohyoPlan || {}).sort().forEach(ymk => {
         Object.entries(db.teikyohyoPlan[ymk]).forEach(([rid, days]) => {
@@ -5525,7 +5541,7 @@
       });
       addSheet('提供表(予定)', tyPlanRows);
 
-      // 6. e 提供表（実績）
+      // 6. 提供表（実績）
       const tyActualRows = [['年月', '利用者名', '日', '値']];
       Object.keys(db.teikyohyoActual || {}).sort().forEach(ymk => {
         Object.entries(db.teikyohyoActual[ymk]).forEach(([rid, days]) => {
@@ -5536,7 +5552,7 @@
       });
       addSheet('提供表(実績)', tyActualRows);
 
-      // 7. f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
+      // 7. 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
       const tySettingRows = [['年月', '確定', '確定日時']];
       Object.keys(db.teikyohyoConfirmed || {}).sort().forEach(ymk => {
         if (db.teikyohyoConfirmed[ymk]) {
@@ -5611,7 +5627,7 @@
       });
       addSheet('連絡帳', rcRows);
 
-      // 13. c 連絡帳チェック項目（体調・気分・水分・入浴・排泄・レク・訓練・安全・服薬の選択と特記事項）
+      // 13. 連絡帳チェック項目（体調・気分・水分・入浴・排泄・レク・訓練・安全・服薬の選択と特記事項）
       // ※「活動」列は後から追加した項目のため、既存の並び順を崩さないよう末尾（特記事項の後）に追加している
       const ciRows = [['日付', '利用者名', ...RC_CHECKLOG_GROUPS.map(g => RC_CHECK_GROUP_LABELS[g] || g), '特記事項', '活動']];
       Object.keys(db.checkItemsLog || {}).sort().forEach(date => {
@@ -5640,7 +5656,7 @@
       });
       addSheet('バイタル', vRows);
 
-      // 16. b 食事摂取量（主食・副食）
+      // 16. 食事摂取量（主食・副食）
       const miRows = [['日付', '利用者名', '主食', '副食']];
       Object.keys(db.mealIntakeLog || {}).sort().forEach(date => {
         Object.entries(db.mealIntakeLog[date]).forEach(([rid, m]) => {
@@ -5938,7 +5954,7 @@
         });
       }
 
-      // 4. b 勤務表（実績：午前・午後対応、旧形式もサポート）
+      // 4. 勤務表（実績：午前・午後対応、旧形式もサポート）
       const shiftActualRows = getSheetRows(wb, '勤務表（実績）');
       const hasNewActualFormat = shiftActualRows.some(row => row[2] === '午前' || row[2] === '午後');
 
@@ -5976,7 +5992,7 @@
       fillTeikyohyo('提供表(予定)', newDb.teikyohyoPlan);
       fillTeikyohyo('提供表(実績)', newDb.teikyohyoActual);
 
-      // 6. f 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
+      // 6. 提供表 設定（確定状況・入院中設定・書類読込済フラグ）
       getSheetRows(wb, '提供表_確定状況').forEach(([ymk, confirmed, confirmedAt]) => {
         if (!ymk) return;
         if (confirmed === 'はい') {
@@ -6041,7 +6057,7 @@
         }
       });
 
-      // 12. c 連絡帳チェック項目（「活動」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ単に未設定のまま）
+      // 12. 連絡帳チェック項目（「活動」列は末尾に追加された項目。古いバックアップには存在しないため、無ければ単に未設定のまま）
       getSheetRows(wb, '連絡帳チェック項目').forEach(row => {
         const [date, name, ...rest] = row;
         const id = findId(name); if (!id || !date) return;
@@ -6068,7 +6084,7 @@
         newDb.vitalsLog[date][id] = { temp: parseNum(temp), bpSys: parseNum(bpSys), bpDia: parseNum(bpDia), pulse: parseNum(pulse), spo2: parseNum(spo2), weight: parseNum(weight) };
       });
 
-      // 15. b 食事摂取量（主食・副食）
+      // 15. 食事摂取量（主食・副食）
       getSheetRows(wb, '食事摂取量').forEach(([date, name, main, side]) => {
         const id = findId(name); if (!id || !date) return;
         if (!newDb.mealIntakeLog[date]) newDb.mealIntakeLog[date] = {};
@@ -11088,13 +11104,73 @@ ${SHORUI_COMMON_NOTE}`;
       return out;
     }
 
+    // 氏名（スペースの有無を無視）が一致する利用者をすべて返す（同姓同名の可能性を検出するため）
+    function findResidentsByNormalizedName(name) {
+      const norm = normalizeNameForMatch(name);
+      if (!norm) return [];
+      return appState.db.residentDb.filter(r => normalizeNameForMatch(r.name) === norm);
+    }
+
     function exportToDB() {
       const name = appState.shorui.extractedData['氏名'] || '';
       if (!name) { alert('氏名が読み取れていません。確認してください。'); return; }
 
-      const existing = appState.db.residentDb.find(r => r.name === name);
+      const candidates = findResidentsByNormalizedName(name);
+
+      if (candidates.length <= 1) {
+        proceedExportToDB(candidates[0] || null);
+        return;
+      }
+
+      // 同姓同名の可能性：まず生年月日が読み取れていれば、それで絞り込みを試みる
+      const extractedDobRaw = appState.shorui.extractedData['生年月日'] || '';
+      const extractedDob = extractedDobRaw ? normalizeDobString(extractedDobRaw) : '';
+      const narrowed = extractedDob ? candidates.filter(r => r.dob && r.dob === extractedDob) : [];
+
+      if (narrowed.length === 1) {
+        proceedExportToDB(narrowed[0]);
+        return;
+      }
+
+      // 生年月日だけでは決めきれない場合（未読み取り／複数一致）は、スタッフに選んでもらう
+      openAmbiguousMatchModal(candidates, name);
+    }
+
+    function openAmbiguousMatchModal(candidates, name) {
+      appState.shorui.ambiguousCandidates = candidates;
+      document.getElementById('ambiguousMatchInfo').innerHTML =
+        `「${escHtml(name)}」と同じお名前の利用者が複数登録されています。生年月日だけでは絞り込めなかったため、対象の方を選んでください。`;
+      const options = candidates.map(r =>
+        `<option value="${r.id}">${escHtml(r.name)}${r.dob ? '（生年月日：' + escHtml(r.dob) + '）' : '（生年月日未登録）'}${r.careLevel ? '・' + escHtml(r.careLevel) : ''}</option>`
+      ).join('');
+      document.getElementById('ambiguousMatchSelect').innerHTML =
+        options + `<option value="__new__">－ この中にいない（新しい利用者として登録）－</option>`;
+      document.getElementById('ambiguousMatchModal').classList.add('open');
+    }
+
+    function closeAmbiguousMatchModal() { document.getElementById('ambiguousMatchModal').classList.remove('open'); }
+
+    function confirmAmbiguousMatch() {
+      const val = document.getElementById('ambiguousMatchSelect').value;
+      closeAmbiguousMatchModal();
+      if (val === '__new__') {
+        proceedExportToDB(null);
+      } else {
+        const target = (appState.shorui.ambiguousCandidates || []).find(r => r.id === val);
+        proceedExportToDB(target || null);
+      }
+    }
+
+    function proceedExportToDB(existing) {
+      const name = appState.shorui.extractedData['氏名'] || '';
       if (existing) {
         const newData = buildResidentFromExtracted(existing.id);
+        // 全角／半角スペースの入れ方だけの違いなら、書類の読み取り結果ではなく登録済みの表記をそのまま優先する
+        // （書類読取のたびに、せっかく整えた「姓　名」の表記がスペース無しに崩れてしまうのを防ぐため）
+        if (normalizeNameForMatch(newData.name) === normalizeNameForMatch(existing.name)) {
+          newData.name = existing.name;
+        }
+
         const fieldMap = FIELD_LABELS;
         const diffs = [];
         Object.keys(fieldMap).forEach(key => {
@@ -11106,13 +11182,13 @@ ${SHORUI_COMMON_NOTE}`;
         appState.shorui.pendingNew = newData;
         appState.shorui.pendingDiffs = diffs;
 
-        document.getElementById('dupInfo').innerHTML = `<strong>「${name}」</strong>さんは既に登録されています。`;
+        document.getElementById('dupInfo').innerHTML = `<strong>「${escHtml(existing.name)}」</strong>さんは既に登録されています。`;
         document.getElementById('dupDiff').innerHTML = diffs.length === 0
           ? '<div style="color:var(--muted); font-size:13px; background:var(--bg); padding:10px; border-radius:8px;">変更点はありません。</div>'
           : `<div style="font-size:13px; font-weight:700; color:var(--green); margin-bottom:8px;">変更点 ${diffs.length}件：</div>
-         ${diffs.map(d => `<div class="dup-diff-item"><div class="dup-diff-label">${d.label}</div>
-           <div class="dup-diff-old">${d.oldVal || '（未設定）'}</div>
-           <div class="dup-diff-new">→ ${d.newVal}</div></div>`).join('')}`;
+         ${diffs.map(d => `<div class="dup-diff-item"><div class="dup-diff-label">${escHtml(d.label)}</div>
+           <div class="dup-diff-old">${escHtml(d.oldVal || '（未設定）')}</div>
+           <div class="dup-diff-new">→ ${escHtml(d.newVal)}</div></div>`).join('')}`;
         document.getElementById('dupModal').classList.add('open');
       } else {
         appState.db.residentDb.push(buildResidentFromExtracted(null));
@@ -13286,7 +13362,7 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       if (!r) { alert('利用者を選択してください'); return; }
       const existing = appState.db.rehabPlans[r.id];
       if (!existing) { alert('まだ計画書が作成されていないため、新しい版を作る必要はありません。このまま入力・保存してください。'); return; }
-      if (!confirm('現在保存されている内容を「過去の版」として保管し、新しい版の作成を始めます。\n※今の画面上の入力内容のうち、まだ保存していない変更は失われます。先に保存してから行うことをおすすめします。\n\nよろしいですか？')) return;
+      if (!confirm('現在保存されている内容を「過去の版」として保管し、新しい版の作成を始めます。\n画面の入力内容はそのまま残りますので、続けて編集し、最後に「保存」を押してください。\n\nよろしいですか？')) return;
 
       const snapshot = { ...existing };
       delete snapshot.history;

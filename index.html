@@ -7071,7 +7071,7 @@
           const label = shiftCodeLabel(v);
           const clickAttr = locked ? '' : ` onclick="toggleShiftCell('${escAttr(s.name)}', ${idx}, 'am')"`;
           const lockedStyle = locked ? ' style="cursor:default; opacity:0.75;"' : '';
-          return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle} title="${d}">${label}</td>`;
+          return `<td id="${shiftCellId('am', 'plan', s.name, d)}" class="shift-cell ${cls}"${clickAttr}${lockedStyle} title="${d}">${label}</td>`;
         }).join('');
 
         // ---- 午前実績行 ----
@@ -7086,7 +7086,7 @@
           const changed = !!override && override !== planned;
           const cls = changed ? shiftCodeClass(effective) : '';
           const label = changed ? shiftCodeLabel(effective) : '';
-          return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','am')" title="${d}${changed ? '' : '（予定通り／クリックで変更）'}">${label}</td>`;
+          return `<td id="${shiftCellId('am', 'actual', s.name, d)}" class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','am')" title="${d}${changed ? '' : '（予定通り／クリックで変更）'}">${label}</td>`;
         }).join('');
 
         // ---- 午後予定行 ----
@@ -7099,7 +7099,7 @@
           const label = shiftCodeLabel(v);
           const clickAttr = locked ? '' : ` onclick="toggleShiftCell('${escAttr(s.name)}', ${idx}, 'pm')"`;
           const lockedStyle = locked ? ' style="cursor:default; opacity:0.75;"' : '';
-          return `<td class="shift-cell ${cls}"${clickAttr}${lockedStyle} title="${d}">${label}</td>`;
+          return `<td id="${shiftCellId('pm', 'plan', s.name, d)}" class="shift-cell ${cls}"${clickAttr}${lockedStyle} title="${d}">${label}</td>`;
         }).join('');
 
         // ---- 午後実績行 ----
@@ -7114,7 +7114,7 @@
           const changed = !!override && override !== planned;
           const cls = changed ? shiftCodeClass(effective) : '';
           const label = changed ? shiftCodeLabel(effective) : '';
-          return `<td class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','pm')" title="${d}${changed ? '' : '（予定通り／クリックで変更）'}">${label}</td>`;
+          return `<td id="${shiftCellId('pm', 'actual', s.name, d)}" class="shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}" onclick="toggleShiftActualCell('${escAttr(s.name)}','${d}','pm')" title="${d}${changed ? '' : '（予定通り／クリックで変更）'}">${label}</td>`;
         }).join('');
 
         const zebra = sIndex % 2 === 0 ? 'shift-zebra-a' : 'shift-zebra-b';
@@ -7151,6 +7151,41 @@
       renderShiftConfirmStatus();
     }
 
+    // 勤務表セルのID（クリック後に表全体を再描画せず、そのセルだけを直接書き換えて横スクロール位置を保つために使用）
+    function shiftCellId(period, rowType, staffName, dateStr) {
+      return `shc_${period}${rowType}_${encodeURIComponent(staffName)}_${dateStr}`;
+    }
+
+    function refreshShiftCellDom(period, rowType, staffName, dateStr) {
+      const td = document.getElementById(shiftCellId(period, rowType, staffName, dateStr));
+      if (!td) { renderShiftPatternTable(); return; } // 見つからない場合のみ、保険として全体再描画にフォールバック
+
+      ensureShiftPattern(staffName);
+      const pattern = appState.db.shiftPattern[staffName];
+      const idx = shiftCycleDayIndex(dateStr);
+
+      if (rowType === 'plan') {
+        const v = pattern[period][idx];
+        const cls = shiftCodeClass(v);
+        const label = shiftCodeLabel(v);
+        const locked = !!appState.db.shiftPlanConfirmed;
+        td.className = `shift-cell ${cls}`;
+        td.textContent = label;
+        td.style.cursor = locked ? 'default' : '';
+        td.style.opacity = locked ? '0.75' : '';
+      } else {
+        const planned = pattern[period][idx];
+        const override = getShiftActual(staffName, dateStr, period);
+        const effective = override || planned;
+        const changed = !!override && override !== planned;
+        const cls = changed ? shiftCodeClass(effective) : '';
+        const label = changed ? shiftCodeLabel(effective) : '';
+        td.className = `shift-cell ${cls} actual-row-cell${changed ? ' actual-changed' : ' actual-unchanged'}`;
+        td.textContent = label;
+        td.title = `${dateStr}${changed ? '' : '（予定通り／クリックで変更）'}`;
+      }
+    }
+
     function toggleShiftCell(name, idx, period) {
       if (appState.db.shiftPlanConfirmed) {
         showStatus('shiftConfirmStatus', '⚠️ 予定は確定済みのため編集できません。変更が必要な場合は下の「実績」に入力するか、確定を解除してください。', 'error');
@@ -7162,7 +7197,9 @@
       const nextIdx = (curIdx === -1 ? 0 : curIdx + 1) % SHIFT_CODES.length;
       appState.db.shiftPattern[name][period][idx] = SHIFT_CODES[nextIdx];
       saveDb();
-      renderShiftPatternTable();
+      // 表全体を再描画すると横スクロール位置が先頭に戻ってしまうため、クリックされたセルだけを直接書き換える
+      const dateStr = getShiftBlockDates()[idx];
+      refreshShiftCellDom(period, 'plan', name, dateStr);
     }
 
     // ---- 予定の確定（確定後はパターン編集をロックし、以後の変更は実績で記録する） ----
@@ -7258,7 +7295,8 @@
         if (!Object.keys(appState.db.shiftActual[dateStr]).length) delete appState.db.shiftActual[dateStr];
       }
       saveDb();
-      renderShiftPatternTable();
+      // 表全体を再描画すると横スクロール位置が先頭に戻ってしまうため、クリックされたセルだけを直接書き換える
+      refreshShiftCellDom(period, 'actual', name, dateStr);
       // 業務日誌が同じ日付で開かれていれば、出勤職員欄も追随して更新する
       const dlDateEl = document.getElementById('dl_date');
       if (dlDateEl && dlDateEl.value === dateStr) renderDailyLogStaffChips();

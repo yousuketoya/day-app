@@ -10184,10 +10184,11 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     // ------------------------------------------------------------
     // 画像の自動リサイズ・圧縮・簡易画質チェック
     // スマホ撮影の高解像度写真をそのままAPIに送ると、送信失敗・タイムアウト・
-    // トリミング漏れの原因になるため、長辺2000pxに縮小しJPEG圧縮してから送る。
+    // トリミング漏れの原因になるため、長辺2600pxに縮小しJPEG圧縮してから送る
+    // （文字が細かい書類の読み取り精度を優先し、従来の2000pxから引き上げ）。
     // 併せて「暗すぎる／小さすぎる」写真には注意メッセージを出す。
     // ------------------------------------------------------------
-    const SHORUI_MAX_DIM = 2000;
+    const SHORUI_MAX_DIM = 2600;
     const SHORUI_JPEG_QUALITY = 0.88;
     const SHORUI_MIN_DIM_WARN = 900; // これより小さい画像は文字が潰れやすい
 
@@ -10403,9 +10404,20 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     function getPrompt(mode) {
       if (mode === 'basic') return `この書類から以下の基本情報を抽出してください。JSONのみ返してください。
 {"氏名":"","フリガナ":"","生年月日":"","年齢":"","性別":"","要介護度":"","住所":"","電話番号":"","担当ケアマネ":"","ケアマネ事業所":"","主治医":"","病院名":"","緊急連絡先氏名":"","緊急連絡先続柄":"","緊急連絡先電話":""}
+
+【最後に必ず行う自己チェック】
+・生年月日は西暦4桁の年を含む形で、実在しうる日付（未来の日付でない、極端に古すぎない）になっているか確認してください。和暦（昭和・平成・令和など）で書かれている場合は西暦に変換してください。
+・要介護度は「要支援1」「要支援2」「要介護1」〜「要介護5」のいずれかの表記と一致しているか確認してください（「要支援１」のような全角数字は半角に統一してください）。
+・性別は「男」または「女」のいずれかになっているか確認してください。
+・複数の利用者の情報が1枚に混在している書類の場合、氏名以外の項目が別人のものと混ざっていないか、書類上の位置関係をもう一度確認してください。
 ${SHORUI_COMMON_NOTE}`;
       if (mode === 'care') return `この書類からケア・医療情報を抽出してください。JSONのみ返してください。
 {"食事形態":"","食事制限":"","アレルギー":"","水分制限":"","入浴方法":"","入浴頻度":"","服薬内容":"","服薬タイミング":"","既往歴":"","現在の疾患":"","注意事項":"","ADL状況":"","認知症の有無":"","コミュニケーション":""}
+
+【最後に必ず行う自己チェック】
+・「既往歴」と「現在の疾患」を混同していないか（既往歴は過去に治療が終わった病気、現在の疾患は今も治療・管理中のものです）確認してください。
+・食事形態・入浴方法は、書類にある表記をそのまま使い、別の項目（例：食事制限の内容）を誤って食事形態欄に書いていないか確認してください。
+・服薬内容とタイミングが対応する薬同士で正しく結びついているか（薬Aの内容欄に薬Bのタイミングが混ざっていないか）確認してください。
 ${SHORUI_COMMON_NOTE}`;
       if (mode === 'plan') return `この居宅サービス計画書（ケアプラン）を読み取り、リハビリテーション計画書の作成に使う項目をJSON形式で抽出してください。
 
@@ -10425,6 +10437,12 @@ ${SHORUI_COMMON_NOTE}`;
 JSONのみ返してください。他の文章は含めないでください。
 {"氏名":"","計画作成年月日":"","本人の希望":"","家族の希望":"","日常生活自立度":"","認知症高齢者の日常生活自立度":"","原因疾病":"","既往歴":"","総合的な援助の方針":"","長期目標":"","短期目標":""}
 ※記載が無い項目は空欄のままにしてください。存在しない情報を作り出さないでください。
+
+【最後に必ず行う自己チェック】
+・「日常生活自立度」は自立／J1／J2／A1／A2／B1／B2／C1／C2のいずれかの表記になっているか確認してください。
+・「認知症高齢者の日常生活自立度」は自立／Ⅰ／Ⅱa／Ⅱb／Ⅲa／Ⅲb／Ⅳ／Mのいずれかの表記になっているか確認してください。
+・「計画作成年月日」が和暦（令和など）で書かれていた場合、正しく西暦に変換できているか（令和1年＝2019年）再確認してください。
+・「本人：」の発言内容を家族の希望欄に、「家族：」の発言内容を本人の希望欄に、取り違えて入れていないか確認してください。
 ${SHORUI_COMMON_NOTE}`;
       if (mode === 'teikyohyo') return `このサービス提供票（居宅サービス計画に基づく月間の提供票）を読み取ってください。
 
@@ -10673,6 +10691,58 @@ ${SHORUI_COMMON_NOTE}`;
     // ============================================================
     // SHORUI - 居宅サービス計画書 → リハビリ計画書への反映
     // ============================================================
+    // 読み取り結果に不自然な値がないか簡易チェックし、確認を促す警告メッセージの配列を返す
+    // （保存や反映を止めるものではなく、見落としを減らすための注意喚起）
+    function getShoruiFieldWarnings(data) {
+      const warnings = [];
+
+      const checkDob = (key, label) => {
+        const raw = data[key];
+        if (!raw) return;
+        const normalized = normalizeDobString(raw);
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+        if (!m) { warnings.push({ field: key, message: `${label}「${raw}」の形式を確認してください（西暦4桁になっているか）` }); return; }
+        const date = new Date(normalized);
+        const now = new Date();
+        if (isNaN(date.getTime())) { warnings.push({ field: key, message: `${label}「${raw}」を日付として認識できません` }); return; }
+        if (date > now) { warnings.push({ field: key, message: `${label}が未来の日付になっています（${raw}）` }); return; }
+        const years = (now - date) / (1000 * 60 * 60 * 24 * 365.25);
+        if (years > 120) { warnings.push({ field: key, message: `${label}が120年以上前になっています（${raw}）。読み取りミスの可能性があります` }); }
+      };
+      checkDob('生年月日', '生年月日');
+      checkDob('計画作成年月日', '計画作成年月日');
+
+      const careLevel = data['要介護度'];
+      if (careLevel && !['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5'].includes(careLevel)) {
+        warnings.push({ field: '要介護度', message: `要介護度「${careLevel}」が定型の表記（要支援1・2／要介護1〜5）と一致しません` });
+      }
+
+      const gender = data['性別'];
+      if (gender && !['男', '女', '男性', '女性'].includes(gender)) {
+        warnings.push({ field: '性別', message: `性別「${gender}」が男／女のいずれとも一致しません` });
+      }
+
+      const adlIndep = data['日常生活自立度'];
+      if (adlIndep && !['自立', 'J1', 'J2', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(adlIndep)) {
+        warnings.push({ field: '日常生活自立度', message: `日常生活自立度「${adlIndep}」が定型の表記（自立/J1/J2/A1/A2/B1/B2/C1/C2）と一致しません` });
+      }
+
+      const dementiaIndep = data['認知症高齢者の日常生活自立度'];
+      if (dementiaIndep && !['自立', 'Ⅰ', 'Ⅱa', 'Ⅱb', 'Ⅲa', 'Ⅲb', 'Ⅳ', 'M'].includes(dementiaIndep)) {
+        warnings.push({ field: '認知症高齢者の日常生活自立度', message: `認知症高齢者の日常生活自立度「${dementiaIndep}」が定型の表記（自立/Ⅰ/Ⅱa/Ⅱb/Ⅲa/Ⅲb/Ⅳ/M）と一致しません` });
+      }
+
+      return warnings;
+    }
+
+    function renderShoruiWarningsHtml(warnings) {
+      if (!warnings.length) return '';
+      return `<div style="background:#FFF7E6; border:1px solid #F5B942; color:#8A5A00; border-radius:var(--radius-sm); padding:10px 12px; font-size:12.5px; margin-bottom:10px; line-height:1.7;">
+    <b>⚠️ 確認をおすすめする項目（${warnings.length}件）</b><br>
+    ${warnings.map(w => `・${escHtml(w.message)}`).join('<br>')}
+  </div>`;
+    }
+
     function renderRehabPlanExtractPreview(data) {
       const matched = matchResidentByName(data['氏名']);
       appState.shorui.rehabPlanExtract = { data, residentId: matched ? matched.id : '' };
@@ -10686,25 +10756,29 @@ ${SHORUI_COMMON_NOTE}`;
         `<option value="${r.id}" ${matched && matched.id === r.id ? 'selected' : ''}>${escHtml(r.name)}</option>`).join('');
 
       const fieldRows = [
-        ['計画作成年月日', data['計画作成年月日']],
-        ['本人の希望', data['本人の希望']],
-        ['家族の希望', data['家族の希望']],
-        ['日常生活自立度', data['日常生活自立度']],
-        ['認知症高齢者の日常生活自立度', data['認知症高齢者の日常生活自立度']],
-        ['原因疾病', data['原因疾病']],
-        ['既往歴・現病歴', data['既往歴']],
-        ['総合的な援助の方針', data['総合的な援助の方針']],
-        ['長期目標（参考）', data['長期目標']],
-        ['短期目標（参考）', data['短期目標']],
-      ].filter(([, v]) => v);
+        ['計画作成年月日', '計画作成年月日', data['計画作成年月日']],
+        ['本人の希望', '本人の希望', data['本人の希望']],
+        ['家族の希望', '家族の希望', data['家族の希望']],
+        ['日常生活自立度', '日常生活自立度', data['日常生活自立度']],
+        ['認知症高齢者の日常生活自立度', '認知症高齢者の日常生活自立度', data['認知症高齢者の日常生活自立度']],
+        ['原因疾病', '原因疾病', data['原因疾病']],
+        ['既往歴・現病歴', '既往歴', data['既往歴']],
+        ['総合的な援助の方針', '総合的な援助の方針', data['総合的な援助の方針']],
+        ['長期目標（参考）', '長期目標', data['長期目標']],
+        ['短期目標（参考）', '短期目標', data['短期目標']],
+      ].filter(([, , v]) => v);
 
       if (!fieldRows.length) {
         el.innerHTML = `<div style="color:var(--muted); font-size:13px; padding:10px;">読み取れた項目がありませんでした。書類の写り具合を確認のうえ、撮り直してお試しください。</div>`;
         return;
       }
 
+      const warnings = getShoruiFieldWarnings(data);
+      const warningFields = new Set(warnings.map(w => w.field));
+
       el.innerHTML = `
     <div style="font-size:13px; margin-bottom:10px;">📋 読取氏名：<b>${escHtml(data['氏名'] || '（不明）')}</b></div>
+    ${renderShoruiWarningsHtml(warnings)}
     <div style="margin-bottom:10px;">
       <label style="font-size:12px; font-weight:700; color:var(--muted);">反映先の利用者</label>
       <select id="rehabPlanExtractResidentSelect" style="width:100%; padding:8px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; margin-top:4px;" onchange="appState.shorui.rehabPlanExtract.residentId = this.value">
@@ -10713,11 +10787,14 @@ ${SHORUI_COMMON_NOTE}`;
       </select>
     </div>
     <div class="extracted-grid">
-      ${fieldRows.map(([label, val]) => `
-        <div class="field-item" style="grid-column: span 2;">
-          <div class="field-label">${escHtml(label)}</div>
+      ${fieldRows.map(([label, key, val]) => {
+        const isWarned = warningFields.has(key);
+        return `
+        <div class="field-item" style="grid-column: span 2;${isWarned ? ' border-color:var(--danger); background:#fdecea;' : ''}">
+          <div class="field-label">${escHtml(label)}${isWarned ? ' ⚠️' : ''}</div>
           <div style="font-size:13px; margin-top:4px; white-space:pre-wrap;">${escHtml(val)}</div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>
     <div style="font-size:11px; color:var(--muted); margin:10px 0; line-height:1.6;">
       ※長期目標・短期目標はケアプラン全体の目標のため、リハビリ計画書の心身機能／活動／参加のどこに書くかはご自身でご判断ください（反映すると計画書画面に参考として表示されます。自動では欄に入りません）。<br>
@@ -11203,9 +11280,11 @@ ${SHORUI_COMMON_NOTE}`;
         el.innerHTML = '<div style="color:var(--muted); font-size:13px; text-align:center; padding:20px;">読み取れた情報がありませんでした</div>';
         return;
       }
-      el.innerHTML = `<div class="extracted-grid">${entries.map(([k, v]) => `
-    <div class="field-item">
-      <div class="field-label">${k}</div>
+      const warnings = getShoruiFieldWarnings(data);
+      const warningFields = new Set(warnings.map(w => w.field));
+      el.innerHTML = `${renderShoruiWarningsHtml(warnings)}<div class="extracted-grid">${entries.map(([k, v]) => `
+    <div class="field-item"${warningFields.has(k) ? ' style="border-color:var(--danger); background:#fdecea;"' : ''}>
+      <div class="field-label">${escHtml(k)}${warningFields.has(k) ? ' ⚠️' : ''}</div>
       <div class="field-value"><input type="text" value="${escAttr(v)}" onchange="appState.shorui.extractedData['${escAttr(k)}'] = this.value"></div>
     </div>`).join('')}</div>`;
     }

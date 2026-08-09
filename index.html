@@ -1218,7 +1218,7 @@
     }
 
     .tp-table-transport col.tp-col-time {
-      width: 42px;
+      width: 58px;
     }
 
     .tp-table-transport col.tp-col-select {
@@ -1310,7 +1310,7 @@
       background: none;
       padding: 0;
       margin: 0;
-      font-size: 11px;
+      font-size: 9.5px;
       line-height: 1.2;
       cursor: pointer;
       opacity: 0.75;
@@ -2468,7 +2468,7 @@
 
     .vital-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 8px;
     }
 
@@ -2751,7 +2751,7 @@
       }
 
       .vital-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
       }
 
       .check-grid {
@@ -7735,20 +7735,24 @@ ${customInstructionsBlock('customPromptMonitoring')}`;
     }
 
     // 業務日誌テーブルに表示する「リハビリ」の確定値（あり／なし）
-    // 優先順位：①職員がプルダウンで確定した値（手動。リハビリ記録の入力が間に合わない時用） → ②リハビリ記録ログの有無から自動判定
+    // 優先順位：①職員がプルダウンで確定した値（手動） → ②リハビリ記録に「実施中止」の記載があれば「なし」 → ③初期値「あり」
+    // ※通常はリハビリを実施するため、記録が無い日・実施内容が記載されている日は「あり」。
+    //   リハビリ記録の「バイタル・体調」欄に「実施中止」と記録されている日だけ自動で「なし」になる。
     function getEffectiveRehabDone(dateStr, r, usageEntry) {
       if (usageEntry && usageEntry.rehabDone !== undefined) return usageEntry.rehabDone;
-      const hasRehab = !!(appState.db.rehabRecordLog[dateStr] && appState.db.rehabRecordLog[dateStr][r.id]);
-      return hasRehab ? 'あり' : 'なし';
+      const rec = appState.db.rehabRecordLog[dateStr] && appState.db.rehabRecordLog[dateStr][r.id];
+      if (rec && rec.condition === '実施中止') return 'なし';
+      return 'あり';
     }
 
     // 業務日誌テーブルに表示する「食事」の確定値（あり／なし）
-    // 優先順位：①職員がプルダウンで確定した値（手動。連絡帳の入力が間に合わない時用） → ②連絡帳の食事摂取量ログの有無から自動判定
+    // 優先順位：①職員がプルダウンで確定した値（手動） → ②連絡帳の食事摂取量に「摂取困難」の記載があれば「なし」 → ③初期値「あり」
+    // ※連絡帳の食事摂取量には「なし」に相当する選択肢が無いため、主食・副食のいずれかが「摂取困難」の場合を「なし」の代わりとして扱う。
     function getEffectiveMealDone(dateStr, r, usageEntry) {
       if (usageEntry && usageEntry.mealDone !== undefined) return usageEntry.mealDone;
       const mealEntry = appState.db.mealIntakeLog[dateStr] && appState.db.mealIntakeLog[dateStr][r.id];
-      const hasMeal = !!(mealEntry && (mealEntry.main || mealEntry.side));
-      return hasMeal ? 'あり' : 'なし';
+      if (mealEntry && (mealEntry.main === '摂取困難' || mealEntry.side === '摂取困難')) return 'なし';
+      return 'あり';
     }
 
     // 利用者リストから、利用時間の長さ別の人数集計を行う（区分外・時間未登録は「その他」に集計）

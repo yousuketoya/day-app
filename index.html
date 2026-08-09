@@ -6880,11 +6880,13 @@
       win.document.write(`
     <html><head><title>送迎表 ${dateStr}</title>
     <style>
-      body { font-family: sans-serif; padding: 20px; font-size: 11.5px; }
-      h1 { font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 8px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th, td { border: 1px solid #999; padding: 4px 5px; text-align: left; }
-      th { background: #f0f0f0; }
+      @page { size: A4 landscape; margin: 8mm; }
+      * { box-sizing: border-box; }
+      body { font-family: sans-serif; padding: 0; font-size: 9.5px; }
+      h1 { font-size: 13px; border-bottom: 2px solid #333; padding-bottom: 4px; margin: 0 0 6px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #999; padding: 2px 3px; text-align: left; }
+      th { background: #f0f0f0; font-size: 9px; }
     </style></head><body>
     <h1>送迎表　${escHtml(appState.db.facility || '')}　${dateStr}${sortModeLabel}</h1>
     <table><tr><th>順</th><th>利用者名</th><th>送迎区分</th><th>迎え時刻</th><th>到着(施設)</th><th>迎え運転手</th><th>迎え車両</th><th>迎え添乗</th><th>送り時刻</th><th>到着(自宅)</th><th>送り運転手</th><th>送り車両</th><th>送り添乗</th><th>備考</th></tr>${rows}</table>

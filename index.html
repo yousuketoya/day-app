@@ -12870,9 +12870,7 @@ ${customInstructionsBlock('customPromptRenrakucho')}
       renderRehabPlanVersionHistory();
     }
 
-    function loadRehabForm(residentId, resident) {
-      const plan = appState.db.rehabPlans[residentId] || {};
-
+    function populateRehabFormFields(plan, resident, isNewPlan) {
       RP_TEXT_FIELDS.forEach(f => {
         const el = document.getElementById('rp_' + f);
         if (el) el.value = plan[f] || '';
@@ -12902,7 +12900,6 @@ ${customInstructionsBlock('customPromptRenrakucho')}
         document.getElementById('mb_' + i + '_impact').value = mb[i]?.impact || '';
         document.getElementById('mb_' + i + '_note').value = mb[i]?.note || '';
       });
-      const isNewPlan = !appState.db.rehabPlans[residentId];
 
       const bm = plan.basicMotion || [];
       BASIC_MOTION_ITEMS.forEach((_, i) => {
@@ -12924,11 +12921,68 @@ ${customInstructionsBlock('customPromptRenrakucho')}
         document.getElementById('adl_' + i + '_now').value = now;
         document.getElementById('adl_' + i + '_note').value = note;
       });
+    }
+
+    function loadRehabForm(residentId, resident) {
+      applyRehabPastVersionLock(false); // 通常の（最新版の）表示に戻るタイミングでは、常にロックを解除しておく
+      const plan = appState.db.rehabPlans[residentId] || {};
+      const isNewPlan = !appState.db.rehabPlans[residentId];
+      populateRehabFormFields(plan, resident, isNewPlan);
       if (isNewPlan && (resident?.basicMotionAssess?.some(x => x?.level) || resident?.adlAssess?.some(x => x?.level))) {
         showStatus('rehabSaveStatus', '📥 利用者DBの現況評価を初期値として反映しました（内容を確認・調整してください）', 'info');
       } else {
         showStatus('rehabSaveStatus', plan.updatedAt ? `最終更新：${plan.updatedAt}` : '', 'info');
       }
+    }
+
+    // 過去の版を、連絡帳で過去の日付を開いた時と同じ感覚で、そのまま今の入力フォームに読み込む
+    // （別カードでの表示ではなく、フォーム自体の内容を差し替える）。
+    // 誤って過去の内容をそのまま書き換えてしまわないよう、読み込み直後は編集をロックし、
+    // 明示的に「編集を許可する」を押した場合のみ書き換えられるようにする。
+    function loadRehabPlanVersionIntoForm(idx) {
+      const r = appState.rehab.selectedResident;
+      if (!r) return;
+      const plan = appState.db.rehabPlans[r.id];
+      const versions = (plan && plan.versionHistory) || [];
+      const v = versions[idx];
+      if (!v) return;
+      if (!confirm(`計画作成日：${v.planDate || '未設定'} の過去の版を、今の入力フォームに読み込みます。\n現在フォームに表示中の内容（保存していないもの）は表示から消えます（保存はされません）。よろしいですか？`)) return;
+
+      populateRehabFormFields(v, r, false);
+      applyRehabPastVersionLock(true, v.planDate || '未設定');
+      showStatus('rehabSaveStatus', `📖 過去の版（計画作成日：${escHtml(v.planDate || '未設定')}／保存：${escHtml(v.updatedAt || '')}）を読み込みました。内容は表示のみです。`, 'info');
+      document.getElementById('rehabFormArea')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 過去の版を読み込んだ直後は、フォーム全体に半透明オーバーレイを重ねて誤操作を防ぐ
+    // （終了者（バックナンバー）の記録ロックと同じ見た目・仕組みを流用）
+    function applyRehabPastVersionLock(locked, versionLabel) {
+      const formArea = document.getElementById('rehabFormArea');
+      if (!formArea) return;
+      formArea.style.position = 'relative';
+      let overlay = formArea.querySelector('.paused-lock-overlay');
+      if (locked) {
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.className = 'paused-lock-overlay';
+          formArea.appendChild(overlay);
+        }
+        overlay.innerHTML = `
+      <div class="paused-lock-banner">
+        <div class="plb-title">⚠️ 過去の版（計画作成日：${escHtml(versionLabel || '未設定')}）を表示しています</div>
+        <div>内容は表示のみです。書き換えるには許可が必要です。</div>
+        <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="confirmUnlockRehabPastVersion()">🔓 編集を許可する</button>
+      </div>`;
+        overlay.style.display = 'flex';
+      } else if (overlay) {
+        overlay.remove();
+      }
+    }
+
+    function confirmUnlockRehabPastVersion() {
+      if (!confirm('過去の版の内容を書き換えます。内容を修正して保存すると、その内容が最新の計画書として更新されます（今の最新版は上書きされます）。よろしいですか？')) return;
+      applyRehabPastVersionLock(false);
+      showStatus('rehabSaveStatus', '🔓 編集を許可しました。内容を修正し、保存してください。', 'info');
     }
 
     // ============================================================
@@ -13690,12 +13744,51 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
 
     // 定期更新（3ヶ月ごと等）の際に、現在保存されている版を「過去の版」として保管し、
     // 新しい版の作成を始めるための機能。フォーム自体は現在の内容のまま編集を続けられる。
+    // 保存前の画面の内容（フォームに直接入力中の値）を、保存はせずにそのままオブジェクトとして読み取る
+    // （「新しい版を作成」で、まだ保存していない編集中の内容も比較対象に含めるために使用）
+    function readRehabFormAsPlanObject() {
+      const plan = {};
+      RP_TEXT_FIELDS.forEach(f => { plan[f] = document.getElementById('rp_' + f)?.value.trim() || ''; });
+      RP_DATE_FIELDS.forEach(f => { plan[f] = document.getElementById('rp_' + f)?.value || ''; });
+      RP_CHIP_FIELDS.forEach(f => { plan[f] = document.getElementById('rp_' + f)?.value || ''; });
+      plan.mindBody = MIND_BODY_ITEMS.map((_, i) => ({
+        status: document.getElementById('mb_' + i + '_status')?.value || '',
+        impact: document.getElementById('mb_' + i + '_impact')?.value || '',
+        note: document.getElementById('mb_' + i + '_note')?.value.trim() || ''
+      }));
+      plan.basicMotion = BASIC_MOTION_ITEMS.map((_, i) => ({
+        start: document.getElementById('bm_' + i + '_start')?.value || '',
+        now: document.getElementById('bm_' + i + '_now')?.value || '',
+        note: document.getElementById('bm_' + i + '_note')?.value.trim() || ''
+      }));
+      plan.adl = ADL_ITEMS.map((_, i) => ({
+        start: document.getElementById('adl_' + i + '_start')?.value || '',
+        now: document.getElementById('adl_' + i + '_now')?.value || '',
+        note: document.getElementById('adl_' + i + '_note')?.value.trim() || ''
+      }));
+      return plan;
+    }
+
+    // 定期更新（3ヶ月ごと等）の際に、現在保存されている版を「過去の版」として保管し、
+    // 新しい版の作成を始めるための機能。フォーム自体は現在の内容のまま編集を続けられる。
     function createNewRehabPlanVersion() {
       const r = appState.rehab.selectedResident;
       if (!r) { alert('利用者を選択してください'); return; }
       const existing = appState.db.rehabPlans[r.id];
       if (!existing) { alert('まだ計画書が作成されていないため、新しい版を作る必要はありません。このまま入力・保存してください。'); return; }
-      if (!confirm('現在保存されている内容を「過去の版」として保管し、新しい版の作成を始めます。\n画面の入力内容はそのまま残りますので、続けて編集し、最後に「保存」を押してください。\n\nよろしいですか？')) return;
+
+      // 保存済みの内容・保管されている過去の版・「今まさに画面に入力中の（未保存の）内容」の
+      // 3種類すべての中から、計画作成日が一番新しいものを探す
+      const formPlan = readRehabFormAsPlanObject();
+      const candidates = [existing, formPlan, ...(existing.versionHistory || [])];
+      const latest = candidates.reduce((best, c) => {
+        if (!c.planDate) return best;
+        if (!best || !best.planDate || c.planDate > best.planDate) return c;
+        return best;
+      }, null) || existing;
+      const isFormAlreadyLatest = latest === formPlan;
+
+      if (!confirm(`計画作成日が一番新しい版（${latest.planDate || '未設定'}）をコピーして、新しい版の作成を始めます。\n保存済みの内容（${existing.planDate || '未設定'}）は「過去の版」として保管されます。\n\nよろしいですか？`)) return;
 
       const snapshot = { ...existing };
       delete snapshot.history;
@@ -13704,8 +13797,14 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       if (!existing.versionHistory) existing.versionHistory = [];
       existing.versionHistory.push(snapshot);
       saveDb();
+
+      // 画面に入力中の内容がすでに一番新しい場合は、そのまま編集を続けられるようフォームには触れない
+      if (!isFormAlreadyLatest) {
+        populateRehabFormFields(latest, r, false);
+      }
+      applyRehabPastVersionLock(false);
       renderRehabPlanVersionHistory();
-      showStatus('rehabSaveStatus', '🆕 新しい版の作成を開始しました。内容を確認・編集し、保存してください。', 'info');
+      showStatus('rehabSaveStatus', `🆕 計画作成日が一番新しい版（${escHtml(latest.planDate || '未設定')}）をコピーして、新しい版の作成を開始しました。内容を確認・編集し、保存してください。`, 'info');
     }
 
     function renderRehabPlanVersionHistory() {
@@ -13714,22 +13813,84 @@ ${customInstructionsBlock('customPromptRehaMeeting')}
       const r = appState.rehab.selectedResident;
       const plan = r && appState.db.rehabPlans[r.id];
       const versions = (plan && plan.versionHistory) || [];
+
+      // 「過去の版」だけでなく、今保存されている最新の内容（計画作成日）も、
+      // 保存後に正しく反映されているか一目で確認できるよう一覧の一番上に表示する
+      const currentLabel = plan
+        ? `<div style="display:flex; justify-content:space-between; align-items:center; background:var(--green-light); border:1.5px solid var(--green); border-radius:var(--radius-sm); padding:9px 12px; margin-bottom:10px;">
+        <b style="color:var(--green);">📌 現在の内容　計画作成日：${escHtml(plan.planDate || '未設定')}</b>
+        <span style="font-size:11px; color:var(--muted);">保存：${escHtml(plan.updatedAt || '')}</span>
+      </div>`
+        : '';
+
       if (!versions.length) {
-        el.innerHTML = `<div style="color:var(--muted); font-size:13px;">過去の版はまだありません</div>`;
+        el.innerHTML = `${currentLabel}<div style="color:var(--muted); font-size:13px;">過去の版はまだありません</div>`;
         return;
       }
-      el.innerHTML = versions.map((v, idx) => idx).reverse().map(idx => {
+      el.innerHTML = currentLabel + versions.map((v, idx) => idx).reverse().map(idx => {
         const v = versions[idx];
         return `<div class="review-item" style="display:block; cursor:default;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="loadRehabPlanVersionIntoForm(${idx})">
         <b>計画作成日：${escHtml(v.planDate || '未設定')}</b>
         <span style="font-size:11.5px; color:var(--muted);">保存：${escHtml(v.updatedAt || '')}</span>
       </div>
-      <div style="margin-top:4px;">
-        <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="printRehabPlanVersion('${r.id}', ${idx})">🖨️ この版を印刷</span>
+      <div style="margin-top:6px;">
+        <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="loadRehabPlanVersionIntoForm(${idx})">📖 この内容をフォームに読み込む</span>
+        &nbsp;&nbsp;
+        <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="event.stopPropagation(); printRehabPlanVersion('${r.id}', ${idx})">🖨️ この版を印刷</span>
+        &nbsp;&nbsp;
+        <span style="font-size:12px; color:var(--danger); cursor:pointer;" onclick="event.stopPropagation(); deleteRehabPlanVersion('${r.id}', ${idx})">🗑️ この版を削除</span>
       </div>
     </div>`;
       }).join('');
+    }
+
+    // 選択した過去の版1件だけを削除する（計画書全体や他の版には影響しない）
+    function deleteRehabPlanVersion(residentId, versionIdx) {
+      const plan = appState.db.rehabPlans[residentId];
+      const versions = (plan && plan.versionHistory) || [];
+      const v = versions[versionIdx];
+      if (!v) return;
+      if (!confirm(`計画作成日：${v.planDate || '未設定'}（保存：${v.updatedAt || ''}）の版を削除します。\nこの操作は取り消せません。\n\nよろしいですか？`)) return;
+
+      plan.versionHistory.splice(versionIdx, 1);
+
+      // 削除した版と同じ作成日の内容が、現在アクティブな計画書自体にも残っている場合
+      // （＝「新しい版を作成」でこのまま複製しただけで、まだ編集していない状態）は、
+      // 「現在の内容」欄に削除したはずのものが残って見えて紛らわしいため、自動的に更新する
+      // （残っている版の中で一番新しいものに置き換え。無ければ空欄にリセット）
+      // ※置き換え元として使った版は「現在の内容」に昇格させるので、過去の版一覧からは取り除く（重複防止）
+      if (plan.planDate && v.planDate && plan.planDate === v.planDate) {
+        const remaining = plan.versionHistory || [];
+        let nextLatest = null;
+        let nextLatestIdx = -1;
+        remaining.forEach((c, i) => {
+          if (!c.planDate) return;
+          if (!nextLatest || !nextLatest.planDate || c.planDate > nextLatest.planDate) {
+            nextLatest = c;
+            nextLatestIdx = i;
+          }
+        });
+        if (nextLatest) {
+          const newVersionHistory = remaining.slice();
+          newVersionHistory.splice(nextLatestIdx, 1);
+          appState.db.rehabPlans[residentId] = { ...nextLatest, history: plan.history || [], versionHistory: newVersionHistory };
+        } else {
+          appState.db.rehabPlans[residentId] = { history: plan.history || [], versionHistory: [] };
+        }
+      }
+
+      saveDb();
+
+      // 削除した版の内容が今のフォームに読み込まれたまま（表示・ロック中）になっていないよう、
+      // 現在保存されている本来の計画書の内容に作り直しておく
+      const r = appState.rehab.selectedResident;
+      if (r && r.id === residentId) {
+        applyRehabPastVersionLock(false);
+        loadRehabForm(r.id, r);
+      }
+      renderRehabPlanVersionHistory();
+      showStatus('rehabSaveStatus', '🗑️ 選択した版を削除しました。', 'info');
     }
 
     function printRehabPlanVersion(residentId, versionIdx) {
